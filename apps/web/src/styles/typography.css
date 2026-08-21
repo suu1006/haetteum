@@ -1,0 +1,67 @@
+:root {
+  --font-family-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-family-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+}
+
+@layer utilities {
+  .type-display {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 2.5rem;
+    letter-spacing: -0.025em;
+  }
+
+  .type-title-lg {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .type-title-md {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+    letter-spacing: -0.0125em;
+  }
+
+  .type-body-lg {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5rem;
+  }
+
+  .type-body-md {
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.3125rem;
+  }
+
+  .type-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+  }
+
+  .type-caption {
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.125rem;
+  }
+}

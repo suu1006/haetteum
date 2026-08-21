@@ -1,0 +1,123 @@
+:root {
+  color-scheme: light;
+
+  --purple-50: oklch(0.9707 0.0164 301.22);
+  --purple-600: oklch(0.5249 0.2351 289.26);
+  --purple-700: oklch(0.4625 0.2141 289.12);
+
+  --neutral-0: oklch(1 0 0);
+  --neutral-25: oklch(0.9913 0.0013 286.38);
+  --neutral-100: oklch(0.9702 0.0025 286.35);
+  --neutral-200: oklch(0.9264 0.0067 286.27);
+  --neutral-600: oklch(0.4833 0.0146 275.85);
+  --neutral-950: oklch(0.2146 0.0099 276.58);
+
+  --amber-500: oklch(0.8131 0.165 75.04);
+  --red-600: oklch(0.6256 0.1933 23.03);
+  --red-700: oklch(0.5805 0.1963 24.34);
+  --blue-600: oklch(0.6093 0.1819 257.29);
+
+  --welcome-ranking: oklch(0.756 0.148 296.14);
+  --welcome-course: oklch(0.775 0.142 151.32);
+  --welcome-reviews: oklch(0.735 0.183 349.75);
+  --welcome-glass: oklch(1 0 0 / 80%);
+
+  --background: var(--neutral-25);
+  --foreground: var(--neutral-950);
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-950);
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-950);
+  --primary: var(--purple-600);
+  --primary-foreground: var(--neutral-0);
+  --primary-pressed: var(--purple-700);
+  --primary-subtle: var(--purple-50);
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-950);
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-600);
+  --accent: var(--purple-50);
+  --accent-foreground: var(--purple-700);
+  --destructive: var(--red-700);
+  --destructive-foreground: var(--neutral-0);
+  --border: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: var(--purple-600);
+  --rating: var(--amber-500);
+  --current-location: var(--blue-600);
+  --route-line: var(--purple-600);
+
+  --radius-foundation-sm: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-dialog: 1.25rem;
+  --radius-drawer: 1.5rem;
+  --radius-pill: 999px;
+
+  --elevation-card: 0 1px 2px oklch(0.2146 0.0099 276.58 / 5%);
+  --elevation-floating:
+    0 10px 30px oklch(0.2146 0.0099 276.58 / 10%),
+    0 2px 8px oklch(0.2146 0.0099 276.58 / 6%);
+  --elevation-overlay: 0 18px 50px oklch(0.2146 0.0099 276.58 / 16%);
+
+  --motion-fast: 120ms;
+  --motion-default: 180ms;
+  --motion-overlay: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-heading: var(--font-family-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-rating: var(--rating);
+  --color-current-location: var(--current-location);
+  --color-route-line: var(--route-line);
+  --color-welcome-ranking: var(--welcome-ranking);
+  --color-welcome-course: var(--welcome-course);
+  --color-welcome-reviews: var(--welcome-reviews);
+  --color-welcome-glass: var(--welcome-glass);
+
+  --radius-sm: var(--radius-foundation-sm);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-control);
+  --radius-xl: var(--radius-card);
+  --radius-2xl: var(--radius-dialog);
+  --radius-3xl: var(--radius-drawer);
+
+  --shadow-card: var(--elevation-card);
+  --shadow-floating: var(--elevation-floating);
+  --shadow-overlay: var(--elevation-overlay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
