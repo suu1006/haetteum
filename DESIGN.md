@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Status: Active
-- Last refreshed: 2026-08-21
+- Last refreshed: 2026-08-24
 - Primary product surfaces: 모바일 웰컴, 여행 탐색 메인, 통합 후기, 여행 경로 및 일정
 - Evidence reviewed:
   - ChatGPT 대화 `디자인 시스템 구성계획`에서 승인된 기술 및 시각 기준
@@ -35,7 +35,7 @@
   - 여행지, 후기, 지도, 일정을 빠르게 훑고 다음 행동을 쉽게 선택하게 한다.
   - 화면을 추가해도 색상, 간격, 타이포그래피와 상태 표현이 자연스럽게 확장되게 한다.
 - Non-goals:
-  - 1차에서는 다크 모드, 멀티 브랜드, 데스크톱 전용 레이아웃을 만들지 않는다.
+  - 1차에서는 다크 모드와 멀티 브랜드를 만들지 않으며, 데스크톱 전용 정보구조는 웰컴 화면의 승인된 2열 히어로에 한정한다.
   - 디자인 시스템을 별도 npm 패키지로 분리하거나 외부 배포하지 않는다.
   - 모든 shadcn 컴포넌트를 미리 설치하지 않는다.
   - 지도 SDK, 일정 드래그 정렬, 실제 데이터 연동은 Foundation 범위에 포함하지 않는다.
@@ -64,7 +64,10 @@
 - Core routes/screens:
   - 웰컴: 서비스 가치와 핵심 기능 진입
   - 메인: 지역 탐색, 관광지 순위, 축제, AI 코스 진입
-  - 후기: 통합 평점, 출처 필터, 후기 피드
+  - 장소 상세 `/places/[placeId]`: 통합 평점, 출처 필터, 후기 피드. 소개,
+    코스 추천과 정보 탭은 준비 중 상태
+  - 관광지 릴스 `/reels/[videoId]`: 선택 영상부터 시작하는 세로형 전체 화면
+    미리보기, 반응과 공유
   - 여행 경로: 지도, 현재 위치, 경로, 일정 타임라인, 수정 진입
 - Content hierarchy:
   1. 현재 화면의 목적과 사용자 위치
@@ -172,9 +175,17 @@ features / app routes
 --rating                 → amber-500
 --current-location       → blue-600
 --route-line             → purple-600
+--image-foreground       → neutral-0
+--image-foreground-muted → neutral-0 / 86%
+--image-scrim            → black / 34%
 ```
 
 외부 후기 출처 색상은 `--provider-kakao`, `--provider-google`, `--provider-naver`로 격리하고, 일반 상태나 버튼 색으로 재사용하지 않는다.
+
+이미지 위 텍스트와 제한된 scrim은 `--image-foreground`,
+`--image-foreground-muted`, `--image-scrim`으로만 표현한다. 이 토큰은 히어로와
+이미지 카드의 가독성 보정용이며 일반 surface, 버튼 또는 상태 색상으로 재사용하지
+않는다.
 
 웰컴 기능 카드의 아이콘 surface는 `--welcome-ranking`, `--welcome-course`,
 `--welcome-reviews`로 격리하고, 반투명 카드 surface는 `--welcome-glass`를 사용한다.
@@ -190,6 +201,7 @@ features / app routes
 | Role | Size / Line height | Weight | Usage |
 |---|---|---:|---|
 | `display` | 32 / 40 | 700 | 웰컴 핵심 문구 |
+| `display-desktop` | 56 / 64 | 700 | 1024px 이상 웰컴 핵심 문구 |
 | `title-lg` | 24 / 32 | 700 | 페이지 제목 |
 | `title-md` | 20 / 28 | 600 | 섹션 제목 |
 | `body-lg` | 16 / 24 | 400 | 주요 본문과 큰 컨트롤 |
@@ -208,7 +220,7 @@ features / app routes
 - Card/list gap: 12px
 - Section gap: 24px
 - Major section gap: 32px
-- Content max width: 모바일 우선 100%; 넓은 화면에서는 앱 surface를 중앙 정렬하되 별도 데스크톱 IA는 만들지 않는다.
+- Content max width: 모바일은 100%, 태블릿은 480px 앱 surface를 사용한다. 1024px 이상 웰컴 화면은 2열로 전환하고, 1280px 이상에서는 내부 콘텐츠를 화면의 약 83%로 제한하며 최대 폭은 1388px이다.
 
 ### Shape/radius/elevation
 
@@ -228,6 +240,8 @@ features / app routes
 - Tab/filter state: 150–200ms
 - Dialog/drawer: 200–300ms
 - Easing: 빠른 진입과 부드러운 정지를 우선한다.
+- 데스크톱 웰컴은 오른쪽 패널에서 채팅을 800ms 간격으로 하나씩 노출한 뒤 `로딩 → AI 코스·CTA`로 직접 전환하고 마지막 상태에서 멈춘다. 채팅은 560ms의 짧은 상승·opacity, 최종 패널은 48px 이동·opacity를 900ms 동안 적용한다.
+- 웰컴 자동 재생은 탭이 숨겨지면 멈추고, `prefers-reduced-motion: reduce`에서는 마지막 CTA 상태를 즉시 표시한다.
 - `prefers-reduced-motion: reduce`에서는 이동과 확대를 제거하고 opacity 전환도 최소화한다.
 - 장식용 반복 애니메이션은 사용하지 않는다.
 
@@ -238,6 +252,7 @@ features / app routes
 - 여행지 이미지는 컴포넌트별 aspect ratio를 고정해 데이터에 따른 레이아웃 흔들림을 막는다.
 - 장식 아이콘보다 실제 사진, 위치, 평점, 출처 정보가 우선한다.
 - 제품이 소유하는 정적 이미지는 `apps/web/public/images`, 브랜드 및 PWA 아이콘은 `apps/web/public/icons`에서 관리한다.
+- 웰컴 배경은 모바일 세로 이미지와 데스크톱 가로 이미지를 art direction으로 분리해 각 화면비에서 풍선과 산의 주요 구도가 잘리지 않게 한다.
 - favicon과 Apple touch icon도 `apps/web/public/icons`에서 관리하고, `apps/web/src/app/layout.tsx`의 `metadata.icons`로 명시적으로 연결한다.
 - UI 아이콘은 정적 파일로 복제하지 않고 `lucide-react` 컴포넌트를 사용한다.
 
@@ -255,10 +270,20 @@ features / app routes
 - Icon library: Lucide
 - Theme: light only
 
-### Existing components to reuse
+### Existing implemented components to reuse
 
-- Foundation: Button, Toggle, ToggleGroup, Card
-- Travel: PlaceCard, RatingSummary, ProviderBadge, ReviewCard, ItineraryItem
+- Foundation: Button, Input, Toggle, ToggleGroup, Card, Badge, Carousel, Select
+- Travel: PlaceCard, PlaceRankingCard, FestivalListItem, AiCourseBanner,
+  FestivalFilterGroup, FestivalRankingCard, FestivalFeatureBanner,
+  FestivalCardRail, BottomNavigation, RatingSummary, ProviderBadge, ReviewCard,
+  ReviewProviderMark, PlaceDetailHeader, PlaceDetailTabs, PlaceReviewOverview,
+  ReviewSourceFilter, PlaceDetailPreparation, PlaceDetailActions, ItineraryItem,
+  PopularVideoCard, TravelThemeItem, VideoCourseCard, CourseQuickSaveCard,
+  ThemeFeatureCard, ThemeCourseCard, NearbyPlaceSelectCard
+- Patterns: WelcomeHero, WelcomeFeatureCard, MainDiscovery, DiscoveryHero,
+  DiscoverySearchPanel, RankedPlaceSection, FestivalSection, FestivalDiscovery,
+  PopularPlacesTab, ThemeFeatureCarousel, ThemeTravelSection, PlaceDetailScreen,
+  NearbyPlaceSearchScreen
 - `apps/web/src/app/layout.tsx`의 한국어 문서 구조와 App Router 경계를 유지한다.
 - `apps/web/src/app/globals.css`는 전역 진입점만 담당한다.
 
@@ -272,9 +297,11 @@ apps/web/src/styles/typography.css
 apps/web/src/styles/safe-area.css
 apps/web/src/lib/utils.ts
 apps/web/src/components/ui/button.tsx
+apps/web/src/components/ui/input.tsx
 apps/web/src/components/ui/toggle.tsx
 apps/web/src/components/ui/toggle-group.tsx
 apps/web/src/components/ui/card.tsx
+apps/web/src/components/ui/badge.tsx
 ```
 
 Foundation 확인 화면은 제품 첫 화면과 섞지 않고 별도 `/design-system` route에
@@ -283,25 +310,103 @@ Foundation 확인 화면은 제품 첫 화면과 섞지 않고 별도 `/design-s
 ### shadcn components to add later, on demand
 
 ```text
-input, input-group, tabs, badge, separator, avatar,
-dialog, alert-dialog, drawer, carousel, scroll-area,
-skeleton, spinner, sonner
+input-group, tabs, separator, avatar, dialog, alert-dialog, drawer,
+scroll-area, skeleton, spinner, sonner
 ```
 
-### Travel components
+### Implemented travel components
 
 ```text
-app-bar
 bottom-navigation
 place-card
 place-ranking-card
 festival-list-item
+festival-filter-group
+festival-ranking-card
+festival-feature-banner
+festival-card-rail
 ai-course-banner
+popular-video-card
+travel-theme-item
+video-course-card
+course-quick-save-card
+theme-feature-card
+theme-course-card
 rating-summary
 review-card
 provider-badge
+review-provider-mark
+place-detail-header
+place-detail-tabs
+place-review-overview
+review-source-filter
+place-detail-preparation
+place-detail-actions
 itinerary-item
+nearby-place-select-card
 ```
+
+### Travel components to add later, on demand
+
+```text
+app-bar
+```
+
+### Implemented popular-place tab and reels components
+
+The implemented `tab=places` unit and `/reels/[videoId]` route use explicit
+display props and narrow Client Component boundaries. They do not own API
+requests or global state.
+
+```text
+popular-video-card
+popular-video-rail
+reels-viewer
+travel-theme-item
+video-course-card
+course-quick-save-card
+```
+
+- `PopularVideoRail` owns Embla selection and ensures only the selected visible
+  `PopularVideoCard` auto-plays. Hidden, background, reduced-motion and
+  save-data states pause or skip playback.
+- `PopularVideoCard` presents a muted local video with poster fallback,
+  highlight badge, duration, title, view count, like count, and location. The
+  whole card links to its reel route.
+- `ReelsViewer` owns vertical scroll snap, one active video, local like state,
+  Web Share/clipboard fallback and back-position restoration. Comment and more
+  remain clearly labeled preparation states.
+- `TravelThemeItem` presents a circular image and a short theme label.
+- `TravelThemeMoreItem` reuses the same footprint for the visual-only
+  `더보기` item.
+- `VideoCourseCard` presents a landscape poster, duration, course title,
+  summary, and location.
+- `CourseQuickSaveCard` remains available as a standalone visual-only promotion,
+  but the current popular-place tab no longer renders it in the video-course rail.
+- Current video assets are approved 6-second silent motion previews generated
+  from local posters. The `video.src` contract can later receive licensed real
+  footage without changing component boundaries.
+
+### Implemented theme-travel tab components
+
+`tab=ai-course`는 기존 app header, 검색, 상단 콘텐츠 탭과 하단 내비게이션을
+유지하면서 다음 mock 기반 테마 탐색 단위를 렌더링한다.
+
+```text
+ThemeCourseExplorer
+└─ ThemeTravelSection
+   ├─ ThemeFeatureCarousel → ThemeFeatureCard
+   └─ ToggleGroup / Select → ThemeCourseCard list
+```
+
+- `ThemeFeatureCard`와 `ThemeCourseCard`는 명시적 props만 받으며 필터, 정렬,
+  라우트 또는 데이터 요청을 소유하지 않는다.
+- `ThemeCourseExplorer`만 작은 Client Component 경계로 동작하며 선택 테마,
+  인기순·평점순, 화면 생명주기 동안의 저장 ID를 소유한다.
+- 데이터는 `features/themes/theme-travel.mock.ts`에 한정한다. API, React Query,
+  Zustand와 영속 저장은 연결하지 않는다.
+- 테마 카드 이미지는 `Carousel`, 필터는 `ToggleGroup`, 정렬은 `Select`, 코스
+  표면은 `Card`와 `Badge`를 재사용한다.
 
 #### Travel content implementation unit
 
@@ -312,9 +417,9 @@ Phase 3의 첫 구현 단위는 데이터 요청이나 라우팅을 소유하지
 | Component | Required data | Optional state / slot | Semantic root |
 |---|---|---|---|
 | `PlaceCard` | `title`, `location`, `rating`, `reviewCount` | `media`, `tags`, `saved`, `onSavedChange` | `article` |
-| `RatingSummary` | `value`, `reviewCount` | `distribution`, `size` | labelled `section` |
+| `RatingSummary` | `value`, `reviewCount` | `distribution`, `size`, `layout`, `tone`, `distributionValue` | labelled `section` |
 | `ProviderBadge` | `provider` | `icon` | text badge |
-| `ReviewCard` | `author`, `rating`, `date`, `content`, `provider` | `providerIcon`, `avatar` | `article` |
+| `ReviewCard` | `author`, `rating`, `date`, `content`, `provider` | `providerIcon`, `avatar`, `variant`, `images`, `likeCount` | `article` |
 | `ItineraryItem` | `order`, `time`, `title`, `location`, `status` | `travelDuration`, `isLast` | `li` |
 
 - `media`, `providerIcon`, `avatar`는 `ReactNode` slot이다. 원격 이미지 호스트나
@@ -334,19 +439,74 @@ Phase 3의 첫 구현 단위는 데이터 요청이나 라우팅을 소유하지
 
 ### Product patterns
 
+Implemented:
+
 ```text
 welcome-hero
 welcome-feature-card
+welcome-desktop-conversation
+welcome-chat-message
+welcome-desktop-showcase
+welcome-chat-slide
+welcome-course-slide
+welcome-course-step-card
+welcome-actions
 ranked-place-section
 main-discovery
 discovery-hero
 discovery-search-panel
 festival-section
-integrated-review-feed
+festival-discovery
+popular-places-tab
+place-detail-screen
+nearby-place-search-screen
+```
+
+Add later, on demand:
+
+```text
 map-route-panel
 itinerary-timeline
-sticky-page-action
 ```
+
+`PopularPlacesTab` composes the auto-playing popular-video rail, a six-item
+theme row including `더보기`, and a four-course two-column grid. The
+`영상으로 둘러보기` CTA opens the first filtered reel; `더보기` remains a
+visual-only label because no destination is approved.
+
+`NearbyPlaceSearchScreen`은 일정 수정 화면의 전체 화면 후속 단계로 검색 field,
+category filter, 정렬, `NearbyPlaceSelectCard` 목록과 fixed 선택 CTA를 조합한다.
+`CoursePlacePicker`만 검색어, filter, sort와 선택 ID의 비영속 mock 상태를 소유한다.
+표현 컴포넌트는 mock, route와 코스 draft를 직접 참조하지 않으며 API, 새 route와
+전역 store는 추가하지 않는다.
+
+### Place review detail composition
+
+`/places/[placeId]`는 메인의 모든 `PlaceRankingCard`가 공유하는 동적 장소 상세
+route다. 현재 구현은 후기 탭만 완성하고 소개, 코스 추천과 정보 탭은 선택한 탭을
+유지하는 준비 중 화면을 제공한다.
+
+```text
+PlaceDetailScreen
+├─ PlaceDetailHeader
+├─ PlaceDetailTabs
+├─ reviews → PlaceReviewOverview / ReviewSourceFilter / ReviewCard feed
+├─ introduction | course | information → PlaceDetailPreparation
+└─ reviews → PlaceDetailActions
+```
+
+- 메인 장소 요약은 `mainDiscoveryMock.places`, 후기 분포와 피드는
+  `features/places/place-detail.mock.ts`가 장소 ID로 확장한다.
+- 탭과 후기 출처는 URL query로 표현하고, 알려지지 않은 값은 후기/전체로
+  정규화한다. 존재하지 않는 장소 ID는 scoped 404로 처리한다.
+- `RatingSummary`의 기존 stacked/rating 기본값은 유지한다. 장소 상세만
+  `layout="split"`, `tone="primary"`, `distributionValue="count"`를 사용한다.
+- `ReviewCard`의 기존 default variant는 유지한다. 장소 상세만 provider,
+  이미지 rail, 작성자 metadata와 좋아요 수를 갖는 `feed` variant를 사용한다.
+- 뒤로가기, 찜과 공유는 `PlaceDetailHeader`, 후기 작성 준비 중 안내는
+  `PlaceDetailActions`의 작은 Client Component 경계에 한정한다.
+- 후기 작성, 실제 찜 저장, API 연동과 세 준비 중 탭의 실제 콘텐츠는 구현된
+  기능으로 간주하지 않는다.
 
 ### Main discovery composition
 
@@ -357,16 +517,42 @@ sticky-page-action
 MainDiscovery
 ├─ DiscoveryHero
 ├─ DiscoverySearchPanel
-├─ RankedPlaceSection
-├─ AiCourseBanner / FestivalSection
+├─ recommended → RankedPlaceSection / AiCourseBanner / FestivalSection
+├─ places → PopularPlacesTab
+├─ festivals → FestivalDiscovery
+├─ ai-course → ThemeCourseExplorer / ThemeTravelSection
 └─ BottomNavigation
 ```
 
 - `DiscoveryHero`는 여행 이미지, 인사말과 메인 질문만 소유한다.
 - `DiscoverySearchPanel`은 검색 필드, 콘텐츠 탭과 지역 필터를 조합한다.
 - `RankedPlaceSection`은 `PlaceRankingCard`의 순서와 가로 스크롤만 소유한다.
+- `PopularPlacesTab`은 `릴스형 인기 관광지 → 테마 원형 목록 → 지금 뜨는 영상 코스`의
+  순서를 소유한다. 릴스는 시각 화살표 없는 swipe Carousel, 영상 코스는
+  두 열 grid를 사용한다.
+- 릴스 Carousel은 선택된 카드 하나만 muted·inline·loop 재생하고 나머지는
+  정지한다. 카드와 `영상으로 둘러보기`는 선택된 `/reels/[videoId]`로 이동한다.
+- 320px에서는 릴스 카드의 좋아요·위치 값을 시각적으로 숨기되 스크린리더 정보는
+  유지한다. 영상 코스는 설명과 위치를 한 줄로 제한해 2열 구조를 유지한다.
+- `FestivalDiscovery`는 URL 기반 축제 필터, 순위 카드 레일, 이달의 축제와
+  AI 축제 코스를 조합한다. `더 많은 축제 보기` 상태만 작은 Client Component인
+  `FestivalCardRail`이 소유한다.
 - `AiCourseBanner`, `FestivalListItem`, `BottomNavigation`은 명시적 props를 받는
   여행 표현 컴포넌트로 만들고 라우트 파일이나 API를 직접 참조하지 않는다.
+- `인기 관광지` 탭은 기존 app header, 검색, 콘텐츠 탭과 하단
+  내비게이션을 그대로 사용한다. 추천 탭의 기존 TOP 3, AI 코스, 축제 구성은
+  변경하지 않는다.
+- `관광 축제` 탭도 공통 hero, 검색, 지역 필터와 하단 내비게이션을 유지한다.
+  `진행 중`, `이번 주`, `무료`, `가족` 필터는 검색어와 지역을 보존한 URL
+  query로 표현하며 링크 안에 Toggle 버튼을 중첩하지 않는다.
+- `테마 여행` 탭은 카드 선택과 `테마 전체보기`에서 추천 목록으로 이동하고,
+  테마 필터, 인기순·평점순 정렬, 비영속 저장 토글을 mock 데이터로 처리한다.
+- 숏폼 관광지와 영상 코스는 선택 지역과 검색어를 적용한다. 여행 테마는
+  지역과 무관한 탐색 카테고리이므로 항상 노출한다.
+- Foundation은 기존 `Card`, `Carousel`, `Badge`를 재사용한다. 인기 탭의 visual
+  CTA는 기능이 승인되지 않았으므로 button/link semantics를 만들지 않는다. URL query를
+  소유하는 상단
+  탭은 로컬 상태 기반 `Tabs`로 교체하지 않는다.
 - 이번 구현은 `apps/web/src/features/discovery/main-discovery.mock.ts`의 읽기 전용
   mock 데이터를 사용한다. 검색어, 콘텐츠 탭과 지역 필터는
   URL query를 통해 mock 목록에 반영하고 실제 API, 전역 store 또는 영속 상태를
@@ -428,8 +614,10 @@ MainDiscovery
 - Supported breakpoints/devices: 320px 이상 모바일을 1차 기준으로 하고 최신 주요 브라우저를 지원한다.
 - Layout adaptations:
   - 320–767px: 기본 모바일 layout
-  - 768px 이상: 콘텐츠 폭을 제한하고 중앙 정렬하며 모바일 정보 구조를 유지
-  - 데스크톱 전용 다단 정보 구조는 별도 승인 전 도입하지 않는다.
+  - 768–1023px: 콘텐츠 폭을 480px로 제한하고 중앙 정렬하며 모바일 정보 구조를 유지
+  - 1024px 이상 웰컴: 가로 배경 위 왼쪽 제목·설명·구분선을 고정하고, 오른쪽에 자동 재생 여행 추천 슬라이드를 배치하는 2열 layout
+  - 1280px 이상 웰컴: 배경은 화면 전체를 유지하고 내부 2열 콘텐츠를 화면의 약 83%, 최대 1388px로 제한
+  - 웰컴 외 제품 화면의 데스크톱 전용 다단 정보 구조는 별도 승인 전 도입하지 않는다.
 - Touch/hover differences:
   - 터치 target은 최소 44×44px이다.
   - hover는 색 또는 elevation의 미세한 보조 변화만 제공한다.
@@ -481,7 +669,7 @@ MainDiscovery
   - axe 기반 접근성 검사를 핵심 컴포넌트 테스트에 포함한다.
   - ESLint, 테스트, TypeScript/production build를 모두 통과해야 한다.
   - `/design-system`에서 버튼, toggle, toggle group, card의 모든 1차 상태를 육안 확인한다.
-  - 핵심 모바일 폭 320px, 390px과 넓은 화면 768px에서 overflow와 터치 영역을 확인한다.
+  - 핵심 폭 320px, 390px, 768px, 1024px, 1440px에서 overflow, 이미지 art direction과 터치 영역을 확인한다.
 
 ## Delivery phases
 
@@ -515,7 +703,7 @@ MainDiscovery
 
 - 승인된 원본 화면과 시각 비교
 - 키보드, screen reader semantics, 대비, reduced motion 점검
-- 320/390/768px responsive 점검
+- 320/390/768/1024/1440px responsive 점검
 - 중복 utility와 예외 토큰 제거
 
 ## Open questions

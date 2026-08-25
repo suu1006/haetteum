@@ -3,7 +3,7 @@
 ## 문서의 역할
 
 - **상태:** Active
-- **마지막 갱신:** 2026-08-20
+- **마지막 갱신:** 2026-08-24
 - **기준:** 현재 작업 트리의 코드와 설정
 
 이 문서는 Haetteum의 프론트엔드, 백엔드, 공유 계약, 데이터베이스가 어떤
@@ -15,6 +15,7 @@
 - `README.md`: 설치, 실행 방법, 로컬 개발 명령
 - `ARCHITECTURE.md`: 시스템 전체 구조, 의존 방향, 데이터 흐름
 - `DESIGN.md`: UI/UX, 디자인 토큰, 프론트엔드 표현 계층
+- `docs/ERD.md`: 관광 데이터베이스의 현재 관계와 확장 예정 구조
 - `docs/superpowers/specs`: 특정 변경을 시작할 때 승인한 설계 기록
 - `docs/superpowers/plans`: 승인된 설계를 구현하기 위한 시점별 작업 계획
 
@@ -56,16 +57,21 @@ flowchart LR
     Contracts["packages/contracts<br/>Zod + TypeScript"] -. "의존성만 선언됨" .-> Web
     Contracts --> API
 
-    API --> Prisma["Prisma 7 Client"]
+    Provider["한국관광공사 TourAPI<br/>JSON"] --> Tourism["TourismModule<br/>전체·증분 동기화"]
+    Scheduler["매일 03:30<br/>Asia/Seoul"] --> Tourism
+    Tourism --> Prisma["Prisma 7 Client<br/>관광 데이터베이스"]
+    API --> Prisma
     Prisma --> DB["PostgreSQL 18<br/>Docker Compose"]
 
     API --- Health["GET /api/v1/health"]
+    API --- Places["GET /api/v1/places"]
 ```
 
 현재 웹에는 디자인 시스템과 여행 정보 표현 컴포넌트가 구현되어 있다. API에는
-공통 HTTP 경계, 환경변수 검증, Prisma 연결과 health endpoint가 구현되어 있다.
-웹에서 API를 호출하는 제품 데이터 흐름, 인증, 여행 도메인과 AI 추천은 아직
-구현되지 않았다.
+공통 HTTP 경계, 환경변수 검증, Prisma 연결, health endpoint, TourAPI JSON
+client, 전체·증분 동기화와 PostgreSQL 기반 관광지 조회 endpoint가 구현되어
+있다. 웹에서 API를 호출하는 제품 데이터 흐름, 인증, 인기순위·축제·후기와 AI
+추천은 아직 구현되지 않았다.
 
 ### 2.2 확정된 제품 방향
 
@@ -85,8 +91,9 @@ flowchart LR
     API --> Web
 ```
 
-이 그림은 제품 수준에서 확정된 방향을 나타낼 뿐, 세션 저장소, 도메인 스키마,
-외부 AI 제공자와 각 API 계약이 구현됐다는 의미는 아니다.
+이 그림은 제품 수준에서 확정된 전체 방향이다. 이 중 TourAPI 동기화와 관광지
+조회는 구현됐지만, 세션 저장소, 외부 AI 제공자와 나머지 제품 API 계약은 아직
+구현되지 않았다.
 
 ## 3. 저장소 구조
 
@@ -113,12 +120,15 @@ haetteum/
 │   │
 │   └── api/                          # ✅ NestJS REST API
 │       ├── prisma/
-│       │   └── schema.prisma         # Prisma generator와 PostgreSQL datasource
+│       │   ├── migrations/            # 관광 데이터, DB comment, 시군구 unique migration
+│       │   └── schema.prisma         # 관광 데이터 기반 모델과 PostgreSQL datasource
 │       ├── src/
 │       │   ├── common/http/          # 요청 ID, 오류 변환, Zod 검증
 │       │   ├── config/               # API 환경변수 검증
 │       │   ├── health/               # 데이터베이스 health endpoint
+│       │   ├── places/               # 동기화된 관광지 공개 조회 API
 │       │   ├── prisma/               # Prisma lifecycle과 DB 접근 기반
+│       │   ├── tourism/              # TourAPI client, mapper, sync, scheduler, command
 │       │   ├── app.module.ts         # 루트 Nest module
 │       │   ├── configure-app.ts      # prefix, versioning, CORS, filter
 │       │   └── main.ts               # API bootstrap
@@ -128,6 +138,7 @@ haetteum/
 │   └── contracts/                    # ✅ 웹·API 공유 HTTP 계약
 │       └── src/
 │           ├── health.ts
+│           ├── places.ts
 │           ├── problem-details.ts
 │           └── index.ts
 │
@@ -143,8 +154,10 @@ haetteum/
 
 - `apps/web/src/components/patterns`: 여러 표현 컴포넌트의 화면 단위 조합
 - `apps/web/src/features`: API 데이터와 사용자 흐름을 기능별로 연결
-- API의 인증, 사용자, 여행지, 여행, 일정, 추천, 동기화 도메인 모듈
-- Prisma 도메인 모델과 첫 migration
+- API의 인증, 사용자, 여행, 일정, 추천 도메인 모듈
+
+Prisma schema에는 관광 데이터 기반인 `TourismRegion`, `TourismDistrict`, `Place`,
+`TourismSyncRun` 모델과 기반·DB comment·시군구 복합 unique migration이 구현되어 있다.
 
 ## 4. Workspace 경계와 의존 방향
 
@@ -241,10 +254,11 @@ prefetch 정책은 실제 첫 제품 flow 설계에서 확정한다.
 - Prisma 7.9.1 + PostgreSQL adapter
 - PostgreSQL 18.4 Docker Compose
 - Zod 4 기반 환경변수와 HTTP 입력 검증 기반
+- `@nestjs/schedule` 6.1.3 기반 일일 동기화
 - Jest + Supertest
 
-현재 `AppModule`에는 `ConfigModule`, `PrismaModule`, `HealthModule`만 연결되어
-있다. 도메인 비즈니스 module은 아직 없다.
+현재 `AppModule`에는 `ConfigModule`, `ScheduleModule`, `PrismaModule`,
+`HealthModule`, `TourismModule`, `PlacesModule`이 연결되어 있다.
 
 ### 6.2 서버 부팅 흐름
 
@@ -258,8 +272,9 @@ flowchart TD
     Shutdown --> Listen["0.0.0.0:4000 listen"]
 ```
 
-필수 환경변수가 없거나 올바르지 않으면 API는 listen 전에 실패한다. Prisma는
-module 초기화 때 연결하고 종료 때 연결을 해제한다.
+필수 환경변수가 없거나 올바르지 않으면 API는 listen 전에 실패한다. TourAPI
+환경변수는 자동 동기화가 활성화된 경우에만 부팅 시 필수로 검증한다. Prisma는
+module 초기화 때 연결·readiness query를 수행하고 종료 때 연결을 해제한다.
 
 ### 6.3 HTTP 요청 흐름
 
@@ -287,8 +302,8 @@ sequenceDiagram
     Controller-->>Client: JSON response + X-Request-Id
 ```
 
-현재는 health controller만 존재하므로 `Application/Domain Service` 단계는 향후
-도메인 API가 추가될 때 생긴다.
+현재 health는 indicator를, places는 application service와 Prisma를, tourism은 동기화
+service와 외부 client를 거친다.
 
 ### 6.4 API 공통 규칙
 
@@ -313,27 +328,30 @@ MVP의 제품 범위는 회원, 여행지 조회, 일정 생성·수정·저장,
 |---|---|---|
 | `auth` | Kakao OAuth, 서버 세션, 로그인 상태 | 🔒 방향 확정, 미구현 |
 | `users` | 사용자 프로필과 계정 상태 | 🔒 범위 확정, 미구현 |
-| `places` | 동기화된 여행지 조회 | 🔒 범위 확정, 미구현 |
+| `places` | 동기화된 여행지 조회 | ✅ DB 기반 `/api/v1/places` 구현 |
 | `trips` | 사용자 여행과 저장 단위 | 🔒 범위 확정, 미구현 |
 | `itineraries` | 일정 생성, 수정, 순서와 저장 | 🔒 범위 확정, 미구현 |
 | `recommendations` | 후보 선정과 AI 코스 생성 조정 | 🔒 방향 확정, 미구현 |
-| 관광 데이터 동기화 | 공식 데이터 수집, 정규화, 갱신 | 🔒 일일 동기화 방향 확정, 미구현 |
+| `tourism` | 공식 데이터 수집, 정규화, 갱신 | ✅ JSON client, full/incremental, 03:30 scheduler 구현 |
 
-세션 저장소, 각 module의 entity와 service 경계, 트랜잭션 범위, API endpoint와
-Prisma schema는 아직 검토가 필요하다.
+세션 저장소와 아직 미구현인 module의 entity·service·HTTP 계약은 후속 설계가 필요하다.
 
 ## 7. 공유 계약
 
 `@haetteum/contracts`는 웹과 API가 합의하는 런타임 스키마와 TypeScript 타입의
 단일 기준이다.
 
-현재 계약은 다음 두 영역만 제공한다.
+현재 계약은 health, 공통 오류, 관광지 목록 영역을 제공한다.
 
 | 계약 | 용도 |
 |---|---|
 | `HealthResponseSchema` | 데이터베이스 health 성공 응답 검증 |
 | `ProblemDetailsSchema` | 모든 API 오류의 공통 응답 검증 |
 | `ValidationIssueSchema` | 입력 검증 실패의 field path와 message |
+| `PlaceRegionSchema` | 지원하는 다섯 지역 slug |
+| `ListPlacesQuerySchema` | 지역, 페이지, 페이지 크기, 검색어 검증 |
+| `PlaceListItemSchema` | DB 기반 관광지 목록 항목 |
+| `PlacesPageSchema` | 관광지 pagination 응답 |
 
 새 endpoint를 추가할 때는 요청과 응답 스키마를 계약 패키지에 먼저 정의하고,
 API는 그 계약에 맞춰 반환하며 웹은 네트워크 경계에서 이를 검증한다. Nest
@@ -343,9 +361,17 @@ decorator, Prisma model과 UI component props는 공유 계약에 넣지 않는�
 
 ### 8.1 현재 데이터베이스 범위
 
-Prisma schema에는 generator와 PostgreSQL datasource만 있고 도메인 model이나
-migration은 없다. 따라서 현재 데이터베이스는 연결과 health check 기반만
-제공한다.
+Prisma schema에는 관광 데이터 기반인 `TourismRegion`, `TourismDistrict`, `Place`,
+`TourismSyncRun` 모델이 구현되어 있다. migration은 메인 화면에서 승인된
+서울·경기·강원·부산·제주 다섯 지역을 생성하고, 후속 migration은 네 테이블과
+모든 컬럼의 PostgreSQL comment와 `(regionId, providerCode)` 시군구 복합 unique를
+설정한다.
+
+시군구와 관광지 실데이터는 TourAPI JSON client와 전체·증분 동기화로 적재한다.
+2026-08-24 검증 DB에는 지역 5건, 시군구 116건, 표출 관광지 4,602건이
+존재한다. 인기순위·축제·후기는 아직 구현되지 않았으며 TourAPI 메타데이터와
+다른 수집 경계를 사용한다.
+현재 관계, 제약과 확장 예정 구조는 [관광 데이터 ERD](docs/ERD.md)에서 확인한다.
 
 PostgreSQL은 로컬에서 Docker Compose로 실행하고 named volume
 `haetteum_postgres_data`에 데이터를 보존한다. `pnpm db:down`은 volume을
@@ -362,6 +388,9 @@ PostgreSQL은 로컬에서 Docker Compose로 실행하고 named volume
 예시 파일은 `.env.example`, `apps/api/.env.example`,
 `apps/web/.env.example`에 둔다. 실제 자격증명과 provider key는 예시 파일이나
 Git에 기록하지 않는다.
+
+TourAPI는 `apps/api/.env`의 `END_POINT`, `SERVICE_KEY`,
+`TOURISM_SYNC_ENABLED` 이름을 사용한다. 실제 값은 문서에 기록하지 않는다.
 
 브라우저에 노출되는 `NEXT_PUBLIC_*` 값에는 비밀정보를 넣지 않는다.
 
@@ -395,7 +424,38 @@ GET /api/v1/health
 정상 결과는 `HealthResponseSchema`, 오류 결과는 `ProblemDetailsSchema`로 검증할
 수 있다.
 
-### 9.3 개발 실행
+### 9.3 공식 관광 데이터 동기화
+
+```text
+수동 full 또는 매일 03:30 Asia/Seoul incremental
+  → ldongCode2 / areaBasedList2 / areaBasedSyncList2 JSON 조회
+  → 응답 schema·provider code·pagination 검증
+  → 지역 범위 시군구와 source/externalId 관광지 upsert
+  → TourismSyncRun 카운터와 성공·실패 기록
+```
+
+`detailCommon2`는 특정 관광지의 개요·홈페이지를 수동 보강할 때만 사용한다.
+모든 provider 요청은 JSON을 애플리케이션 계약으로 사용하며 XML gateway 오류나
+비성공 provider code를 성공 데이터로 받아들이지 않는다. provider 장애는 기존 DB
+데이터를 삭제하지 않고 실패 실행 이력으로 남긴다.
+
+TourAPI 장소 메타데이터와 관광데이터랩 인기순위·핫플레이스는 출처와 갱신
+조건이 다르므로 수집 경계를 분리한다. 이 동기화는 인기순위를 생성하지 않는다.
+
+### 9.4 관광지 목록 조회
+
+```text
+GET /api/v1/places?region=jeju&page=1&pageSize=20&q=
+  → ListPlacesQuerySchema
+  → PlacesService
+  → PostgreSQL visible place query
+  → title ASC, id ASC pagination JSON
+```
+
+조회 요청은 TourAPI를 직접 호출하지 않아 provider 장애 중에도 마지막 성공 DB
+데이터를 제공한다.
+
+### 9.5 개발 실행
 
 ```text
 pnpm dev
@@ -426,22 +486,7 @@ pnpm dev
 보관하는 구조가 아니라 서버 세션 방식을 사용한다. 세션 저장소, 만료·회전·폐기
 정책과 OAuth callback 계약은 후속 설계에서 확정한다.
 
-### 10.2 공식 관광 데이터 동기화
-
-```text
-일일 내부 작업
-  → 공식 API 또는 공식 다운로드 조회
-  → 원본 응답 검증
-  → 외부 식별자 기준 정규화와 upsert
-  → 지역·여행지 메타데이터 저장
-  → 사용자 조회 API에서 제공
-```
-
-TourAPI 계열의 장소 메타데이터와 관광데이터랩 계열의 수요·순위 데이터는 출처와
-갱신 조건이 다르므로 수집 경계를 분리한다. 각 데이터셋의 이용 조건, quota,
-갱신 주기와 실제 제공 필드는 구현 직전에 공식 문서로 다시 확인한다.
-
-### 10.3 AI 여행 코스 생성
+### 10.2 AI 여행 코스 생성
 
 ```text
 사용자가 여행 조건 입력
@@ -468,20 +513,22 @@ AI가 임의의 장소를 처음부터 생성하지 않고 관광데이터에서
 | 프론트엔드 API 연결 | 🧭 | base URL 예시만 존재 |
 | NestJS HTTP foundation | ✅ | v1, CORS, request ID, Problem Details, Zod pipe |
 | PostgreSQL 연결 | ✅ | Prisma lifecycle와 health check |
-| 공유 계약 | ✅ | health와 Problem Details |
+| 관광 데이터베이스 기반 | ✅ | 네 모델, 세 migration, 테이블·컬럼 comment, 지역 5·시군구 116·관광지 4,602 |
+| 공유 계약 | ✅ | health, Problem Details, places query·item·page |
 | Kakao 서버 세션 인증 | 🔒 | 방식만 확정, 미구현 |
-| 사용자·여행지·여행·일정 | 🔒 | MVP 범위만 확정, schema/API 미구현 |
-| 관광 데이터 동기화 | 🔒 | 공식 소스와 일일 동기화 방향 확정, 미구현 |
+| 관광지 조회 | ✅ | DB 기반 `GET /api/v1/places`, 지역·검색·pagination |
+| 사용자·여행·일정 | 🔒 | 범위 확정, module과 공개 API는 미구현 |
+| 관광 데이터 동기화 | ✅ | 네 JSON operation, full/incremental/enrich, 수동 명령, 매일 03:30 scheduler |
 | AI 코스 생성 | 🔒 | 관광데이터 후보 기반 방향 확정, 미구현 |
 | 배포·CI/CD·관측성 | 🧭 | 미설계 |
 
 ## 12. 아직 결정해야 하는 항목
 
 - 세션 저장소와 세션 lifecycle
-- 사용자, 여행지, 여행, 일정의 Prisma schema와 관계
-- REST endpoint, 요청·응답 계약과 pagination 규칙
-- 공식 관광 데이터셋별 필드, quota, 장애와 재동기화 전략
-- 일일 동기화 실행 방식과 중복 실행 제어
+- 사용자·여행·일정 도메인의 Prisma schema와 관계
+- 사용자·여행·일정 REST endpoint, 요청·응답 계약과 pagination 규칙
+- TourAPI quota 관측·경보와 다중 API 인스턴스 분산 lock
+- 관광데이터랩 인기순위·핫플레이스 CSV import 계약과 갱신 주기
 - AI 제공자, 구조화 출력, timeout, 재시도와 비용 제한
 - 지도와 위치 데이터 제공자 및 클라이언트 경계
 - 배포 환경, 비밀정보 관리, CI/CD와 운영 관측성
