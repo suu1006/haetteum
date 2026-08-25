@@ -1,13 +1,131 @@
 import type { MainDiscoveryData } from "@/features/discovery/discovery-model";
+import { festivalDetails } from "@/features/festivals/festival-detail.mock";
+import { themeTravelMock } from "@/features/themes/theme-travel.mock";
 
 export const mainDiscoveryMock = {
-  hero: {
-    src: "/images/discovery/main-hero-jeju.png",
-    alt: "아침 햇살이 비치는 제주 해안 풍경",
-  },
   aiCourse: {
-    src: "/images/discovery/ai-course-guide.png",
+    src: "/images/discovery/reference-main/ai-course-robot.png",
     alt: "여행 코스를 안내하는 해뜸 도우미",
+  },
+  themeTravel: themeTravelMock,
+  festivalFeature: {
+    eyebrow: "9월 이달의 축제",
+    title: "제주 가을 산책 주간",
+    description: "오름과 숲길을 따라 천천히 걷는 계절 여행을 만나보세요.",
+    dateLabel: "2026. 9. 19. – 10. 11.",
+    tags: ["가을", "산책"],
+    image: {
+      src: "/images/discovery/festivals/jeju-autumn-walk-feature.png",
+      alt: "제주의 가을 숲길을 함께 걷는 여행자들",
+    },
+  },
+  festivalDiscovery: {
+    regions: [
+      { id: "all", label: "전체" },
+      { id: "jeju", label: "제주" },
+      { id: "seoul", label: "서울" },
+      { id: "busan", label: "부산" },
+      { id: "gangwon", label: "강원" },
+      { id: "gyeongju", label: "경주" },
+      { id: "jeonju", label: "전주" },
+    ],
+    ranking: [
+      {
+        id: "seogwipo-lantern-water",
+        rank: 3,
+        title: "서귀포 등불 물빛축제",
+        location: "제주 서귀포시",
+        popularityLabel: "86%",
+        savedCountLabel: "1.6만",
+        image: {
+          src: "/images/discovery/festivals/jeju-lantern-water-reference.png",
+          alt: "제주 물가를 밝히는 등불과 보랏빛 다리",
+        },
+      },
+      {
+        id: "jeju-summer-light-garden",
+        rank: 1,
+        title: "제주 여름빛 정원축제",
+        location: "제주 서귀포시",
+        popularityLabel: "98%",
+        savedCountLabel: "8.2만",
+        reviewCountLabel: "2.6천",
+        image: {
+          src: "/images/discovery/festivals/jeju-summer-light-garden-reference.png",
+          alt: "보랏빛 수국과 조명이 어우러진 제주 야간 정원",
+        },
+      },
+      {
+        id: "jeju-sea-fireworks-culture",
+        rank: 2,
+        title: "제주 바다불꽃 문화제",
+        location: "제주 제주시",
+        popularityLabel: "93%",
+        savedCountLabel: "4.1만",
+        image: {
+          src: "/images/discovery/festivals/jeju-sea-fireworks-reference.png",
+          alt: "제주 밤바다 위로 펼쳐지는 분홍빛 불꽃",
+        },
+      },
+    ],
+    festivals: [
+      {
+        id: "jeju-summer-light-garden",
+        title: "제주 여름빛 정원축제",
+        description: "수국 정원과 야간 조명이 어우러진 여름밤 축제",
+        dateLabel: "2026. 8. 22. – 8. 30.",
+        endDate: "2026-08-30",
+        location: "제주 서귀포시",
+        savedCountLabel: "8.2만",
+        tags: ["가족", "야간", "정원"],
+        image: {
+          src: "/images/discovery/festivals/jeju-summer-light-garden-reference.png",
+          alt: "보랏빛 수국과 조명이 어우러진 제주 야간 정원",
+        },
+      },
+      {
+        id: "seogwipo-lantern-water",
+        title: "서귀포 등불 물빛축제",
+        description: "등불이 수놓은 천지연의 밤, 로맨틱 야경 축제",
+        dateLabel: "2026. 8. 20. – 9. 6.",
+        endDate: "2026-09-06",
+        location: "제주 서귀포시",
+        savedCountLabel: "3.9만",
+        tags: ["등불", "야경", "산책"],
+        image: {
+          src: "/images/discovery/festivals/jeju-lantern-water-reference.png",
+          alt: "제주 물가를 밝히는 등불과 보랏빛 다리",
+        },
+      },
+      {
+        id: "jeju-sea-fireworks-culture",
+        title: "제주 바다불꽃 문화제",
+        description: "제주의 밤바다를 수놓는 화려한 불꽃과 공연",
+        dateLabel: "2026. 8. 28. – 8. 29.",
+        endDate: "2026-08-29",
+        location: "제주 제주시",
+        savedCountLabel: "4.7만",
+        tags: ["불꽃", "공연", "야경"],
+        image: {
+          src: "/images/discovery/festivals/jeju-sea-fireworks-reference.png",
+          alt: "제주 밤바다 위로 펼쳐지는 분홍빛 불꽃",
+        },
+      },
+      {
+        id: "hallim-hydrangea-summer",
+        title: "한림 수국 여름축제",
+        description: "푸른 수국과 함께하는 힐링 산책 & 체험 축제",
+        dateLabel: "2026. 6. 27. – 7. 12.",
+        endDate: "2026-07-12",
+        location: "제주 한림읍",
+        savedCountLabel: "2.1만",
+        tags: ["수국", "가족", "포토"],
+        image: {
+          src: "/images/discovery/festivals/hallim-hydrangea-reference.png",
+          alt: "푸른 수국 사이 산책길을 걷는 여행자들",
+        },
+      },
+    ],
   },
   regions: [
     { id: "seoul", label: "서울" },
@@ -17,6 +135,45 @@ export const mainDiscoveryMock = {
     { id: "jeju", label: "제주" },
   ],
   places: [
+    {
+      id: "icheon-termeden",
+      rank: 1,
+      title: "이천 테르메덴",
+      region: "gyeonggi",
+      location: "이천",
+      rating: 4.6,
+      reviewCount: 2345,
+      image: {
+        src: "/images/discovery/reference-main/icheon-termeden.png",
+        alt: "온천 수영장이 있는 이천 테르메덴",
+      },
+    },
+    {
+      id: "everland",
+      rank: 2,
+      title: "에버랜드",
+      region: "gyeonggi",
+      location: "용인",
+      rating: 4.5,
+      reviewCount: 3892,
+      image: {
+        src: "/images/discovery/reference-main/everland-theme-park.png",
+        alt: "놀이기구가 보이는 용인 에버랜드",
+      },
+    },
+    {
+      id: "suwon-hwaseong",
+      rank: 3,
+      title: "수원 화성",
+      region: "gyeonggi",
+      location: "수원",
+      rating: 4.4,
+      reviewCount: 1987,
+      image: {
+        src: "/images/discovery/reference-main/suwon-hwaseong.png",
+        alt: "성곽길이 이어지는 수원 화성",
+      },
+    },
     {
       id: "seongsan-ilchulbong",
       rank: 1,
@@ -57,17 +214,182 @@ export const mainDiscoveryMock = {
       },
     },
   ],
-  festivals: [
-    {
-      id: "jeju-summer-flower-festival",
-      title: "제주 여름꽃 축제",
-      dateLabel: "2026. 8. 22. – 8. 30.",
-      region: "jeju",
-      location: "제주 서귀포시",
-      image: {
-        src: "/images/discovery/festival-jeju.png",
-        alt: "제주 들판에 핀 여름꽃",
+  festivals: festivalDetails,
+   popularPlaces: {
+    videos: [
+      {
+        id: "seongsan-sunrise-preview",
+        title: "성산일출봉 일출 미리보기",
+        region: "jeju",
+        location: "서귀포",
+        address: "제주특별자치도 서귀포시 성산읍",
+        description:
+          "바다 위로 번지는 아침빛과 성산일출봉의 능선을 짧게 만나보세요.",
+        creatorLabel: "해뜸 여행",
+        soundLabel: "원본 오디오 없음",
+        badgeLabel: "지금 인기 급상승",
+        durationLabel: "0:18",
+        viewCountLabel: "12.4만",
+        likeCountLabel: "2,356",
+        commentCountLabel: "328",
+        shareCountLabel: "104",
+        image: {
+          src: "/images/discovery/place-seongsan.png",
+          alt: "바다에서 바라본 성산일출봉",
+        },
+        video: {
+          src: "/videos/discovery/seongsan-sunrise-preview.mp4",
+          posterSrc: "/images/discovery/place-seongsan.png",
+          durationSeconds: 6,
+          hasAudio: false,
+        },
       },
-    },
-  ],
+      {
+        id: "hyeopjae-sunset-highlight",
+        title: "협재 노을 하이라이트",
+        region: "jeju",
+        location: "제주시",
+        address: "제주특별자치도 제주시 한림읍",
+        description:
+          "투명한 물빛과 비양도가 어우러진 협재의 노을 풍경이에요.",
+        creatorLabel: "해뜸 여행",
+        soundLabel: "원본 오디오 없음",
+        badgeLabel: "베스트 하이라이트",
+        durationLabel: "0:27",
+        viewCountLabel: "9.8만",
+        likeCountLabel: "1,892",
+        commentCountLabel: "214",
+        shareCountLabel: "82",
+        image: {
+          src: "/images/discovery/place-hyeopjae.png",
+          alt: "맑은 물빛의 협재해수욕장",
+        },
+        video: {
+          src: "/videos/discovery/hyeopjae-sunset-highlight.mp4",
+          posterSrc: "/images/discovery/place-hyeopjae.png",
+          durationSeconds: 6,
+          hasAudio: false,
+        },
+      },
+      {
+        id: "bijarim-walk-preview",
+        title: "비자림 숲길 미리보기",
+        region: "jeju",
+        location: "제주시",
+        address: "제주특별자치도 제주시 구좌읍",
+        description:
+          "천년 비자나무 사이로 이어지는 고요한 숲길을 걸어보세요.",
+        creatorLabel: "해뜸 여행",
+        soundLabel: "원본 오디오 없음",
+        badgeLabel: "힐링 인기",
+        durationLabel: "0:21",
+        viewCountLabel: "7.2만",
+        likeCountLabel: "1,105",
+        commentCountLabel: "176",
+        shareCountLabel: "65",
+        image: {
+          src: "/images/discovery/place-bijarim.png",
+          alt: "초록빛이 이어지는 비자림 산책로",
+        },
+        video: {
+          src: "/videos/discovery/bijarim-walk-preview.mp4",
+          posterSrc: "/images/discovery/place-bijarim.png",
+          durationSeconds: 6,
+          hasAudio: false,
+        },
+      },
+    ],
+    themes: [
+      {
+        id: "hot-place",
+        label: "핫플",
+        image: {
+          src: "/images/discovery/main-hero-jeju.png",
+          alt: "제주 해안의 인기 여행지",
+        },
+      },
+      {
+        id: "family",
+        label: "가족여행",
+        image: {
+          src: "/images/discovery/place-seongsan.png",
+          alt: "가족과 둘러보기 좋은 성산일출봉",
+        },
+      },
+      {
+        id: "healing",
+        label: "힐링",
+        image: {
+          src: "/images/discovery/place-bijarim.png",
+          alt: "마음이 편안해지는 비자림 숲길",
+        },
+      },
+      {
+        id: "day-trip",
+        label: "당일치기",
+        image: {
+          src: "/images/discovery/place-hyeopjae.png",
+          alt: "당일치기로 즐기는 협재 해변",
+        },
+      },
+      {
+        id: "festival",
+        label: "축제",
+        image: {
+          src: "/images/discovery/festival-jeju.png",
+          alt: "제주 들판에서 열리는 여름꽃 축제",
+        },
+      },
+    ],
+    courses: [
+      {
+        id: "jeju-coast-healing-course",
+        title: "제주 해안 힐링 코스",
+        summary: "바다와 카페를 천천히 즐겨요",
+        region: "jeju",
+        location: "제주시",
+        durationLabel: "0:32",
+        image: {
+          src: "/images/discovery/place-hyeopjae.png",
+          alt: "협재 해변의 맑은 바다",
+        },
+      },
+      {
+        id: "seongsan-sunrise-course",
+        title: "성산 일출 코스",
+        summary: "일출 명소를 따라 걷는 아침 여행",
+        region: "jeju",
+        location: "서귀포",
+        durationLabel: "0:25",
+        image: {
+          src: "/images/discovery/place-seongsan.png",
+          alt: "아침 햇살 아래 성산일출봉",
+        },
+      },
+      {
+        id: "bijarim-forest-course",
+        title: "비자림 숲길 코스",
+        summary: "초록빛 숲에서 쉬어 가는 시간",
+        region: "jeju",
+        location: "제주시",
+        durationLabel: "0:21",
+        image: {
+          src: "/images/discovery/place-bijarim.png",
+          alt: "비자림의 울창한 산책길",
+        },
+      },
+      {
+        id: "jeju-east-coast-course",
+        title: "제주 동쪽 바다 코스",
+        summary: "해안도로를 따라 만나는 푸른 풍경",
+        region: "jeju",
+        location: "구좌읍",
+        durationLabel: "0:28",
+        image: {
+          src: "/images/discovery/main-hero-jeju.png",
+          alt: "제주 동쪽 해안의 푸른 바다",
+        },
+      },
+    ],
+  },
 } as const satisfies MainDiscoveryData;

@@ -3,10 +3,28 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+describe("Badge", () => {
+  it("renders the shadcn badge with the selected variant", () => {
+    render(<Badge variant="secondary">지금 인기 급상승</Badge>);
+
+    expect(screen.getByText("지금 인기 급상승")).toHaveAttribute(
+      "data-slot",
+      "badge",
+    );
+  });
+
+  it("exposes status text through the shadcn badge surface", () => {
+    render(<Badge>진행 중</Badge>);
+
+    expect(screen.getByText("진행 중")).toHaveAttribute("data-slot", "badge");
+  });
+});
 
 describe("Button", () => {
   it("uses the 44px mobile control as its default size", () => {

@@ -86,6 +86,13 @@ apps/web/src/app/page.tsx
 apps/web/src/app/welcome/page.tsx
   -> WelcomeHero
      -> WelcomeFeatureCard
+     -> WelcomeDesktopShowcase
+        -> WelcomeChatSlide
+           -> WelcomeDesktopConversation
+              -> WelcomeChatMessage
+        -> WelcomeCourseSlide
+           -> WelcomeCourseStepCard
+           -> WelcomeActions
 
 apps/web/src/components/patterns/
   main-discovery.tsx
@@ -95,6 +102,13 @@ apps/web/src/components/patterns/
   festival-section.tsx
   welcome-hero.tsx
   welcome-feature-card.tsx
+  welcome-desktop-conversation.tsx
+  welcome-chat-message.tsx
+  welcome-desktop-showcase.tsx
+  welcome-chat-slide.tsx
+  welcome-course-slide.tsx
+  welcome-course-step-card.tsx
+  welcome-actions.tsx
 
 apps/web/src/components/travel/
   place-ranking-card.tsx
@@ -117,10 +131,18 @@ apps/web/src/components/travel/
 - 웰컴 화면은 여행 경로를 연상시키는 하나의 시각 모티프에 강조를 집중하고,
   기능 카드는 조용한 surface로 구성한다.
 - 메인 화면은 정보 탐색이 우선이며 primary 색상은 CTA와 선택 상태에만 사용한다.
-- 320px 이상 모바일을 기본으로 하고, 768px 이상에서는 모바일 정보 구조를 유지한
-  채 콘텐츠 폭만 제한한다.
+- 320px 이상 모바일을 기본으로 하고, 768–1023px에서는 모바일 정보 구조를 유지한
+  채 콘텐츠 폭만 480px로 제한한다.
+- 1024px 이상 웰컴 화면은 가로 배경 위 2열 layout으로 전환한다. 왼쪽에는 제목,
+  설명과 구분선을 고정하고, 오른쪽은 여행 대화를 800ms 간격으로 하나씩 노출한
+  뒤 loading을 거쳐 AI 코스·CTA로 직접 전환하고 마지막 상태에서 멈춘다. 1280px
+  이상에서는 내부 콘텐츠를 화면의 약 83%, 최대 1388px로 제한한다.
+- 채팅 항목은 560ms의 짧은 상승·opacity 전환을 사용하고, 최종 패널은 48px
+  slide와 opacity를 900ms 동안 적용한다. 마지막 채팅 900ms 후 loading을 표시하고
+  2000ms 동안 유지한다. 탭이 숨겨지면 타이머를 멈추고 reduced motion에서는 마지막
+  CTA 상태를 즉시 표시한다.
 - 여행지 카드 목록은 320px에서도 다음 카드의 일부가 보여 가로 탐색 가능성을
-  전달하고, 768px 이상에서도 모바일 최대 폭 480px 안에서 같은 구조를 유지한다.
+  전달하고, 웰컴 외 제품 화면은 별도 승인 전 모바일 정보 구조를 유지한다.
 - 참고 이미지의 사진이나 AI 캐릭터를 복제하지 않고 Haetteum이 소유하는 로컬
   이미지 자산으로 교체한다.
 
@@ -149,8 +171,8 @@ apps/web/src/components/travel/
 - 검색 form, 선택된 탭·지역, 활성 내비게이션과 준비 중 메뉴 상태를 자동 테스트로
   검증한다.
 - Vitest, ESLint, Next production build를 실행한다.
-- 320px, 390px, 768px 폭에서 overflow, 이미지 crop, 터치 영역과 고정 내비게이션을
-  실제 브라우저로 확인한다.
+- 320px, 390px, 768px, 1024px, 1280px, 1440px 폭에서 overflow, 이미지 art direction과
+  crop, 터치 영역, 2열 전환과 고정 내비게이션을 실제 브라우저로 확인한다.
 
 ## 9. 승인된 수용 기준
 

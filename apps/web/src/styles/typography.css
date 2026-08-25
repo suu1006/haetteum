@@ -27,6 +27,14 @@
     letter-spacing: -0.025em;
   }
 
+  .type-display-desktop {
+    @media (min-width: 64rem) {
+      font-size: 3.5rem;
+      line-height: 4rem;
+      letter-spacing: -0.035em;
+    }
+  }
+
   .type-title-lg {
     font-size: 1.5rem;
     font-weight: 700;

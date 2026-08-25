@@ -17,10 +17,25 @@
   --red-700: oklch(0.5805 0.1963 24.34);
   --blue-600: oklch(0.6093 0.1819 257.29);
 
+  --theme-healing: oklch(0.742 0.162 73.51);
+  --theme-food: oklch(0.627 0.15 149.12);
+  --theme-culture: oklch(0.603 0.184 257.25);
+  --theme-activity: var(--purple-600);
+  --theme-family: oklch(0.663 0.17 19.72);
+
+  --rank-gold: #d18b00;
+  --rank-silver: #7a8797;
+  --rank-bronze: #a84b16;
+  --rank-gold-foreground: var(--neutral-950);
+  --rank-silver-foreground: var(--neutral-950);
+  --rank-bronze-foreground: var(--neutral-0);
+
   --welcome-ranking: oklch(0.756 0.148 296.14);
   --welcome-course: oklch(0.775 0.142 151.32);
   --welcome-reviews: oklch(0.735 0.183 349.75);
   --welcome-glass: oklch(1 0 0 / 80%);
+  --welcome-chat-assistant: oklch(1 0 0 / 92%);
+  --welcome-chat-user: oklch(0.9504 0.045 139.42 / 94%);
 
   --background: var(--neutral-25);
   --foreground: var(--neutral-950);
@@ -46,6 +61,9 @@
   --rating: var(--amber-500);
   --current-location: var(--blue-600);
   --route-line: var(--purple-600);
+  --image-foreground: var(--neutral-0);
+  --image-foreground-muted: oklch(1 0 0 / 86%);
+  --image-scrim: oklch(0 0 0 / 34%);
 
   --radius-foundation-sm: 0.5rem;
   --radius-control: 0.75rem;
@@ -63,6 +81,8 @@
   --motion-fast: 120ms;
   --motion-default: 180ms;
   --motion-overlay: 260ms;
+  --motion-welcome-chat: 560ms;
+  --motion-welcome-slide: 900ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -94,10 +114,26 @@
   --color-rating: var(--rating);
   --color-current-location: var(--current-location);
   --color-route-line: var(--route-line);
+  --color-theme-healing: var(--theme-healing);
+  --color-theme-food: var(--theme-food);
+  --color-theme-culture: var(--theme-culture);
+  --color-theme-activity: var(--theme-activity);
+  --color-theme-family: var(--theme-family);
+  --color-rank-gold: var(--rank-gold);
+  --color-rank-silver: var(--rank-silver);
+  --color-rank-bronze: var(--rank-bronze);
+  --color-rank-gold-foreground: var(--rank-gold-foreground);
+  --color-rank-silver-foreground: var(--rank-silver-foreground);
+  --color-rank-bronze-foreground: var(--rank-bronze-foreground);
+  --color-image-foreground: var(--image-foreground);
+  --color-image-foreground-muted: var(--image-foreground-muted);
+  --color-image-scrim: var(--image-scrim);
   --color-welcome-ranking: var(--welcome-ranking);
   --color-welcome-course: var(--welcome-course);
   --color-welcome-reviews: var(--welcome-reviews);
   --color-welcome-glass: var(--welcome-glass);
+  --color-welcome-chat-assistant: var(--welcome-chat-assistant);
+  --color-welcome-chat-user: var(--welcome-chat-user);
 
   --radius-sm: var(--radius-foundation-sm);
   --radius-md: var(--radius-control);
@@ -109,6 +145,30 @@
   --shadow-card: var(--elevation-card);
   --shadow-floating: var(--elevation-floating);
   --shadow-overlay: var(--elevation-overlay);
+}
+
+@keyframes welcome-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(3rem, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes welcome-chat-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.75rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
