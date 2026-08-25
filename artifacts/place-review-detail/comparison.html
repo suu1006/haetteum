@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>장소 후기 상세 비교</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #ececf1;
+        color: #18191e;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      h1 { margin: 0 0 24px; font-size: 24px; }
+      .comparison { display: flex; align-items: flex-start; gap: 32px; }
+      figure { margin: 0; }
+      figcaption { margin-bottom: 12px; font-size: 16px; font-weight: 700; }
+      .screen {
+        position: relative;
+        width: 390px;
+        height: 844px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 8px 28px rgb(24 25 30 / 12%);
+      }
+      .source {
+        position: absolute;
+        top: -49px;
+        left: -31px;
+        width: 446px;
+        max-width: none;
+      }
+      .implementation {
+        position: absolute;
+        top: 0;
+        left: -122px;
+        width: 634px;
+        max-width: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>같은 390 × 1000 콘텐츠 영역 비교</h1>
+    <div class="comparison">
+      <figure>
+        <figcaption>Source reference</figcaption>
+        <div class="screen">
+          <img class="source" src="source-reference.png" alt="참고 화면" />
+        </div>
+      </figure>
+      <figure>
+        <figcaption>Implementation</figcaption>
+        <div class="screen">
+          <img
+            class="implementation"
+            src="icheon-termeden-viewport-390.jpg"
+            alt="구현 화면"
+          />
+        </div>
+      </figure>
+    </div>
+  </body>
+</html>

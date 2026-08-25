@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>테마 카드 화살표 비교</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #f4f4f7;
+        color: #18181b;
+        font-family: Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      main { padding: 32px; }
+      h1 { margin: 0 0 20px; font-size: 20px; }
+      .comparison { display: flex; align-items: flex-start; gap: 32px; }
+      figure { margin: 0; }
+      figcaption { margin-bottom: 10px; font-size: 14px; font-weight: 700; }
+      img {
+        display: block;
+        height: 414px;
+        width: auto;
+        border-radius: 18px;
+        box-shadow: 0 8px 24px rgb(24 24 27 / 12%);
+      }
+      p { margin: 20px 0 0; font-size: 14px; color: #52525b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>테마 여행 카드 — 동일 높이 정규화 비교</h1>
+      <div class="comparison">
+        <figure>
+          <figcaption>첨부 기준 화면</figcaption>
+          <img src="reference-card.png" alt="첨부 기준 테마 카드" />
+        </figure>
+        <figure>
+          <figcaption>수정 후 390px 화면</figcaption>
+          <img src="card-390-smaller-circle.png" alt="수정 후 테마 카드" />
+        </figure>
+      </div>
+      <p>수정 후 하단 원 24px / 화살표 14px, 코스 수와 원 사이 여백 약 22px</p>
+    </main>
+  </body>
+</html>
