@@ -1,0 +1,88 @@
+import type { MyReviewsData } from "@/features/profile/my-reviews-model";
+
+export const myReviewsMock = {
+  written: [
+    {
+      id: "written-icheon-termeden",
+      placeId: "icheon-termeden",
+      title: "이천 테르메덴",
+      location: "이천",
+      rating: 4.6,
+      date: "2026.08.20",
+      content: "온천도 좋고 주변 경관도 아름다워요.",
+      likeCount: 32,
+      commentCount: 5,
+      bookmarked: true,
+      image: {
+        src: "/images/discovery/reference-main/icheon-termeden.png",
+        alt: "야외 온천 풀이 있는 이천 테르메덴",
+      },
+    },
+    {
+      id: "written-everland",
+      placeId: "everland",
+      title: "에버랜드",
+      location: "용인",
+      rating: 4.5,
+      date: "2026.08.15",
+      content: "여름에 가도 즐거웠어요! 놀이기구랑 퍼레이드 최고예요.",
+      likeCount: 28,
+      commentCount: 3,
+      bookmarked: false,
+      image: {
+        src: "/images/discovery/reference-main/everland-theme-park.png",
+        alt: "정원과 놀이기구가 어우러진 용인 에버랜드",
+      },
+    },
+    {
+      id: "written-suwon-hwaseong",
+      placeId: "suwon-hwaseong",
+      title: "수원 화성",
+      location: "수원",
+      rating: 4.4,
+      date: "2026.08.10",
+      content: "역사도 배우고 산책하기도 좋은 곳이에요. 야경이 특히 멋져요.",
+      likeCount: 19,
+      commentCount: 2,
+      bookmarked: false,
+      image: {
+        src: "/images/discovery/reference-main/suwon-hwaseong.png",
+        alt: "성곽길과 누각이 이어지는 수원 화성",
+      },
+    },
+  ],
+  bookmarked: [
+    {
+      id: "bookmarked-seongsan",
+      placeId: "seongsan-ilchulbong",
+      title: "성산일출봉",
+      location: "제주",
+      rating: 4.8,
+      date: "2026.08.18",
+      content: "정상에서 바라본 바다와 일출이 오래 기억에 남아요.",
+      likeCount: 41,
+      commentCount: 7,
+      bookmarked: true,
+      image: {
+        src: "/images/discovery/place-seongsan.png",
+        alt: "푸른 바다 너머로 보이는 성산일출봉",
+      },
+    },
+    {
+      id: "bookmarked-hyeopjae",
+      placeId: "hyeopjae-beach",
+      title: "협재해수욕장",
+      location: "제주",
+      rating: 4.7,
+      date: "2026.08.09",
+      content: "물이 맑고 잔잔해서 천천히 바다를 즐기기 좋았어요.",
+      likeCount: 24,
+      commentCount: 4,
+      bookmarked: true,
+      image: {
+        src: "/images/discovery/place-hyeopjae.png",
+        alt: "맑고 잔잔한 물빛의 제주 협재해수욕장",
+      },
+    },
+  ],
+} satisfies MyReviewsData;
