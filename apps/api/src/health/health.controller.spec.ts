@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { jest } from "@jest/globals";
 
 import { HealthController } from "./health.controller.js";
@@ -12,7 +11,17 @@ describe("HealthController", () => {
         return { status: "ok", info: result, error: {}, details: result };
       }),
     };
-    const prismaHealth = { pingCheck: jest.fn().mockResolvedValue(up) };
+    const prismaHealth = {
+      pingCheck: jest
+        .fn<
+          (
+            key: string,
+            client: object,
+            options: { timeout: number },
+          ) => Promise<typeof up>
+        >()
+        .mockResolvedValue(up),
+    };
     const prisma = {};
 
     const controller = new HealthController(

@@ -26,4 +26,76 @@ describe("validateEnvironment", () => {
       validateEnvironment({ ...validEnvironment, API_PORT: "70000" }),
     ).toThrow("API_PORT");
   });
+
+  it("allows the API to boot with tourism sync disabled and no provider secret", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        END_POINT: "",
+        SERVICE_KEY: "",
+        TOURISM_SYNC_ENABLED: "false",
+      }),
+    ).toMatchObject({
+      END_POINT: undefined,
+      SERVICE_KEY: undefined,
+      TOURISM_SYNC_ENABLED: false,
+    });
+  });
+
+  it("parses an enabled TourAPI configuration", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        END_POINT: "https://apis.data.go.kr/B551011/KorService2",
+        SERVICE_KEY: "secret-for-test-only",
+        TOURISM_SYNC_ENABLED: "true",
+      }),
+    ).toMatchObject({
+      END_POINT: "https://apis.data.go.kr/B551011/KorService2",
+      SERVICE_KEY: "secret-for-test-only",
+      TOURISM_SYNC_ENABLED: true,
+    });
+  });
+
+  it("rejects enabled sync without both provider values", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        TOURISM_SYNC_ENABLED: "true",
+      }),
+    ).toThrow("END_POINT");
+  });
+
+  it("rejects enabled sync with a blank provider secret", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        END_POINT: "https://apis.data.go.kr/B551011/KorService2",
+        SERVICE_KEY: "",
+        TOURISM_SYNC_ENABLED: "true",
+      }),
+    ).toThrow("SERVICE_KEY");
+  });
+
+  it("rejects a provider URL outside the approved HTTPS service path", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        END_POINT: "http://example.com/KorService2",
+        SERVICE_KEY: "secret-for-test-only",
+        TOURISM_SYNC_ENABLED: "true",
+      }),
+    ).toThrow("END_POINT");
+  });
+
+  it("rejects a provider URL outside the approved TourAPI host", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        END_POINT: "https://example.com/B551011/KorService2",
+        SERVICE_KEY: "secret-for-test-only",
+        TOURISM_SYNC_ENABLED: "true",
+      }),
+    ).toThrow("END_POINT");
+  });
 });

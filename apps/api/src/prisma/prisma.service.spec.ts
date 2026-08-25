@@ -1,17 +1,15 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { jest } from "@jest/globals";
 
 import { PrismaService } from "./prisma.service.js";
 
 describe("PrismaService", () => {
   it("connects, probes PostgreSQL, and disconnects with the configured database URL", async () => {
-    const config = {
-      get: jest
-        .fn()
-        .mockReturnValue("postgresql://haetteum:local@localhost:5432/haetteum"),
-    } as never;
+    const get = jest
+      .fn<(key: "DATABASE_URL", options: { infer: true }) => string>()
+      .mockReturnValue("postgresql://haetteum:local@localhost:5432/haetteum");
+    const config = { get };
 
-    const service = new PrismaService(config);
+    const service = new PrismaService(config as never);
     const connect = jest
       .spyOn(service, "$connect")
       .mockResolvedValue(undefined);
@@ -25,24 +23,23 @@ describe("PrismaService", () => {
     await service.onModuleInit();
     await service.onModuleDestroy();
 
-    expect(config.get).toHaveBeenCalledWith("DATABASE_URL", { infer: true });
+    expect(get).toHaveBeenCalledWith("DATABASE_URL", { infer: true });
     expect(connect).toHaveBeenCalledTimes(1);
     expect(queryRaw).toHaveBeenCalledTimes(1);
     expect(queryRaw.mock.calls[0]?.[0]).toEqual(["SELECT 1"]);
-    expect((connect.mock.invocationCallOrder as number[])[0]).toBeLessThan(
-      (queryRaw.mock.invocationCallOrder as number[])[0],
+    expect(connect.mock.invocationCallOrder[0]).toBeLessThan(
+      queryRaw.mock.invocationCallOrder[0],
     );
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
   it("disconnects and rethrows when the PostgreSQL readiness probe fails", async () => {
-    const config = {
-      get: jest
-        .fn()
-        .mockReturnValue("postgresql://haetteum:local@localhost:5432/haetteum"),
-    } as never;
+    const get = jest
+      .fn<(key: "DATABASE_URL", options: { infer: true }) => string>()
+      .mockReturnValue("postgresql://haetteum:local@localhost:5432/haetteum");
+    const config = { get };
     const probeError = new Error("database unavailable");
-    const service = new PrismaService(config);
+    const service = new PrismaService(config as never);
     const connect = jest
       .spyOn(service, "$connect")
       .mockResolvedValue(undefined);

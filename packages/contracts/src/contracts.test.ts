@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { HealthResponseSchema, ProblemDetailsSchema } from "./index.js";
+import {
+  HealthResponseSchema,
+  ListPlacesQuerySchema,
+  PlaceListItemSchema,
+  PlacesPageSchema,
+  ProblemDetailsSchema,
+} from "./index.js";
 
 describe("HealthResponseSchema", () => {
   it("accepts the direct Terminus success response", () => {
@@ -48,5 +54,53 @@ describe("ProblemDetailsSchema", () => {
         requestId: "f2e09553-1b48-40de-8d6e-a3d68a0d9636",
       }),
     ).toThrow();
+  });
+});
+
+describe("places contracts", () => {
+  it("defaults pagination and trims a search query", () => {
+    expect(
+      ListPlacesQuerySchema.parse({ region: "jeju", q: "  성산  " }),
+    ).toEqual({
+      region: "jeju",
+      page: 1,
+      pageSize: 20,
+      q: "성산",
+    });
+  });
+
+  it("rejects an unsupported region and an oversized page", () => {
+    expect(() => ListPlacesQuerySchema.parse({ region: "incheon" })).toThrow();
+    expect(() =>
+      ListPlacesQuerySchema.parse({ region: "jeju", pageSize: 101 }),
+    ).toThrow();
+  });
+
+  it("accepts a direct page response with nullable media and location", () => {
+    const item = PlaceListItemSchema.parse({
+      id: "84549352-0c20-4e11-af50-2d4f278f41ef",
+      title: "성산일출봉",
+      region: "jeju",
+      district: null,
+      address: null,
+      longitude: null,
+      latitude: null,
+      primaryImageUrl: null,
+      imageCopyrightType: null,
+    });
+
+    expect(
+      PlacesPageSchema.parse({
+        items: [item],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      }),
+    ).toEqual({
+      items: [item],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+    });
   });
 });

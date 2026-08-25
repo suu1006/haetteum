@@ -1,18 +1,23 @@
 import type { Server } from "node:http";
+import { randomUUID } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
 
 import {
   HealthResponseSchema,
+  PlacesPageSchema,
   ProblemDetailsSchema,
 } from "@haetteum/contracts";
 import type { INestApplication, LoggerService } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { jest } from "@jest/globals";
 import { PrismaHealthIndicator } from "@nestjs/terminus";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
 import { configureApp } from "../src/configure-app.js";
+import { PrismaService } from "../src/prisma/prisma.service.js";
+import { TOUR_API_FETCH } from "../src/tourism/tourism.constants.js";
 
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -40,19 +45,40 @@ async function reserveUnusedLoopbackPort(): Promise<number> {
 
 describe("API HTTP boundary (e2e)", () => {
   let app: INestApplication;
+  let prisma: PrismaService;
+  const createdPlaceIds: string[] = [];
+  const createdRegionIds: string[] = [];
+  const tourApiFetch = jest.fn();
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(TOUR_API_FETCH)
+      .useValue(tourApiFetch)
+      .compile();
 
     app = module.createNestApplication();
     configureApp(app);
     await app.init();
+    prisma = app.get(PrismaService);
   });
 
   afterAll(async () => {
-    await app.close();
+    try {
+      if (createdPlaceIds.length > 0) {
+        await prisma.place.deleteMany({
+          where: { id: { in: createdPlaceIds } },
+        });
+      }
+      if (createdRegionIds.length > 0) {
+        await prisma.tourismRegion.deleteMany({
+          where: { id: { in: createdRegionIds } },
+        });
+      }
+    } finally {
+      await app.close();
+    }
   });
 
   it("reports a live database as healthy with the shared schema and a server UUID", async () => {
@@ -121,6 +147,113 @@ describe("API HTTP boundary (e2e)", () => {
     expect(response.headers["x-request-id"]).toMatch(UUID_V4);
     expect(problem.requestId).toBe(response.headers["x-request-id"]);
     expect(problem.requestId).not.toBe("client-provided-request-id");
+  });
+
+  it("lists only visible places in the active requested region without calling TourAPI", async () => {
+    const uniqueTitle = `e2e-place-${randomUUID()}`;
+    const now = new Date();
+    const activeJeju = await prisma.tourismRegion.findUniqueOrThrow({
+      where: { slug: "jeju" },
+    });
+    const inactiveRegion = await prisma.tourismRegion.create({
+      data: {
+        slug: `e2e-inactive-${randomUUID().replaceAll("-", "").slice(0, 16)}`,
+        name: "비활성 테스트 지역",
+        providerCode: `i${randomUUID().replaceAll("-", "").slice(0, 9)}`,
+        displayOrder: 999,
+        isActive: false,
+      },
+    });
+    createdRegionIds.push(inactiveRegion.id);
+
+    const visible = await prisma.place.create({
+      data: {
+        source: "E2E_TEST",
+        externalId: `${randomUUID()}-visible`,
+        contentTypeId: 12,
+        regionId: activeJeju.id,
+        title: uniqueTitle,
+        address1: "  제주특별자치도 서귀포시 성산읍  ",
+        address2: "  성산리 1-1  ",
+        longitude: "126.940506",
+        latitude: "33.458056",
+        primaryImageUrl: "https://example.test/e2e-visible.jpg",
+        imageCopyrightType: "Type1",
+        providerModifiedAt: now,
+        lastSyncedAt: now,
+        isVisible: true,
+      },
+    });
+    createdPlaceIds.push(visible.id);
+    const hidden = await prisma.place.create({
+      data: {
+        source: "E2E_TEST",
+        externalId: `${randomUUID()}-hidden`,
+        contentTypeId: 12,
+        regionId: activeJeju.id,
+        title: uniqueTitle,
+        providerModifiedAt: now,
+        lastSyncedAt: now,
+        isVisible: false,
+      },
+    });
+    createdPlaceIds.push(hidden.id);
+    const inactive = await prisma.place.create({
+      data: {
+        source: "E2E_TEST",
+        externalId: `${randomUUID()}-inactive`,
+        contentTypeId: 12,
+        regionId: inactiveRegion.id,
+        title: uniqueTitle,
+        providerModifiedAt: now,
+        lastSyncedAt: now,
+        isVisible: true,
+      },
+    });
+    createdPlaceIds.push(inactive.id);
+
+    tourApiFetch.mockClear();
+    const query = new URLSearchParams({ region: "jeju", q: uniqueTitle });
+    const response = await request(getHttpServer(app))
+      .get(`/api/v1/places?${query.toString()}`)
+      .expect(200);
+    const page = PlacesPageSchema.parse(response.body as unknown);
+
+    expect(page).toEqual({
+      items: [
+        {
+          id: visible.id,
+          title: uniqueTitle,
+          region: "jeju",
+          district: null,
+          address: "제주특별자치도 서귀포시 성산읍 성산리 1-1",
+          longitude: 126.940506,
+          latitude: 33.458056,
+          primaryImageUrl: "https://example.test/e2e-visible.jpg",
+          imageCopyrightType: "Type1",
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+    });
+    expect(tourApiFetch).not.toHaveBeenCalled();
+
+    const invalidRegion = await request(getHttpServer(app))
+      .get("/api/v1/places?region=incheon")
+      .expect(400)
+      .expect("content-type", /application\/problem\+json/);
+    expect(ProblemDetailsSchema.parse(invalidRegion.body as unknown).code).toBe(
+      "VALIDATION_ERROR",
+    );
+
+    const invalidPageSize = await request(getHttpServer(app))
+      .get("/api/v1/places?region=jeju&pageSize=101")
+      .expect(400)
+      .expect("content-type", /application\/problem\+json/);
+    expect(
+      ProblemDetailsSchema.parse(invalidPageSize.body as unknown).code,
+    ).toBe("VALIDATION_ERROR");
   });
 
   it("rejects initialization without creating a listener when its project database is unreachable", async () => {

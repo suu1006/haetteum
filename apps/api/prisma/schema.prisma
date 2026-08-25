@@ -8,3 +8,232 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+/// Haetteum 서비스에서 노출하는 광역 관광 지역
+model TourismRegion {
+  /// Haetteum 내부 관광 지역 식별자
+  id           String  @id @default(uuid()) @db.Uuid
+  /// 웹과 API에서 사용하는 안정적인 영문 지역 식별자
+  slug         String  @unique @db.VarChar(32)
+  /// 사용자에게 표시하는 지역명
+  name         String  @db.VarChar(100)
+  /// TourAPI 법정동 시도 코드
+  providerCode String  @unique @map("provider_code") @db.VarChar(10)
+  /// 메인 화면 지역 필터 표시 순서
+  displayOrder Int     @map("display_order")
+  /// 서비스에서 지역을 노출할지 여부
+  isActive     Boolean @default(true) @map("is_active")
+
+  /// 내부 레코드 생성 시각
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  districts TourismDistrict[]
+  places    Place[]
+
+  @@map("tourism_regions")
+}
+
+/// TourAPI 법정동 시군구 코드와 광역 관광 지역의 관계
+model TourismDistrict {
+  /// Haetteum 내부 시군구 식별자
+  id           String  @id @default(uuid()) @db.Uuid
+  /// 소속 광역 관광 지역 식별자
+  regionId     String  @map("region_id") @db.Uuid
+  /// TourAPI 법정동 시군구 코드
+  providerCode String  @map("provider_code") @db.VarChar(10)
+  /// 사용자에게 표시하는 시군구명
+  name         String  @db.VarChar(100)
+  /// 서비스에서 시군구를 사용할지 여부
+  isActive     Boolean @default(true) @map("is_active")
+
+  /// 내부 레코드 생성 시각
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  region TourismRegion @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  places Place[]
+
+  @@unique([regionId, providerCode])
+  @@index([regionId])
+  @@map("tourism_districts")
+}
+
+/// TourAPI에서 동기화한 관광지 기본 정보
+model Place {
+  /// Haetteum 내부 관광지 식별자
+  id            String @id @default(uuid()) @db.Uuid
+  /// 관광지 원본 provider 식별자
+  source        String @db.VarChar(32)
+  /// provider가 부여한 관광지 식별자
+  externalId    String @map("external_id") @db.VarChar(64)
+  /// TourAPI 콘텐츠 타입 ID
+  contentTypeId Int    @map("content_type_id")
+
+  /// 소속 광역 관광 지역 식별자
+  regionId   String  @map("region_id") @db.Uuid
+  /// 소속 시군구 식별자이며 제공되지 않으면 NULL
+  districtId String? @map("district_id") @db.Uuid
+
+  /// 관광지명
+  title     String   @db.VarChar(500)
+  /// 기본 주소
+  address1  String?  @db.VarChar(500)
+  /// 상세 주소
+  address2  String?  @db.VarChar(500)
+  /// 우편번호
+  zipcode   String?  @db.VarChar(20)
+  /// WGS84 경도
+  longitude Decimal? @db.Decimal(10, 7)
+  /// WGS84 위도
+  latitude  Decimal? @db.Decimal(10, 7)
+  /// TourAPI 지도 확대 레벨
+  mapLevel  Int?     @map("map_level")
+
+  /// TourAPI 신분류 대분류 코드
+  category1 String? @db.VarChar(20)
+  /// TourAPI 신분류 중분류 코드
+  category2 String? @db.VarChar(20)
+  /// TourAPI 신분류 소분류 코드
+  category3 String? @db.VarChar(20)
+  /// 관광지 안내 전화번호
+  telephone String? @db.VarChar(100)
+  /// 관광지 홈페이지 주소
+  homepage  String? @db.Text
+  /// 관광지 소개 설명
+  overview  String? @db.Text
+
+  /// 대표 원본 이미지 URL
+  primaryImageUrl     String?   @map("primary_image_url") @db.Text
+  /// 대표 썸네일 이미지 URL
+  primaryThumbnailUrl String?   @map("primary_thumbnail_url") @db.Text
+  /// 대표 이미지 공공누리 저작권 유형
+  imageCopyrightType  String?   @map("image_copyright_type") @db.VarChar(20)
+  /// provider 콘텐츠 최초 등록 시각
+  providerCreatedAt   DateTime? @map("provider_created_at") @db.Timestamptz(3)
+  /// provider 콘텐츠 최종 수정 시각
+  providerModifiedAt  DateTime  @map("provider_modified_at") @db.Timestamptz(3)
+  /// 서비스에서 관광지를 노출할지 여부
+  isVisible           Boolean   @default(true) @map("is_visible")
+  /// 내부 DB에 마지막으로 정상 반영한 시각
+  lastSyncedAt        DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  region   TourismRegion    @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  district TourismDistrict? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+
+  @@unique([source, externalId])
+  @@index([regionId, isVisible])
+  @@index([districtId, isVisible])
+  @@index([contentTypeId, isVisible])
+  @@index([providerModifiedAt])
+  @@map("places")
+}
+
+/// TourAPI에서 동기화한 축제 기본 정보
+model Festival {
+  /// Haetteum 내부 축제 식별자
+  id            String @id @default(uuid()) @db.Uuid
+  /// 축제 원본 provider 식별자
+  source        String @db.VarChar(32)
+  /// provider가 부여한 축제 식별자
+  externalId    String @map("external_id") @db.VarChar(64)
+  /// TourAPI 콘텐츠 타입 ID
+  contentTypeId Int    @map("content_type_id")
+
+  /// 축제명
+  title          String   @db.VarChar(500)
+  /// 축제 시작일
+  eventStartDate DateTime @map("event_start_date") @db.Date
+  /// 축제 종료일
+  eventEndDate   DateTime @map("event_end_date") @db.Date
+
+  /// TourAPI 법정동 시도 코드
+  providerRegionCode   String? @map("provider_region_code") @db.VarChar(10)
+  /// TourAPI 법정동 시군구 코드
+  providerDistrictCode String? @map("provider_district_code") @db.VarChar(10)
+
+  /// 기본 주소
+  address1  String?  @db.VarChar(500)
+  /// 상세 주소
+  address2  String?  @db.VarChar(500)
+  /// 우편번호
+  zipcode   String?  @db.VarChar(20)
+  /// WGS84 경도
+  longitude Decimal? @db.Decimal(10, 7)
+  /// WGS84 위도
+  latitude  Decimal? @db.Decimal(10, 7)
+  /// TourAPI 지도 확대 레벨
+  mapLevel  Int?     @map("map_level")
+
+  /// TourAPI 신분류 대분류 코드
+  category1 String? @db.VarChar(20)
+  /// TourAPI 신분류 중분류 코드
+  category2 String? @db.VarChar(20)
+  /// TourAPI 신분류 소분류 코드
+  category3 String? @db.VarChar(20)
+  /// 축제 안내 전화번호
+  telephone String? @db.VarChar(100)
+
+  /// 대표 원본 이미지 URL
+  primaryImageUrl     String?   @map("primary_image_url") @db.Text
+  /// 대표 썸네일 이미지 URL
+  primaryThumbnailUrl String?   @map("primary_thumbnail_url") @db.Text
+  /// 대표 이미지 공공누리 저작권 유형
+  imageCopyrightType  String?   @map("image_copyright_type") @db.VarChar(20)
+  /// provider 콘텐츠 최초 등록 시각
+  providerCreatedAt   DateTime? @map("provider_created_at") @db.Timestamptz(3)
+  /// provider 콘텐츠 최종 수정 시각
+  providerModifiedAt  DateTime  @map("provider_modified_at") @db.Timestamptz(3)
+  /// 내부 DB에 마지막으로 정상 반영한 시각
+  lastSyncedAt        DateTime  @map("last_synced_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([source, externalId])
+  @@index([eventStartDate, eventEndDate])
+  @@index([providerRegionCode, eventStartDate])
+  @@index([providerModifiedAt])
+  @@map("festivals")
+}
+
+/// 관광 데이터 전체 또는 증분 동기화 실행 이력
+model TourismSyncRun {
+  /// 동기화 실행 식별자
+  id            String    @id @default(uuid()) @db.Uuid
+  /// 동기화 대상 관광 데이터 provider
+  provider      String    @db.VarChar(32)
+  /// 전체 또는 증분 등 동기화 작업 유형
+  jobType       String    @map("job_type") @db.VarChar(32)
+  /// 동기화 실행 상태
+  status        String    @db.VarChar(32)
+  /// 증분 동기화 요청에 사용한 시작 기준 시각
+  requestedFrom DateTime? @map("requested_from") @db.Timestamptz(3)
+  /// 동기화 실행 시작 시각
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  /// 동기화 실행 종료 시각
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  /// 외부 provider에서 조회한 항목 수
+  fetchedCount     Int     @default(0) @map("fetched_count")
+  /// 새로 저장한 항목 수
+  insertedCount    Int     @default(0) @map("inserted_count")
+  /// 기존 값을 갱신한 항목 수
+  updatedCount     Int     @default(0) @map("updated_count")
+  /// 비표출 상태로 전환한 항목 수
+  deactivatedCount Int     @default(0) @map("deactivated_count")
+  /// 처리에 실패한 항목 수
+  failedCount      Int     @default(0) @map("failed_count")
+  /// 비밀정보를 제외한 오류 요약
+  errorSummary     String? @map("error_summary") @db.Text
+
+  @@index([provider, status, finishedAt])
+  @@map("tourism_sync_runs")
+}
