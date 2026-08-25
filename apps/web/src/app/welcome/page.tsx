@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function WelcomePage() {
   return (
-    <main className="min-h-screen bg-background md:flex md:items-center md:justify-center md:p-8">
+    <main className="min-h-screen bg-background md:flex md:items-center md:justify-center md:p-8 lg:block lg:p-0">
       <WelcomeHero />
     </main>
   );
