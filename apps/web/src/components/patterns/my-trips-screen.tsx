@@ -44,7 +44,7 @@ function MyTripsScreen({ trips }: MyTripsScreenProps) {
       className="mx-auto min-h-screen w-full max-w-[30rem] bg-background pb-[var(--trips-navigation-reserve)]"
       style={screenStyle}
     >
-      <header className="flex items-center justify-between px-10 pt-14 pb-4 max-[390px]:px-6">
+      <header className="flex items-center justify-between px-5 pt-[25px] pb-4">
         <h1 className="text-[1.55rem] font-bold leading-9 tracking-[-0.03em] text-foreground">
           내 일정
         </h1>
@@ -59,7 +59,7 @@ function MyTripsScreen({ trips }: MyTripsScreenProps) {
       </header>
 
       <main>
-        <div className="px-10 max-[390px]:px-6">
+        <div className="px-5">
           <TripScheduleTabs activeTab={activeTab} onChange={setActiveTab} />
         </div>
 
@@ -67,7 +67,7 @@ function MyTripsScreen({ trips }: MyTripsScreenProps) {
           id={`${activeTab}-trip-panel`}
           role="tabpanel"
           aria-labelledby={`${activeTab}-trip-tab`}
-          className="px-10 pt-3 max-[390px]:px-6"
+          className="px-5 pt-3"
         >
           {activeTrips.length > 0 ? (
             <ul aria-label={`${listLabel} 목록`} className="grid gap-3">
@@ -88,7 +88,7 @@ function MyTripsScreen({ trips }: MyTripsScreenProps) {
           )}
         </section>
 
-        <div className="space-y-4 px-10 pt-4 max-[390px]:px-6">
+        <div className="space-y-4 px-5 pt-4">
           <AiTripScheduleBanner
             onRecommend={() =>
               setStatus("AI 맞춤 일정 추천을 준비하고 있어요.")

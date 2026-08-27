@@ -35,7 +35,9 @@ function ExploreScreen({ data, region }: ExploreScreenProps) {
       style={exploreScreenStyle}
     >
       <header className="flex items-center justify-between px-5 pt-[25px] pb-4">
-        <h1 className="type-title-lg text-foreground">탐색</h1>
+        <h1 className="text-[1.55rem] font-bold leading-9 tracking-[-0.03em] text-foreground">
+          탐색
+        </h1>
         <button
           type="button"
           aria-label="알림"

@@ -68,6 +68,35 @@ const testTrips = {
 };
 
 describe("MyTripsScreen", () => {
+  it("keeps every primary content region on the standard horizontal inset", () => {
+    render(<MyTripsScreen trips={testTrips} />);
+
+    const header = screen
+      .getByRole("heading", { level: 1, name: "내 일정" })
+      .closest("header");
+    const tabsContainer = screen
+      .getByRole("tablist", { name: "일정 구분" })
+      .parentElement;
+    const panel = screen.getByRole("tabpanel");
+    const actionsContainer = screen
+      .getByRole("button", { name: "새 일정 만들기" })
+      .parentElement;
+
+    for (const region of [header, tabsContainer, panel, actionsContainer]) {
+      expect(region).toHaveClass("px-5");
+    }
+  });
+
+  it("aligns the header top inset with the Explore screen", () => {
+    render(<MyTripsScreen trips={testTrips} />);
+
+    const header = screen
+      .getByRole("heading", { level: 1, name: "내 일정" })
+      .closest("header");
+
+    expect(header).toHaveClass("pt-[25px]");
+  });
+
   it("renders upcoming trip cards and marks the trip navigation current", () => {
     render(<MyTripsScreen trips={testTrips} />);
 

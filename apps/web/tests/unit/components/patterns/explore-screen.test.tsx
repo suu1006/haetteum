@@ -6,6 +6,17 @@ import { ExploreScreen } from "@/components/patterns/explore-screen";
 import { exploreMock } from "@/features/explore/explore.mock";
 
 describe("ExploreScreen", () => {
+  it("matches the My Trips screen title typography", () => {
+    render(<ExploreScreen data={exploreMock} region="gyeonggi" />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "탐색" })).toHaveClass(
+      "text-[1.55rem]",
+      "font-bold",
+      "leading-9",
+      "tracking-[-0.03em]",
+    );
+  });
+
   it("assembles the approved exploration sections and active navigation", () => {
     render(<ExploreScreen data={exploreMock} region="gyeonggi" />);
 
