@@ -1,8 +1,13 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
+import { z } from "zod";
 
 import {
   ListPlacesQuerySchema,
+  NearbyPlacesQuerySchema,
   type ListPlacesQuery,
+  type NearbyPlacesQuery,
+  type NearbyPlacesResponse,
+  type PlaceDetailResponse,
   type PlacesPage,
 } from "@haetteum/contracts";
 
@@ -19,5 +24,21 @@ export class PlacesController {
     query: ListPlacesQuery,
   ): Promise<PlacesPage> {
     return this.places.list(query);
+  }
+
+  @Get(":placeId/nearby")
+  nearby(
+    @Param("placeId", new ZodValidationPipe(z.string().uuid())) placeId: string,
+    @Query(new ZodValidationPipe(NearbyPlacesQuerySchema))
+    query: NearbyPlacesQuery,
+  ): Promise<NearbyPlacesResponse> {
+    return this.places.nearby(placeId, query);
+  }
+
+  @Get(":placeId")
+  detail(
+    @Param("placeId", new ZodValidationPipe(z.string().uuid())) placeId: string,
+  ): Promise<PlaceDetailResponse> {
+    return this.places.detail(placeId);
   }
 }

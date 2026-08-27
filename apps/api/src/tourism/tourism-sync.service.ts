@@ -7,7 +7,7 @@ import {
   mapChangedPlace,
   mapDistrict,
   mapPlace,
-  mapPlaceDetail,
+  mapPlaceDetailBundle,
   type NormalizedChangedPlace,
   type NormalizedDistrict,
   type NormalizedPlace,
@@ -33,6 +33,12 @@ export type SyncSummary = {
   updatedCount: number;
   deactivatedCount: number;
   failedCount: 0;
+};
+
+export type RankedPlaceDetailEnrichmentSummary = {
+  requestedCount: number;
+  succeededCount: number;
+  failedCount: number;
 };
 
 type SyncCounters = {
@@ -184,7 +190,7 @@ export class TourismSyncService {
     }
   }
 
-  async enrichPlace(contentId: string): Promise<void> {
+  async enrichPlaceDetails(contentId: string): Promise<void> {
     const normalizedContentId = contentId.trim();
     if (!normalizedContentId) {
       throw new SafeSyncError(
@@ -193,7 +199,7 @@ export class TourismSyncService {
     }
 
     try {
-      await this.prisma.place.findUniqueOrThrow({
+      const place = await this.prisma.place.findUniqueOrThrow({
         where: {
           source_externalId: {
             source: TOUR_API_SOURCE,
@@ -202,25 +208,101 @@ export class TourismSyncService {
         },
         select: { id: true },
       });
-      const providerDetail =
-        await this.provider.getPlaceDetail(normalizedContentId);
-      if (providerDetail.contentid.trim() !== normalizedContentId) {
-        throw new SafeSyncError("TourAPI returned a mismatched content ID");
-      }
-      const detail = mapPlaceDetail(providerDetail);
+      const common =
+        await this.provider.getPlaceCommonDetail(normalizedContentId);
+      const intro = await this.provider.getPlaceIntro(normalizedContentId);
+      const information =
+        await this.provider.getPlaceRepeatInfo(normalizedContentId);
+      const images = await this.provider.getPlaceImages(normalizedContentId);
+      const detail = mapPlaceDetailBundle({
+        contentId: normalizedContentId,
+        common,
+        intro,
+        information,
+        images,
+        syncedAt: new Date(),
+      });
 
-      await this.prisma.place.update({
-        where: {
-          source_externalId: {
-            source: TOUR_API_SOURCE,
-            externalId: normalizedContentId,
-          },
-        },
-        data: detail,
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.place.update({
+          where: { id: place.id },
+          data: detail.place,
+        });
+        await transaction.placeImage.deleteMany({
+          where: { placeId: place.id, source: TOUR_API_SOURCE },
+        });
+        await transaction.placeDetailInfo.deleteMany({
+          where: { placeId: place.id, source: TOUR_API_SOURCE },
+        });
+        if (detail.images.length > 0) {
+          await transaction.placeImage.createMany({
+            data: detail.images.map((image) => ({
+              ...image,
+              placeId: place.id,
+            })),
+          });
+        }
+        if (detail.information.length > 0) {
+          await transaction.placeDetailInfo.createMany({
+            data: detail.information.map((item) => ({
+              ...item,
+              placeId: place.id,
+            })),
+          });
+        }
       });
     } catch (error) {
       throw sanitizedSyncError("detail", error);
     }
+  }
+
+  async enrichPlace(contentId: string): Promise<void> {
+    await this.enrichPlaceDetails(contentId);
+  }
+
+  async enrichRankedPlaceDetails(): Promise<RankedPlaceDetailEnrichmentSummary> {
+    const run = await this.prisma.tourismSyncRun.create({
+      data: {
+        provider: TOUR_API_SOURCE,
+        jobType: "DETAIL_RANKED",
+        status: "RUNNING",
+      },
+    });
+    const rows = await this.prisma.placeRanking.findMany({
+      where: {
+        placeId: { not: null },
+        place: { is: { source: TOUR_API_SOURCE, isVisible: true } },
+      },
+      select: { place: { select: { id: true, externalId: true } } },
+      distinct: ["placeId"],
+      orderBy: { placeId: "asc" },
+    });
+    let succeededCount = 0;
+    let failedCount = 0;
+    for (const row of rows) {
+      if (row.place == null) continue;
+      try {
+        await this.enrichPlaceDetails(row.place.externalId);
+        succeededCount += 1;
+      } catch {
+        failedCount += 1;
+      }
+    }
+    await this.prisma.tourismSyncRun.update({
+      where: { id: run.id },
+      data: {
+        status: failedCount === 0 ? "SUCCEEDED" : "FAILED",
+        finishedAt: new Date(),
+        fetchedCount: rows.length,
+        updatedCount: succeededCount,
+        failedCount,
+        errorSummary:
+          failedCount === 0
+            ? null
+            : `Tourism ranked detail synchronization failed for ${failedCount} place(s).`,
+      },
+    });
+    return { requestedCount: rows.length, succeededCount, failedCount };
   }
 
   private async fullSyncRegion(

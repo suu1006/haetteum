@@ -16,12 +16,14 @@ import type {
   DiscoveryView,
   MainDiscoveryData,
 } from "@/features/discovery/discovery-model";
+import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
 
 export type MainDiscoveryProps = {
   data: MainDiscoveryData;
   query: DiscoveryQuery;
   view: DiscoveryView;
+  ranking?: PlaceRankingLoadState | null;
 };
 
 const mainDiscoveryStyle = {
@@ -30,7 +32,12 @@ const mainDiscoveryStyle = {
     "calc(var(--main-navigation-height) + var(--safe-area-bottom) + 25px)",
 } as CSSProperties;
 
-function MainDiscovery({ data, query, view }: MainDiscoveryProps) {
+function MainDiscovery({
+  data,
+  query,
+  view,
+  ranking = { status: "error" },
+}: MainDiscoveryProps) {
   return (
     <div
       className={`mx-auto min-h-screen w-full max-w-[30rem] pb-[var(--main-navigation-reserve)] ${
@@ -47,9 +54,8 @@ function MainDiscovery({ data, query, view }: MainDiscoveryProps) {
       <div data-testid="main-region" data-region="list">
         {view.showRankedPlaces ? (
           <RankedPlaceSection
-            places={view.places}
+            ranking={ranking}
             query={query}
-            regions={data.regions}
           />
         ) : null}
         {view.showPopularPlaces ? (

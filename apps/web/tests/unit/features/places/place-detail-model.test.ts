@@ -12,9 +12,9 @@ import {
 } from "@/features/places/place-detail.mock";
 
 describe("place detail model", () => {
-  it("normalizes unknown route values to the review-all defaults", () => {
+  it("normalizes unknown route values to the introduction default", () => {
     expect(parsePlaceDetailQuery({ tab: "unknown", source: ["bad"] })).toEqual({
-      tab: "reviews",
+      tab: "introduction",
       source: "all",
     });
   });
@@ -23,6 +23,12 @@ describe("place detail model", () => {
     expect(buildPlaceDetailHref("icheon-termeden")).toBe(
       "/places/icheon-termeden",
     );
+    expect(
+      buildPlaceDetailHref("icheon-termeden", {
+        tab: "reviews",
+        source: "all",
+      }),
+    ).toBe("/places/icheon-termeden?tab=reviews");
     expect(
       buildPlaceDetailHref("icheon-termeden", {
         tab: "reviews",

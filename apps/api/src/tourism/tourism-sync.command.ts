@@ -10,11 +10,13 @@ const USAGE = [
   "  pnpm tourism:sync -- --mode=full",
   "  pnpm tourism:sync -- --mode=incremental",
   "  pnpm tourism:enrich -- --content-id=2704412",
+  "  pnpm tourism:enrich-ranked",
 ].join("\n");
 
 type SyncCommand =
   | { mode: "full" }
   | { mode: "incremental" }
+  | { mode: "enrich-ranked" }
   | { mode: "enrich"; contentId: string };
 
 class UsageError extends Error {
@@ -52,6 +54,10 @@ export function parseCommandArguments(args: readonly string[]): SyncCommand {
 
   if (mode === "full" || mode === "incremental") {
     if (contentId !== undefined) throw new UsageError();
+    return { mode };
+  }
+
+  if (mode === "enrich-ranked" && contentId === undefined) {
     return { mode };
   }
 
@@ -119,7 +125,17 @@ async function run(): Promise<void> {
       return;
     }
 
-    await sync.enrichPlace(command.contentId);
+    if (command.mode === "enrich-ranked") {
+      console.log(
+        JSON.stringify({
+          operation: "enrich-ranked",
+          ...(await sync.enrichRankedPlaceDetails()),
+        }),
+      );
+      return;
+    }
+
+    await sync.enrichPlaceDetails(command.contentId);
     console.log(
       JSON.stringify({
         operation: "enrich",

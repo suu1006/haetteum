@@ -4,6 +4,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 
 import { AppModule } from "../src/app.module.js";
+import type { Prisma } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
 const EXPECTED_REGIONS = [
@@ -62,6 +63,17 @@ const EXPECTED_DATABASE_COMMENTS = {
       telephone: "관광지 안내 전화번호",
       homepage: "관광지 홈페이지 주소",
       overview: "관광지 소개 설명",
+      info_center: "관광지 안내센터 정보",
+      rest_date: "관광지 휴무일 안내",
+      use_season: "관광지 이용 가능 계절",
+      use_time: "관광지 이용 시간",
+      parking: "관광지 주차 안내",
+      experience_age_range: "관광지 체험 가능 연령",
+      experience_guide: "관광지 체험 안내",
+      baby_carriage: "유모차 대여 가능 여부",
+      credit_card: "신용카드 사용 가능 여부",
+      pet: "반려동물 동반 가능 여부",
+      detail_synced_at: "TourAPI 상세정보를 마지막으로 정상 반영한 시각",
       primary_image_url: "대표 원본 이미지 URL",
       primary_thumbnail_url: "대표 썸네일 이미지 URL",
       image_copyright_type: "대표 이미지 공공누리 저작권 유형",
@@ -69,6 +81,59 @@ const EXPECTED_DATABASE_COMMENTS = {
       provider_modified_at: "provider 콘텐츠 최종 수정 시각",
       is_visible: "서비스에서 관광지를 노출할지 여부",
       last_synced_at: "내부 DB에 마지막으로 정상 반영한 시각",
+      created_at: "내부 레코드 생성 시각",
+      updated_at: "내부 레코드 최종 수정 시각",
+    },
+  },
+  place_images: {
+    table: "TourAPI에서 동기화한 관광지 상세 이미지",
+    columns: {
+      id: "Haetteum 내부 관광지 이미지 식별자",
+      place_id: "소속 관광지 식별자",
+      source: "이미지 원본 provider 식별자",
+      serial_number: "provider 이미지 일련번호",
+      name: "provider 이미지명",
+      original_url: "원본 이미지 URL",
+      thumbnail_url: "썸네일 이미지 URL",
+      copyright_type: "이미지 공공누리 저작권 유형",
+      display_order: "상세 화면 이미지 표시 순서",
+      created_at: "내부 레코드 생성 시각",
+      updated_at: "내부 레코드 최종 수정 시각",
+    },
+  },
+  place_detail_infos: {
+    table: "TourAPI에서 동기화한 관광지 반복 상세정보",
+    columns: {
+      id: "Haetteum 내부 반복 상세정보 식별자",
+      place_id: "소속 관광지 식별자",
+      source: "상세정보 원본 provider 식별자",
+      serial_number: "provider 상세정보 일련번호",
+      field_group: "provider 상세정보 필드 그룹",
+      name: "상세정보 이름",
+      text: "상세정보 본문",
+      display_order: "상세 화면 표시 순서",
+      created_at: "내부 레코드 생성 시각",
+      updated_at: "내부 레코드 최종 수정 시각",
+    },
+  },
+  place_rankings: {
+    table:
+      "한국관광 데이터랩 공식 다운로드에서 적재한 기간·대상별 인기관광지 순위",
+    columns: {
+      id: "Haetteum 내부 순위 레코드 식별자",
+      source: "순위 원본 provider 식별자",
+      scope: "전국 등 순위 집계 범위",
+      source_place_id: "데이터랩 관광지 식별자",
+      source_place_name: "데이터랩 관광지명",
+      source_category: "데이터랩 관광지 구분",
+      audience: "전체 또는 세대별 집계 대상",
+      period_start: "순위 집계 시작일",
+      period_end: "순위 집계 종료일",
+      rank: "집계 범위 안의 원본 순위",
+      share_percent: "데이터랩 원본 비율의 퍼센트 값",
+      place_id: "매칭된 Haetteum 관광지 식별자",
+      source_file_name: "감사 가능한 원본 CSV 파일명",
+      imported_at: "순위 스냅샷 적재 시각",
       created_at: "내부 레코드 생성 시각",
       updated_at: "내부 레코드 최종 수정 시각",
     },
@@ -132,10 +197,23 @@ type DatabaseCommentRow = {
   columnComment: string | null;
 };
 
+type DatabaseIndexRow = {
+  indexName: string;
+  isUnique: boolean;
+  columnNames: string;
+};
+
+type DatabaseForeignKeyRow = {
+  constraintName: string;
+  deleteAction: string;
+  updateAction: string;
+};
+
 describe("tourism database foundation (e2e)", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   const testRegionIds = new Set<string>();
+  const testPlaceRankingIds = new Set<string>();
   const testSyncRunIds = new Set<string>();
 
   beforeAll(async () => {
@@ -157,8 +235,19 @@ describe("tourism database foundation (e2e)", () => {
     }
 
     const ids = [...testRegionIds];
+    const rankingIds = [...testPlaceRankingIds];
+    if (rankingIds.length > 0) {
+      await prisma.placeRanking.deleteMany({
+        where: { id: { in: rankingIds } },
+      });
+      testPlaceRankingIds.clear();
+    }
+
     if (ids.length === 0) return;
 
+    await prisma.placeRanking.deleteMany({
+      where: { place: { regionId: { in: ids } } },
+    });
     await prisma.place.deleteMany({ where: { regionId: { in: ids } } });
     await prisma.tourismDistrict.deleteMany({
       where: { regionId: { in: ids } },
@@ -198,6 +287,28 @@ describe("tourism database foundation (e2e)", () => {
     };
   }
 
+  function placeRankingData(
+    overrides: Partial<Prisma.PlaceRankingUncheckedCreateInput> = {},
+  ): Prisma.PlaceRankingUncheckedCreateInput {
+    const suffix = randomUUID().replaceAll("-", "");
+    return {
+      source: "KTO_DATALAB",
+      scope: `TEST_${suffix.slice(0, 12)}`,
+      sourcePlaceId: suffix,
+      sourcePlaceName: "에버랜드",
+      sourceCategory: "레저/스포츠",
+      audience: "ALL",
+      periodStart: new Date("2025-08-01T00:00:00.000Z"),
+      periodEnd: new Date("2026-07-31T00:00:00.000Z"),
+      rank: 1,
+      sharePercent: "9.0",
+      placeId: null,
+      sourceFileName: "세대별 인기관광지(전체).csv",
+      importedAt: new Date("2026-08-25T07:45:20.000Z"),
+      ...overrides,
+    };
+  }
+
   it("contains the five approved product regions", async () => {
     const regions = await prisma.tourismRegion.findMany({
       where: { slug: { in: EXPECTED_REGIONS.map((region) => region.slug) } },
@@ -231,6 +342,9 @@ describe("tourism database foundation (e2e)", () => {
           'tourism_regions',
           'tourism_districts',
           'places',
+          'place_images',
+          'place_detail_infos',
+          'place_rankings',
           'festivals',
           'tourism_sync_runs'
         )
@@ -251,6 +365,157 @@ describe("tourism database foundation (e2e)", () => {
       expect(tableRows[0]?.tableComment).toBe(expected.table);
       expect(actualColumns).toEqual(expected.columns);
     }
+  });
+
+  it("creates the place ranking unique and latest-read indexes", async () => {
+    const rows = await prisma.$queryRaw<DatabaseIndexRow[]>`
+      SELECT
+        indexes.relname::text AS "indexName",
+        pg_indexes.indisunique AS "isUnique",
+        array_to_string(
+          array_agg(columns.attname::text ORDER BY index_columns.ordinality),
+          ','
+        ) AS "columnNames"
+      FROM pg_catalog.pg_class AS tables
+      INNER JOIN pg_catalog.pg_namespace AS namespaces
+        ON namespaces.oid = tables.relnamespace
+      INNER JOIN pg_catalog.pg_index AS pg_indexes
+        ON pg_indexes.indrelid = tables.oid
+      INNER JOIN pg_catalog.pg_class AS indexes
+        ON indexes.oid = pg_indexes.indexrelid
+      INNER JOIN LATERAL unnest(pg_indexes.indkey) WITH ORDINALITY AS index_columns(attnum, ordinality)
+        ON TRUE
+      INNER JOIN pg_catalog.pg_attribute AS columns
+        ON columns.attrelid = tables.oid
+       AND columns.attnum = index_columns.attnum
+      WHERE namespaces.nspname = 'public'
+        AND tables.relname = 'place_rankings'
+        AND indexes.relname IN (
+          'place_rankings_snapshot_rank_key',
+          'place_rankings_snapshot_source_place_id_key',
+          'place_rankings_source_scope_audience_period_end_rank_idx',
+          'place_rankings_place_id_idx'
+        )
+      GROUP BY indexes.relname, pg_indexes.indisunique
+    `;
+
+    const indexes = Object.fromEntries(
+      rows.map((row) => [
+        row.indexName,
+        { isUnique: row.isUnique, columnNames: row.columnNames.split(",") },
+      ]),
+    );
+
+    expect(indexes).toEqual({
+      place_rankings_snapshot_rank_key: {
+        isUnique: true,
+        columnNames: [
+          "source",
+          "scope",
+          "period_start",
+          "period_end",
+          "audience",
+          "rank",
+        ],
+      },
+      place_rankings_snapshot_source_place_id_key: {
+        isUnique: true,
+        columnNames: [
+          "source",
+          "scope",
+          "period_start",
+          "period_end",
+          "audience",
+          "source_place_id",
+        ],
+      },
+      place_rankings_source_scope_audience_period_end_rank_idx: {
+        isUnique: false,
+        columnNames: ["source", "scope", "audience", "period_end", "rank"],
+      },
+      place_rankings_place_id_idx: {
+        isUnique: false,
+        columnNames: ["place_id"],
+      },
+    });
+  });
+
+  it("keeps the place ranking foreign key set-null action", async () => {
+    const rows = await prisma.$queryRaw<DatabaseForeignKeyRow[]>`
+      SELECT
+        constraints.conname::text AS "constraintName",
+        constraints.confdeltype::text AS "deleteAction",
+        constraints.confupdtype::text AS "updateAction"
+      FROM pg_catalog.pg_constraint AS constraints
+      INNER JOIN pg_catalog.pg_class AS tables
+        ON tables.oid = constraints.conrelid
+      INNER JOIN pg_catalog.pg_namespace AS namespaces
+        ON namespaces.oid = tables.relnamespace
+      WHERE namespaces.nspname = 'public'
+        AND tables.relname = 'place_rankings'
+        AND constraints.conname = 'place_rankings_place_id_fkey'
+        AND constraints.contype = 'f'
+    `;
+
+    expect(rows).toEqual([
+      {
+        constraintName: "place_rankings_place_id_fkey",
+        deleteAction: "n",
+        updateAction: "c",
+      },
+    ]);
+  });
+
+  it("stores a place ranking without a linked place", async () => {
+    const ranking = await prisma.placeRanking.create({
+      data: placeRankingData(),
+    });
+    testPlaceRankingIds.add(ranking.id);
+
+    expect(ranking.placeId).toBeNull();
+    expect(ranking.rank).toBe(1);
+  });
+
+  it("rejects duplicate place ranking snapshot ranks and source place identities", async () => {
+    const base = placeRankingData();
+    const first = await prisma.placeRanking.create({ data: base });
+    testPlaceRankingIds.add(first.id);
+
+    await expect(
+      prisma.placeRanking.create({
+        data: {
+          ...base,
+          sourcePlaceId: `${base.sourcePlaceId}-rank`,
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
+
+    await expect(
+      prisma.placeRanking.create({
+        data: {
+          ...base,
+          rank: 2,
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
+  });
+
+  it("sets a linked place ranking placeId to null when the place is removed", async () => {
+    const region = await createTestRegion();
+    const place = await prisma.place.create({
+      data: placeData(region.id, randomUUID()),
+    });
+    const ranking = await prisma.placeRanking.create({
+      data: placeRankingData({ placeId: place.id }),
+    });
+    testPlaceRankingIds.add(ranking.id);
+
+    await prisma.place.delete({ where: { id: place.id } });
+    const updated = await prisma.placeRanking.findUniqueOrThrow({
+      where: { id: ranking.id },
+    });
+
+    expect(updated.placeId).toBeNull();
   });
 
   it("stores a place without a district and preserves its UUID when hidden", async () => {

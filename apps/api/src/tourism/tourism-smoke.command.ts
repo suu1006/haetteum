@@ -99,7 +99,7 @@ export async function runTourismSmoke(
     output,
   );
 
-  const detail = await provider.getPlaceDetail(contentId);
+  const detail = await provider.getPlaceCommonDetail(contentId);
   const detailContentId = optionalText(detail.contentid);
   if (detailContentId !== contentId) {
     throw new Error(SAFE_DETAIL_MISMATCH);

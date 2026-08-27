@@ -6,11 +6,15 @@ import {
   mapFestival,
   mapPlace,
   mapPlaceDetail,
+  mapPlaceDetailBundle,
 } from "./tour-api.mapper.js";
 import type {
   TourApiChangedPlace,
   TourApiFestival,
   TourApiPlace,
+  TourApiPlaceImage,
+  TourApiPlaceInfo,
+  TourApiPlaceIntro,
 } from "./tour-api.types.js";
 
 const lastSyncedAt = new Date("2026-08-24T00:00:00.000Z");
@@ -337,5 +341,76 @@ describe("TourAPI mapper", () => {
       homepage: null,
     });
     expect(mapPlaceDetail({ contentid: "2704412" })).toEqual({});
+  });
+
+  it("maps an atomic place detail bundle without inventing fields", () => {
+    const intro: TourApiPlaceIntro = {
+      contentid: "2704412",
+      infocenter: " 064-000-0000 ",
+      usetime: " 09:00~18:00 ",
+      parking: " ",
+    };
+    const information: TourApiPlaceInfo[] = [
+      {
+        contentid: "2704412",
+        serialnum: "1",
+        fldgubun: "1",
+        infoname: " 이용안내 ",
+        infotext: " 방문 전 확인 ",
+      },
+    ];
+    const images: TourApiPlaceImage[] = [
+      {
+        contentid: "2704412",
+        serialnum: "1",
+        imgname: " 전경 ",
+        originimgurl: "http://tong.visitkorea.or.kr/image.jpg",
+        smallimageurl: "https://tong.visitkorea.or.kr/thumb.jpg",
+        cpyrhtDivCd: "Type1",
+      },
+      {
+        contentid: "2704412",
+        serialnum: "2",
+        originimgurl: "https://tong.visitkorea.or.kr/image.jpg",
+      },
+    ];
+
+    const result = mapPlaceDetailBundle({
+      contentId: "2704412",
+      common: { contentid: "2704412", overview: " 소개 " },
+      intro,
+      information,
+      images,
+      syncedAt: lastSyncedAt,
+    });
+
+    expect(result.place).toMatchObject({
+      overview: "소개",
+      infoCenter: "064-000-0000",
+      useTime: "09:00~18:00",
+      parking: null,
+      detailSyncedAt: lastSyncedAt,
+    });
+    expect(result.information).toEqual([
+      {
+        source: "TOUR_API",
+        serialNumber: "1",
+        fieldGroup: "1",
+        name: "이용안내",
+        text: "방문 전 확인",
+        displayOrder: 0,
+      },
+    ]);
+    expect(result.images).toEqual([
+      {
+        source: "TOUR_API",
+        serialNumber: "1",
+        name: "전경",
+        originalUrl: "https://tong.visitkorea.or.kr/image.jpg",
+        thumbnailUrl: "https://tong.visitkorea.or.kr/thumb.jpg",
+        copyrightType: "Type1",
+        displayOrder: 0,
+      },
+    ]);
   });
 });

@@ -16,10 +16,17 @@ const navigationMocks = vi.hoisted(() => ({
   }),
 }));
 
+const apiMocks = vi.hoisted(() => ({
+  loadPlaceDetail: vi.fn(),
+  loadNearbyPlaces: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   notFound: navigationMocks.notFound,
   useRouter: () => navigationMocks,
 }));
+
+vi.mock("@/features/places/place-detail-api", () => apiMocks);
 
 describe("place detail page", () => {
   it("projects every discovery place into static route params", () => {
@@ -65,6 +72,70 @@ describe("place detail page", () => {
         searchParams: Promise.resolve({}),
       }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("loads a UUID place from the API and renders the introduction by default", async () => {
+    apiMocks.loadPlaceDetail.mockResolvedValue({
+      status: "ready",
+      data: {
+        id: "24684077-a907-45c3-85bf-b509dab12377",
+        title: "에버랜드",
+        category: { primary: "VE", secondary: null, tertiary: null },
+        region: "gyeonggi",
+        district: "용인시",
+        address: "경기 용인시",
+        longitude: 127.2,
+        latitude: 37.2,
+        telephone: null,
+        homepage: null,
+        overview: "테마파크 소개",
+        images: [],
+        introduction: {
+          infoCenter: null,
+          restDate: null,
+          useSeason: null,
+          useTime: "09:00~18:00",
+          parking: "주차 가능",
+          experienceAgeRange: null,
+          experienceGuide: null,
+          babyCarriage: null,
+          creditCard: null,
+          pet: null,
+        },
+        information: [],
+        detailSyncedAt: null,
+      },
+    });
+
+    render(
+      await PlaceDetailPage({
+        params: Promise.resolve({
+          placeId: "24684077-a907-45c3-85bf-b509dab12377",
+        }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "에버랜드" })).toBeVisible();
+    expect(screen.getByText("테마파크 소개")).toBeVisible();
+    expect(screen.getByText("09:00~18:00")).toBeVisible();
+  });
+
+  it("builds truthful live metadata for a UUID place", async () => {
+    apiMocks.loadPlaceDetail.mockResolvedValue({
+      status: "ready",
+      data: { title: "에버랜드", overview: "테마파크 소개" },
+    });
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({
+          placeId: "24684077-a907-45c3-85bf-b509dab12377",
+        }),
+      }),
+    ).resolves.toEqual({
+      title: "에버랜드 소개 | 해뜸",
+      description: "테마파크 소개",
+    });
   });
 
   it("offers a return path from the scoped not-found page", () => {

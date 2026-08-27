@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
 
 import {
+  FestivalDiscoveryResponseSchema,
   HealthResponseSchema,
+  PlaceRankingResponseSchema,
   PlacesPageSchema,
   ProblemDetailsSchema,
 } from "@haetteum/contracts";
@@ -22,6 +24,7 @@ import { TOUR_API_FETCH } from "../src/tourism/tourism.constants.js";
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SENSITIVE_DATABASE_DETAILS = /DATABASE_URL|SELECT|postgresql:\/\//;
+const E2E_PLACE_RANKING_SOURCE_FILE_PREFIX = "e2e-place-rankings-";
 
 function getHttpServer(application: INestApplication): Server {
   return application.getHttpServer() as Server;
@@ -46,7 +49,9 @@ async function reserveUnusedLoopbackPort(): Promise<number> {
 describe("API HTTP boundary (e2e)", () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  const createdPlaceRankingIds: string[] = [];
   const createdPlaceIds: string[] = [];
+  const createdFestivalIds: string[] = [];
   const createdRegionIds: string[] = [];
   const tourApiFetch = jest.fn();
 
@@ -66,6 +71,16 @@ describe("API HTTP boundary (e2e)", () => {
 
   afterAll(async () => {
     try {
+      if (createdPlaceRankingIds.length > 0) {
+        await prisma.placeRanking.deleteMany({
+          where: { id: { in: createdPlaceRankingIds } },
+        });
+      }
+      if (createdFestivalIds.length > 0) {
+        await prisma.festival.deleteMany({
+          where: { id: { in: createdFestivalIds } },
+        });
+      }
       if (createdPlaceIds.length > 0) {
         await prisma.place.deleteMany({
           where: { id: { in: createdPlaceIds } },
@@ -79,6 +94,71 @@ describe("API HTTP boundary (e2e)", () => {
     } finally {
       await app.close();
     }
+  });
+
+  it("serves PostgreSQL festival discovery data without calling TourAPI", async () => {
+    const current = new Date(Date.now() + 9 * 60 * 60 * 1_000);
+    const today = new Date(
+      Date.UTC(
+        current.getUTCFullYear(),
+        current.getUTCMonth(),
+        current.getUTCDate(),
+      ),
+    );
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1_000);
+    const externalId = `0000-e2e-${randomUUID()}`;
+    const festival = await prisma.festival.create({
+      data: {
+        source: "E2E_TEST",
+        externalId,
+        contentTypeId: 15,
+        title: "E2E 경주 실데이터 축제",
+        eventStartDate: yesterday,
+        eventEndDate: today,
+        providerRegionCode: "47",
+        providerDistrictCode: "130",
+        address1: "경상북도 경주시",
+        address2: "테스트로 1",
+        category1: "EV",
+        category2: "EV01",
+        category3: "EV010400",
+        providerModifiedAt: new Date(),
+        lastSyncedAt: new Date(),
+      },
+    });
+    createdFestivalIds.push(festival.id);
+
+    tourApiFetch.mockClear();
+    const response = await request(getHttpServer(app))
+      .get("/api/v1/festivals/discovery?region=gyeongju&page=1&pageSize=40")
+      .expect(200);
+    const discovery = FestivalDiscoveryResponseSchema.parse(
+      response.body as unknown,
+    );
+
+    expect(discovery.region).toBe("gyeongju");
+    expect(discovery.ranking[0]).toMatchObject({
+      id: festival.id,
+      externalId,
+      rank: 1,
+      title: "E2E 경주 실데이터 축제",
+      status: "ONGOING",
+      eventStartDate: yesterday.toISOString().slice(0, 10),
+      eventEndDate: today.toISOString().slice(0, 10),
+      address: "경상북도 경주시 테스트로 1",
+      categoryLabel: "전통역사축제",
+      primaryImageUrl: null,
+    });
+    expect(discovery.items.some((item) => item.id === festival.id)).toBe(true);
+    expect(tourApiFetch).not.toHaveBeenCalled();
+
+    const invalid = await request(getHttpServer(app))
+      .get("/api/v1/festivals/discovery?region=incheon")
+      .expect(400)
+      .expect("content-type", /application\/problem\+json/);
+    expect(ProblemDetailsSchema.parse(invalid.body as unknown).code).toBe(
+      "VALIDATION_ERROR",
+    );
   });
 
   it("reports a live database as healthy with the shared schema and a server UUID", async () => {
@@ -254,6 +334,127 @@ describe("API HTTP boundary (e2e)", () => {
     expect(
       ProblemDetailsSchema.parse(invalidPageSize.body as unknown).code,
     ).toBe("VALIDATION_ERROR");
+  });
+
+  it("serves the latest place ranking snapshot without calling TourAPI", async () => {
+    const now = new Date();
+    await prisma.placeRanking.deleteMany({
+      where: {
+        source: "KTO_DATALAB",
+        scope: "NATIONAL",
+        sourceFileName: { startsWith: E2E_PLACE_RANKING_SOURCE_FILE_PREFIX },
+      },
+    });
+    const activeJeju = await prisma.tourismRegion.findUniqueOrThrow({
+      where: { slug: "jeju" },
+    });
+    const matchedPlace = await prisma.place.create({
+      data: {
+        source: "E2E_TEST",
+        externalId: `${randomUUID()}-ranking-match`,
+        contentTypeId: 12,
+        regionId: activeJeju.id,
+        title: "E2E 랭킹 매칭 관광지",
+        primaryImageUrl: "https://example.test/ranking-match.jpg",
+        imageCopyrightType: "Type1",
+        providerModifiedAt: now,
+        lastSyncedAt: now,
+        isVisible: true,
+      },
+    });
+    createdPlaceIds.push(matchedPlace.id);
+    const periodStart = new Date("2099-01-01T00:00:00.000Z");
+    const periodEnd = new Date("2099-12-31T00:00:00.000Z");
+    const sourceFileName = `${E2E_PLACE_RANKING_SOURCE_FILE_PREFIX}${randomUUID()}.csv`;
+    const [second, first] = await Promise.all([
+      prisma.placeRanking.create({
+        data: {
+          source: "KTO_DATALAB",
+          scope: "NATIONAL",
+          sourcePlaceId: randomUUID().replaceAll("-", ""),
+          sourcePlaceName: "E2E 랭킹 미매칭 관광지",
+          sourceCategory: "자연관광",
+          audience: "ALL",
+          periodStart,
+          periodEnd,
+          rank: 2,
+          sharePercent: "7.89",
+          sourceFileName,
+          importedAt: now,
+        },
+      }),
+      prisma.placeRanking.create({
+        data: {
+          source: "KTO_DATALAB",
+          scope: "NATIONAL",
+          sourcePlaceId: randomUUID().replaceAll("-", ""),
+          sourcePlaceName: "E2E 랭킹 매칭 관광지",
+          sourceCategory: "문화관광",
+          audience: "ALL",
+          periodStart,
+          periodEnd,
+          rank: 1,
+          sharePercent: "12.34",
+          placeId: matchedPlace.id,
+          sourceFileName,
+          importedAt: now,
+        },
+      }),
+    ]);
+    createdPlaceRankingIds.push(second.id, first.id);
+
+    tourApiFetch.mockClear();
+    const response = await request(getHttpServer(app))
+      .get("/api/v1/place-rankings?audience=all&limit=10")
+      .expect(200);
+    const rankings = PlaceRankingResponseSchema.parse(response.body as unknown);
+
+    expect(rankings).toMatchObject({
+      source: "KTO_DATALAB",
+      scope: "national",
+      periodStart: "2099-01-01",
+      periodEnd: "2099-12-31",
+      audience: "all",
+    });
+    expect(rankings.items).toEqual([
+      {
+        rank: 1,
+        sourcePlaceId: first.sourcePlaceId,
+        title: "E2E 랭킹 매칭 관광지",
+        category: "문화관광",
+        sharePercent: 12.34,
+        placeId: matchedPlace.id,
+        primaryImageUrl: "https://example.test/ranking-match.jpg",
+        imageCopyrightType: "Type1",
+      },
+      {
+        rank: 2,
+        sourcePlaceId: second.sourcePlaceId,
+        title: "E2E 랭킹 미매칭 관광지",
+        category: "자연관광",
+        sharePercent: 7.89,
+        placeId: null,
+        primaryImageUrl: null,
+        imageCopyrightType: null,
+      },
+    ]);
+    expect(tourApiFetch).not.toHaveBeenCalled();
+
+    const invalidAudience = await request(getHttpServer(app))
+      .get("/api/v1/place-rankings?audience=teens")
+      .expect(400)
+      .expect("content-type", /application\/problem\+json/);
+    expect(
+      ProblemDetailsSchema.parse(invalidAudience.body as unknown).code,
+    ).toBe("VALIDATION_ERROR");
+
+    const invalidLimit = await request(getHttpServer(app))
+      .get("/api/v1/place-rankings?limit=11")
+      .expect(400)
+      .expect("content-type", /application\/problem\+json/);
+    expect(ProblemDetailsSchema.parse(invalidLimit.body as unknown).code).toBe(
+      "VALIDATION_ERROR",
+    );
   });
 
   it("rejects initialization without creating a listener when its project database is unreachable", async () => {

@@ -76,7 +76,7 @@ function createProvider(detailContentId: string): {
         );
         return Promise.resolve(page(changedPlace));
       },
-      getPlaceDetail: (contentId) => {
+      getPlaceCommonDetail: (contentId) => {
         calls.push(`detailCommon2:${contentId}`);
         return Promise.resolve({
           contentid: detailContentId,
@@ -85,6 +85,9 @@ function createProvider(detailContentId: string): {
           homepage: '<a href="https://provider.example">홈페이지</a>',
         });
       },
+      getPlaceIntro: (contentId) => Promise.resolve({ contentid: contentId }),
+      getPlaceRepeatInfo: () => Promise.resolve([]),
+      getPlaceImages: () => Promise.resolve([]),
     },
   };
 }

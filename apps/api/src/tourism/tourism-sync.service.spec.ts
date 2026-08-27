@@ -6,6 +6,9 @@ import type {
   TourApiPage,
   TourApiPlace,
   TourApiPlaceDetail,
+  TourApiPlaceImage,
+  TourApiPlaceInfo,
+  TourApiPlaceIntro,
   TourApiPort,
 } from "./tour-api.types.js";
 import { TOURISM_REGION_CODES } from "./tourism.constants.js";
@@ -141,6 +144,9 @@ class FakeTourApi implements TourApiPort {
     overview: "상세 설명",
     homepage: "https://example.test",
   };
+  intro: TourApiPlaceIntro = { contentid: "unused" };
+  information: TourApiPlaceInfo[] = [];
+  images: TourApiPlaceImage[] = [];
 
   constructor() {
     for (const regionCode of TOURISM_REGION_CODES) {
@@ -189,9 +195,28 @@ class FakeTourApi implements TourApiPort {
     return page([]);
   }
 
-  async getPlaceDetail(contentId: string): Promise<TourApiPlaceDetail> {
+  async getPlaceCommonDetail(contentId: string): Promise<TourApiPlaceDetail> {
     this.detailCalls.push(contentId);
     return this.detail;
+  }
+
+  async getPlaceIntro(contentId: string): Promise<TourApiPlaceIntro> {
+    this.detailCalls.push(`intro:${contentId}`);
+    return this.intro;
+  }
+
+  async getPlaceRepeatInfo(
+    contentId: string,
+  ): Promise<readonly TourApiPlaceInfo[]> {
+    this.detailCalls.push(`info:${contentId}`);
+    return this.information;
+  }
+
+  async getPlaceImages(
+    contentId: string,
+  ): Promise<readonly TourApiPlaceImage[]> {
+    this.detailCalls.push(`images:${contentId}`);
+    return this.images;
   }
 
   private async resolve<T>(result: PageResult<T>): Promise<TourApiPage<T>> {
@@ -220,6 +245,9 @@ class FakePrisma {
   readonly syncRuns: SyncRunRow[] = [];
   readonly runCreateData: Array<Record<string, unknown>> = [];
   readonly placeUpdateData: Array<Record<string, unknown>> = [];
+  readonly placeImages: Array<Record<string, unknown>> = [];
+  readonly placeDetailInfos: Array<Record<string, unknown>> = [];
+  readonly rankedPlaceIds: string[] = [];
 
   private districtSequence = 0;
   private placeSequence = 0;
@@ -379,6 +407,56 @@ class FakePrisma {
             (right.finishedAt?.getTime() ?? 0) -
             (left.finishedAt?.getTime() ?? 0),
         )[0] ?? null,
+  };
+
+  readonly placeImage = {
+    deleteMany: async (args: any): Promise<{ count: number }> => {
+      const before = this.placeImages.length;
+      const kept = this.placeImages.filter(
+        (item) =>
+          item.placeId !== args.where.placeId ||
+          item.source !== args.where.source,
+      );
+      this.placeImages.splice(0, this.placeImages.length, ...kept);
+      return { count: before - kept.length };
+    },
+    createMany: async (args: any): Promise<{ count: number }> => {
+      this.placeImages.push(...args.data);
+      return { count: args.data.length };
+    },
+  };
+
+  readonly placeDetailInfo = {
+    deleteMany: async (args: any): Promise<{ count: number }> => {
+      const before = this.placeDetailInfos.length;
+      const kept = this.placeDetailInfos.filter(
+        (item) =>
+          item.placeId !== args.where.placeId ||
+          item.source !== args.where.source,
+      );
+      this.placeDetailInfos.splice(0, this.placeDetailInfos.length, ...kept);
+      return { count: before - kept.length };
+    },
+    createMany: async (args: any): Promise<{ count: number }> => {
+      this.placeDetailInfos.push(...args.data);
+      return { count: args.data.length };
+    },
+  };
+
+  readonly placeRanking = {
+    findMany: async (): Promise<
+      Array<{ place: { id: string; externalId: string } | null }>
+    > =>
+      [...new Set(this.rankedPlaceIds)].sort().map((placeId) => ({
+        place: this.places.find((place) => place.id === placeId)
+          ? {
+              id: placeId,
+              externalId:
+                this.places.find((place) => place.id === placeId)?.externalId ??
+                "",
+            }
+          : null,
+      })),
   };
 
   async $transaction<T>(
@@ -994,7 +1072,7 @@ describe("TourismSyncService", () => {
     expect(provider.changedCalls[0]?.modifiedDate).toBe("20260824");
   });
 
-  it("enriches only overview and homepage for one existing content ID", async () => {
+  it("atomically enriches common, intro, repeat and image detail for one content ID", async () => {
     const { prisma, provider, service } = setup();
     prisma.seedDistricts();
     const original = prisma.seedPlace("50", "detail-content-id", {
@@ -1010,18 +1088,65 @@ describe("TourismSyncService", () => {
       overview: "새 설명",
       homepage: "https://new.example.test",
     };
+    provider.intro = {
+      contentid: "detail-content-id",
+      usetime: "09:00~18:00",
+      parking: "주차 가능",
+    };
+    provider.information = [
+      {
+        contentid: "detail-content-id",
+        infoname: "이용안내",
+        infotext: "방문 전 확인",
+        serialnum: "1",
+      },
+    ];
+    provider.images = [
+      {
+        contentid: "detail-content-id",
+        originimgurl: "https://tong.visitkorea.or.kr/image.jpg",
+        serialnum: "1",
+      },
+    ];
 
-    await service.enrichPlace("detail-content-id");
+    await service.enrichPlaceDetails("detail-content-id");
 
-    expect(provider.detailCalls).toEqual(["detail-content-id"]);
+    expect(provider.detailCalls).toEqual([
+      "detail-content-id",
+      "intro:detail-content-id",
+      "info:detail-content-id",
+      "images:detail-content-id",
+    ]);
     expect(original).toMatchObject({
       title: "원래 제목",
       overview: "새 설명",
       homepage: "https://new.example.test",
+      useTime: "09:00~18:00",
+      parking: "주차 가능",
     });
-    expect(Object.keys(prisma.placeUpdateData.at(-1) ?? {}).sort()).toEqual([
-      "homepage",
-      "overview",
-    ]);
+    expect(prisma.placeImages).toHaveLength(1);
+    expect(prisma.placeDetailInfos).toHaveLength(1);
+  });
+
+  it("enriches each unique ranked place and records a safe batch summary", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    const place = prisma.seedPlace("50", "ranked-detail-id");
+    prisma.rankedPlaceIds.push(place.id, place.id);
+    provider.detail = { contentid: "ranked-detail-id", overview: "소개" };
+    provider.intro = { contentid: "ranked-detail-id" };
+
+    await expect(service.enrichRankedPlaceDetails()).resolves.toEqual({
+      requestedCount: 1,
+      succeededCount: 1,
+      failedCount: 0,
+    });
+    expect(prisma.syncRuns.at(-1)).toMatchObject({
+      jobType: "DETAIL_RANKED",
+      status: "SUCCEEDED",
+      fetchedCount: 1,
+      updatedCount: 1,
+      failedCount: 0,
+    });
   });
 });

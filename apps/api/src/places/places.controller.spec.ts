@@ -1,7 +1,12 @@
 import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { jest } from "@jest/globals";
 
-import type { ListPlacesQuery, PlacesPage } from "@haetteum/contracts";
+import type {
+  ListPlacesQuery,
+  NearbyPlacesResponse,
+  PlaceDetailResponse,
+  PlacesPage,
+} from "@haetteum/contracts";
 
 import { ZodValidationPipe } from "../common/http/zod-validation.pipe.js";
 import { PlacesController } from "./places.controller.js";
@@ -49,5 +54,30 @@ describe("PlacesController", () => {
         { type: "query", metatype: Object, data: undefined },
       ),
     ).toEqual({ region: "jeju", page: 1, pageSize: 20, q: "성산" });
+  });
+
+  it("passes one place ID to detail and nearby service methods", async () => {
+    const detail = {
+      id: "24684077-a907-45c3-85bf-b509dab12377",
+    } as PlaceDetailResponse;
+    const nearby: NearbyPlacesResponse = {
+      status: "unavailable",
+      reason: "provider_not_configured",
+    };
+    const places = {
+      detail: jest
+        .fn<() => Promise<PlaceDetailResponse>>()
+        .mockResolvedValue(detail),
+      nearby: jest
+        .fn<() => Promise<NearbyPlacesResponse>>()
+        .mockResolvedValue(nearby),
+    };
+    const controller = new PlacesController(places as never);
+    const id = "24684077-a907-45c3-85bf-b509dab12377";
+
+    await expect(controller.detail(id)).resolves.toBe(detail);
+    await expect(
+      controller.nearby(id, { category: "attraction", limit: 10 }),
+    ).resolves.toBe(nearby);
   });
 });

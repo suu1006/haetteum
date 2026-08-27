@@ -127,7 +127,7 @@ describe("place detail navigation and actions", () => {
     );
     expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute(
       "href",
-      "/places/icheon-termeden?tab=introduction",
+      "/places/icheon-termeden",
     );
   });
 
@@ -145,7 +145,7 @@ describe("place detail navigation and actions", () => {
     );
     expect(screen.getByRole("link", { name: "전체" })).toHaveAttribute(
       "href",
-      "/places/icheon-termeden",
+      "/places/icheon-termeden?tab=reviews",
     );
   });
 

@@ -113,8 +113,20 @@ class DatabaseTourApiFixture implements TourApiPort {
     return page([]);
   }
 
-  async getPlaceDetail(contentId: string): Promise<TourApiPlaceDetail> {
+  async getPlaceCommonDetail(contentId: string): Promise<TourApiPlaceDetail> {
     return { contentid: contentId };
+  }
+
+  async getPlaceIntro(contentId: string) {
+    return { contentid: contentId };
+  }
+
+  async getPlaceRepeatInfo() {
+    return [];
+  }
+
+  async getPlaceImages() {
+    return [];
   }
 
   place(
@@ -187,6 +199,7 @@ describe("TourismSyncService PostgreSQL integration (e2e)", () => {
         "../prisma/migrations/20260821000000_add_tourism_place_foundation/migration.sql",
         "../prisma/migrations/20260822000000_add_tourism_database_comments/migration.sql",
         "../prisma/migrations/20260824135934_scope_tourism_district_provider_code/migration.sql",
+        "../prisma/migrations/20260826150000_add_place_details/migration.sql",
       ]) {
         const migration = await readFile(
           new URL(migrationPath, import.meta.url),

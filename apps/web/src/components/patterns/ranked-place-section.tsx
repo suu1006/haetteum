@@ -1,27 +1,32 @@
-import Link from "next/link";
-
 import { PlaceRankingCard } from "@/components/travel/place-ranking-card";
+import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
+import { RankedPlaceAudienceFilter } from "@/components/travel/ranked-place-audience-filter";
 import {
-  buildDiscoveryHref,
   defaultDiscoveryQuery,
   type DiscoveryQuery,
-  type PlaceRankingItem,
-  type RegionId,
 } from "@/features/discovery/discovery-model";
-import { buildPlaceDetailHref } from "@/features/places/place-detail-model";
-import { cn } from "@/lib/utils";
+import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 
 type RankedPlaceSectionProps = {
-  places: readonly PlaceRankingItem[];
+  ranking: PlaceRankingLoadState | null;
   query?: DiscoveryQuery;
-  regions?: ReadonlyArray<{ id: RegionId; label: string }>;
 };
 
+function formatPeriod(start: string, end: string) {
+  const [startYear, startMonth] = start.split("-");
+  const [endYear, endMonth] = end.split("-");
+  return `${startYear}.${startMonth}~${endYear}.${endMonth}`;
+}
+
 function RankedPlaceSection({
-  places,
-  query = { ...defaultDiscoveryQuery, tab: "places" },
-  regions = [],
+  ranking,
+  query = defaultDiscoveryQuery,
 }: RankedPlaceSectionProps) {
+  const rankingData =
+    ranking?.status === "ready" && ranking.data.items.length === 10
+      ? ranking.data
+      : null;
+
   return (
     <section
       id="places"
@@ -31,67 +36,41 @@ function RankedPlaceSection({
     >
       <div className="flex items-end justify-between gap-3">
         <h2 id="ranked-place-title" className="type-title-md text-foreground">
-          지역별 인기 관광지 TOP 3
+          세대별 인기관광지 순위
         </h2>
+        {rankingData ? (
+          <p className="type-caption whitespace-nowrap text-muted-foreground">
+            전국 · {formatPeriod(rankingData.periodStart, rankingData.periodEnd)}
+          </p>
+        ) : null}
       </div>
 
-      {regions.length > 0 ? (
-        <nav aria-label="지역 필터" className="mt-3 overflow-x-auto">
-          <ul className="flex gap-2">
-            {regions.map((region) => (
-              <li key={region.id}>
-                <Link
-                  href={buildDiscoveryHref(
-                    query,
-                    { region: region.id },
-                    "places",
-                  )}
-                  aria-current={query.region === region.id ? "true" : undefined}
-                  className={cn(
-                    "type-label inline-flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-muted-foreground transition-colors hover:bg-primary-subtle hover:text-primary",
-                    query.region === region.id &&
-                      "bg-primary text-primary-foreground",
-                  )}
-                >
-                  {region.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      ) : null}
+      <RankedPlaceAudienceFilter query={query} />
 
-      {places.length > 0 ? (
+      {rankingData ? (
         <ol
-          aria-label="지역별 인기 관광지"
+          key={query.audience}
+          aria-label="세대별 인기관광지 순위"
           className="scrollbar-none mt-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
         >
-          {places.map((place) => (
+          {rankingData.items.map((place) => (
             <li
-              key={place.id}
+              key={place.sourcePlaceId}
               className="w-40 shrink-0 snap-start sm:w-44"
             >
-              <PlaceRankingCard
-                place={place}
-                href={buildPlaceDetailHref(place.id, {
-                  tab: "course",
-                  source: "all",
-                })}
-              />
+              <PlaceRankingCard place={place} />
             </li>
           ))}
         </ol>
       ) : (
         <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
           <p className="type-body-md text-muted-foreground">
-            선택한 지역에서 조건에 맞는 관광지를 찾지 못했어요.
+            인기 관광지 순위 정보를 불러오지 못했어요.
           </p>
-          <Link
-            href={buildDiscoveryHref(query, { q: "" }, "places")}
-            className="type-label mt-3 inline-flex text-primary underline-offset-4 hover:underline"
-          >
-            검색어 지우기
-          </Link>
+          <p className="type-caption mt-1 text-muted-foreground">
+            잠시 후 다시 시도해 주세요.
+          </p>
+          <PlaceRankingRetryButton />
         </div>
       )}
     </section>

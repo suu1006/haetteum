@@ -413,7 +413,7 @@ describe("TourApiClient", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
-  it("supports ldongCode2, areaBasedSyncList2, and detailCommon2 parameters", async () => {
+  it("supports district, sync, common, intro, repeat and image parameters", async () => {
     const { client, fetch } = createClient();
     fetch
       .mockResolvedValueOnce(jsonResponse(pageFor(districtItem)))
@@ -421,6 +421,33 @@ describe("TourApiClient", () => {
       .mockResolvedValueOnce(jsonResponse(pageFor(changedPlaceItem)))
       .mockResolvedValueOnce(
         jsonResponse(pageFor(detailItem, { numOfRows: 1 })),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          pageFor(
+            { contentid: placeItem.contentid, usetime: "09:00~18:00" },
+            { numOfRows: 1 },
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          pageFor({
+            contentid: placeItem.contentid,
+            infoname: "이용안내",
+            infotext: "안내",
+            serialnum: "1",
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          pageFor({
+            contentid: placeItem.contentid,
+            originimgurl: "https://tong.visitkorea.or.kr/image.jpg",
+            serialnum: "1",
+          }),
+        ),
       );
 
     await client.getDistrictPage({ regionCode: "50", pageNo: 2 });
@@ -435,9 +462,20 @@ describe("TourApiClient", () => {
       showflag: "1",
       pageNo: 4,
     });
-    await expect(client.getPlaceDetail(placeItem.contentid)).resolves.toEqual(
-      detailItem,
-    );
+    await expect(
+      client.getPlaceCommonDetail(placeItem.contentid),
+    ).resolves.toEqual(detailItem);
+    await expect(
+      client.getPlaceIntro(placeItem.contentid),
+    ).resolves.toMatchObject({
+      usetime: "09:00~18:00",
+    });
+    await expect(
+      client.getPlaceRepeatInfo(placeItem.contentid),
+    ).resolves.toHaveLength(1);
+    await expect(
+      client.getPlaceImages(placeItem.contentid),
+    ).resolves.toHaveLength(1);
 
     const districtUrl = requestUrl(fetch, 0);
     expect(districtUrl.pathname).toBe("/KorService2/ldongCode2");
@@ -468,5 +506,15 @@ describe("TourApiClient", () => {
     expect(detailUrl.searchParams.get("contentId")).toBe(placeItem.contentid);
     expect(detailUrl.searchParams.get("pageNo")).toBe("1");
     expect(detailUrl.searchParams.get("numOfRows")).toBe("1");
+
+    const introUrl = requestUrl(fetch, 4);
+    expect(introUrl.pathname).toBe("/KorService2/detailIntro2");
+    expect(introUrl.searchParams.get("contentTypeId")).toBe("12");
+    const infoUrl = requestUrl(fetch, 5);
+    expect(infoUrl.pathname).toBe("/KorService2/detailInfo2");
+    const imageUrl = requestUrl(fetch, 6);
+    expect(imageUrl.pathname).toBe("/KorService2/detailImage2");
+    expect(imageUrl.searchParams.get("imageYN")).toBe("Y");
+    expect(imageUrl.searchParams.has("subImageYN")).toBe(false);
   });
 });

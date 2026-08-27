@@ -8,6 +8,9 @@ import {
   tourApiDistrictSchema,
   tourApiFestivalSchema,
   tourApiHeaderSchema,
+  tourApiPlaceImageSchema,
+  tourApiPlaceInfoSchema,
+  tourApiPlaceIntroSchema,
   tourApiPageSchema,
   tourApiPlaceDetailSchema,
   tourApiPlaceSchema,
@@ -20,6 +23,9 @@ import type {
   FestivalApiPort,
   TourApiPage,
   TourApiPlace,
+  TourApiPlaceImage,
+  TourApiPlaceInfo,
+  TourApiPlaceIntro,
   TourApiPlaceDetail,
   TourApiPort,
   TourApiSleep,
@@ -144,7 +150,7 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
     });
   }
 
-  async getPlaceDetail(contentId: string): Promise<TourApiPlaceDetail> {
+  async getPlaceCommonDetail(contentId: string): Promise<TourApiPlaceDetail> {
     const page = await this.request({
       operation: "detailCommon2",
       pageNo: 1,
@@ -159,6 +165,48 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
     }
 
     return detail;
+  }
+
+  async getPlaceIntro(contentId: string): Promise<TourApiPlaceIntro> {
+    const page = await this.request({
+      operation: "detailIntro2",
+      pageNo: 1,
+      numOfRows: 1,
+      itemSchema: tourApiPlaceIntroSchema,
+      parameters: { contentId, contentTypeId: "12" },
+    });
+    const intro = page.items[0];
+    if (intro == null) {
+      throw new TourApiError("detailIntro2", "EMPTY_RESPONSE");
+    }
+    return intro;
+  }
+
+  async getPlaceRepeatInfo(
+    contentId: string,
+  ): Promise<readonly TourApiPlaceInfo[]> {
+    const page = await this.request({
+      operation: "detailInfo2",
+      pageNo: 1,
+      itemSchema: tourApiPlaceInfoSchema,
+      parameters: { contentId, contentTypeId: "12" },
+    });
+    return page.items;
+  }
+
+  async getPlaceImages(
+    contentId: string,
+  ): Promise<readonly TourApiPlaceImage[]> {
+    const page = await this.request({
+      operation: "detailImage2",
+      pageNo: 1,
+      itemSchema: tourApiPlaceImageSchema,
+      parameters: {
+        contentId,
+        imageYN: "Y",
+      },
+    });
+    return page.items;
   }
 
   private async request<T extends z.ZodTypeAny>(

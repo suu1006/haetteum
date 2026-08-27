@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import type { PlaceRankingItem } from "@haetteum/contracts";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AiCourseBanner } from "@/components/travel/ai-course-banner";
 import {
@@ -13,6 +14,7 @@ import { FestivalFeatureBanner } from "@/components/travel/festival-feature-bann
 import { FestivalFilterGroup } from "@/components/travel/festival-filter-group";
 import { FestivalRankingCard } from "@/components/travel/festival-ranking-card";
 import { PlaceRankingCard } from "@/components/travel/place-ranking-card";
+import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { CourseQuickSaveCard } from "@/components/travel/course-quick-save-card";
 import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
@@ -23,43 +25,66 @@ import {
 } from "@/components/travel/travel-theme-item";
 import { VideoCourseCard } from "@/components/travel/video-course-card";
 
+const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMocks,
+}));
+
 describe("PlaceRankingCard", () => {
-  it("renders rank, city and parenthetical review count in a borderless portrait article", () => {
-    render(
-      <PlaceRankingCard
-        place={mainDiscoveryMock.places[0]}
-        href="/places/icheon-termeden"
-      />,
-    );
+  const matchedPlace: PlaceRankingItem = {
+    rank: 1,
+    sourcePlaceId: "0123456789abcdef0123456789abcdef",
+    title: "에버랜드",
+    category: "레저/스포츠",
+    sharePercent: 9,
+    placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+    primaryImageUrl: "https://tong.visitkorea.or.kr/everland.jpg",
+    imageCopyrightType: "공공누리",
+  };
+
+  it("links a matched provider place to the real introduction detail", () => {
+    render(<PlaceRankingCard place={matchedPlace} />);
 
     expect(
-      screen.getByRole("article", { name: "1위 이천 테르메덴" }),
+      screen.getByRole("article", { name: "1위 에버랜드" }),
     ).toBeVisible();
-    expect(screen.getByText("이천")).toBeVisible();
-    expect(screen.getByRole("group", { name: /평점 4\.6점/ })).toBeVisible();
-    expect(screen.getByText("(2,345)")).toBeVisible();
-    expect(screen.getByRole("article", { name: "1위 이천 테르메덴" })).toHaveClass(
+    expect(screen.getByText("레저/스포츠")).toBeVisible();
+    expect(screen.getByText("인기 비율 9.0%")).toBeVisible();
+    expect(screen.getByRole("article", { name: "1위 에버랜드" })).toHaveClass(
       "grid",
     );
     expect(
-      screen.getByRole("img", { name: "온천 수영장이 있는 이천 테르메덴" })
-        .parentElement,
+      screen.getByRole("img", { name: "에버랜드" }).parentElement,
     ).toHaveClass("aspect-[4/5]", "rounded-lg");
     expect(
-      screen.getByRole("link", { name: /1위 이천 테르메덴/ }),
-    ).toHaveAttribute("href", "/places/icheon-termeden");
+      screen.getByRole("img", { name: "에버랜드" }),
+    ).toHaveAttribute("src", expect.stringContaining("tong.visitkorea.or.kr"));
+    expect(screen.getByRole("link", { name: /1위 에버랜드/ })).toHaveAttribute(
+      "href",
+      "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction",
+    );
   });
 
-  it("uses gold, silver and bronze badges for the top three ranks", () => {
+  it("keeps an unmatched ranking card non-interactive", () => {
+    render(<PlaceRankingCard place={{ ...matchedPlace, placeId: null }} />);
+    expect(screen.queryByRole("link", { name: /1위 에버랜드/ })).not.toBeInTheDocument();
+  });
+
+  it("uses the local fallback image and primary color after the medal ranks", () => {
     render(
       <>
-        {mainDiscoveryMock.places.slice(0, 3).map((place) => (
-          <PlaceRankingCard
-            key={place.id}
-            place={place}
-            href={`/places/${place.id}`}
-          />
-        ))}
+        <PlaceRankingCard place={matchedPlace} />
+        <PlaceRankingCard place={{ ...matchedPlace, rank: 2, title: "관광지 2" }} />
+        <PlaceRankingCard place={{ ...matchedPlace, rank: 3, title: "관광지 3" }} />
+        <PlaceRankingCard
+          place={{
+            ...matchedPlace,
+            rank: 4,
+            title: "관광지 4",
+            primaryImageUrl: null,
+          }}
+        />
       </>,
     );
 
@@ -75,6 +100,91 @@ describe("PlaceRankingCard", () => {
       "bg-rank-bronze",
       "text-rank-bronze-foreground",
     );
+    expect(screen.getByText("4위")).toHaveClass(
+      "bg-primary",
+      "text-primary-foreground",
+    );
+    expect(screen.getByRole("img", { name: "관광지 4" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("popular-attraction.png"),
+    );
+  });
+
+  it("upgrades the official provider's legacy HTTP image URL to HTTPS", () => {
+    render(
+      <PlaceRankingCard
+        place={{
+          ...matchedPlace,
+          primaryImageUrl: "http://tong.visitkorea.or.kr/everland.jpg",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("url=https%3A%2F%2Ftong.visitkorea.or.kr"),
+    );
+  });
+
+  it("uses the local fallback image when an upgraded official URL has a custom port", () => {
+    render(
+      <PlaceRankingCard
+        place={{
+          ...matchedPlace,
+          primaryImageUrl: "http://tong.visitkorea.or.kr:8443/everland.jpg",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("popular-attraction.png"),
+    );
+  });
+
+  it("uses the local fallback image when an upgraded official URL has a query string", () => {
+    render(
+      <PlaceRankingCard
+        place={{
+          ...matchedPlace,
+          primaryImageUrl:
+            "http://tong.visitkorea.or.kr/everland.jpg?imageId=123",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("popular-attraction.png"),
+    );
+  });
+
+  it("uses the local fallback image for an unsupported remote host", () => {
+    render(
+      <PlaceRankingCard
+        place={{
+          ...matchedPlace,
+          primaryImageUrl: "https://images.example.com/everland.jpg",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("popular-attraction.png"),
+    );
+  });
+});
+
+describe("PlaceRankingRetryButton", () => {
+  it("refreshes the current route when retrying a failed ranking load", async () => {
+    const user = userEvent.setup();
+    routerMocks.refresh.mockClear();
+    render(<PlaceRankingRetryButton />);
+
+    await user.click(screen.getByRole("button", { name: "다시 시도하기" }));
+
+    expect(routerMocks.refresh).toHaveBeenCalledOnce();
   });
 });
 

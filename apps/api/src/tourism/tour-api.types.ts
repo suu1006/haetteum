@@ -48,6 +48,39 @@ export type TourApiPlaceDetail = {
   homepage?: string;
 };
 
+export type TourApiPlaceIntro = {
+  contentid: string;
+  contenttypeid?: string;
+  infocenter?: string;
+  restdate?: string;
+  useseason?: string;
+  usetime?: string;
+  parking?: string;
+  expagerange?: string;
+  expguide?: string;
+  chkbabycarriage?: string;
+  chkcreditcard?: string;
+  chkpet?: string;
+};
+
+export type TourApiPlaceInfo = {
+  contentid: string;
+  contenttypeid?: string;
+  fldgubun?: string;
+  infoname: string;
+  infotext: string;
+  serialnum: string;
+};
+
+export type TourApiPlaceImage = {
+  contentid: string;
+  imgname?: string;
+  originimgurl: string;
+  smallimageurl?: string;
+  serialnum: string;
+  cpyrhtDivCd?: string;
+};
+
 export type TourApiFestival = {
   contentid: string;
   contenttypeid: string;
@@ -101,7 +134,10 @@ export interface TourApiPort {
     showflag: "0" | "1";
     pageNo: number;
   }): Promise<TourApiPage<TourApiChangedPlace>>;
-  getPlaceDetail(contentId: string): Promise<TourApiPlaceDetail>;
+  getPlaceCommonDetail(contentId: string): Promise<TourApiPlaceDetail>;
+  getPlaceIntro(contentId: string): Promise<TourApiPlaceIntro>;
+  getPlaceRepeatInfo(contentId: string): Promise<readonly TourApiPlaceInfo[]>;
+  getPlaceImages(contentId: string): Promise<readonly TourApiPlaceImage[]>;
 }
 
 export type TourApiFetch = (

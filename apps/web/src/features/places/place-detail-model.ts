@@ -138,7 +138,7 @@ export type ResolvedPlaceDetail = PlaceRankingItem &
   Partial<Pick<PlaceCourseDetail, "course">>;
 
 export const defaultPlaceDetailQuery: PlaceDetailQuery = {
-  tab: "reviews",
+  tab: "introduction",
   source: "all",
 };
 
@@ -168,7 +168,11 @@ export function buildPlaceDetailHref(
 ) {
   const pathname = `/places/${encodeURIComponent(placeId)}`;
 
-  if (!query || (query.tab === "reviews" && query.source === "all")) {
+  if (
+    !query ||
+    (query.tab === defaultPlaceDetailQuery.tab &&
+      query.source === defaultPlaceDetailQuery.source)
+  ) {
     return pathname;
   }
 

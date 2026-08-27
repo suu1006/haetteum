@@ -6,6 +6,9 @@ import type {
   TourApiFestival,
   TourApiPlace,
   TourApiPlaceDetail,
+  TourApiPlaceImage,
+  TourApiPlaceInfo,
+  TourApiPlaceIntro,
 } from "./tour-api.types.js";
 
 export type NormalizedDistrict = {
@@ -45,6 +48,45 @@ export type NormalizedChangedPlace = {
 export type NormalizedPlaceDetail = {
   overview?: string | null;
   homepage?: string | null;
+};
+
+export type NormalizedPlaceIntro = {
+  infoCenter: string | null;
+  restDate: string | null;
+  useSeason: string | null;
+  useTime: string | null;
+  parking: string | null;
+  experienceAgeRange: string | null;
+  experienceGuide: string | null;
+  babyCarriage: string | null;
+  creditCard: string | null;
+  pet: string | null;
+};
+
+export type NormalizedPlaceImage = {
+  source: "TOUR_API";
+  serialNumber: string;
+  name: string | null;
+  originalUrl: string;
+  thumbnailUrl: string | null;
+  copyrightType: string | null;
+  displayOrder: number;
+};
+
+export type NormalizedPlaceDetailInfo = {
+  source: "TOUR_API";
+  serialNumber: string;
+  fieldGroup: string | null;
+  name: string;
+  text: string;
+  displayOrder: number;
+};
+
+export type NormalizedPlaceDetailBundle = {
+  place: NormalizedPlaceDetail &
+    NormalizedPlaceIntro & { detailSyncedAt: Date };
+  images: readonly NormalizedPlaceImage[];
+  information: readonly NormalizedPlaceDetailInfo[];
 };
 
 export type NormalizedFestival = {
@@ -278,4 +320,97 @@ export function mapPlaceDetail(
   }
 
   return detail;
+}
+
+function assertContentId(expected: string, actual: string, operation: string) {
+  if (actual.trim() !== expected) {
+    throw new Error(`Invalid TourAPI ${operation} content ID`);
+  }
+}
+
+function providerImageUrl(value: string | undefined): string | null {
+  const text = optionalText(value);
+  if (text == null) return null;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error("Invalid TourAPI detail image URL");
+  }
+  if (url.hostname !== "tong.visitkorea.or.kr" || url.port !== "") {
+    throw new Error("Invalid TourAPI detail image URL");
+  }
+  if (url.protocol === "http:") url.protocol = "https:";
+  if (url.protocol !== "https:") {
+    throw new Error("Invalid TourAPI detail image URL");
+  }
+  return url.toString();
+}
+
+export function mapPlaceDetailBundle(input: {
+  contentId: string;
+  common: TourApiPlaceDetail;
+  intro: TourApiPlaceIntro;
+  information: readonly TourApiPlaceInfo[];
+  images: readonly TourApiPlaceImage[];
+  syncedAt: Date;
+}): NormalizedPlaceDetailBundle {
+  const contentId = input.contentId.trim();
+  if (!contentId) throw new Error("Invalid TourAPI detail content ID");
+  assertContentId(contentId, input.common.contentid, "common detail");
+  assertContentId(contentId, input.intro.contentid, "intro detail");
+  for (const item of input.information) {
+    assertContentId(contentId, item.contentid, "repeat detail");
+  }
+  for (const item of input.images) {
+    assertContentId(contentId, item.contentid, "image detail");
+  }
+  const detailSyncedAt = validatedLastSyncedAt(input.syncedAt);
+  const seenImages = new Set<string>();
+
+  const images = input.images.flatMap((item, index) => {
+    const originalUrl = providerImageUrl(item.originimgurl);
+    if (originalUrl == null || seenImages.has(originalUrl)) return [];
+    seenImages.add(originalUrl);
+    const serialNumber = requiredText(item.serialnum, "image serial number");
+    return [
+      {
+        source: "TOUR_API" as const,
+        serialNumber,
+        name: optionalText(item.imgname),
+        originalUrl,
+        thumbnailUrl: providerImageUrl(item.smallimageurl),
+        copyrightType: optionalText(item.cpyrhtDivCd),
+        displayOrder: index,
+      },
+    ];
+  });
+
+  const information = input.information.map((item, displayOrder) => ({
+    source: "TOUR_API" as const,
+    serialNumber: requiredText(item.serialnum, "detail serial number"),
+    fieldGroup: optionalText(item.fldgubun),
+    name: requiredText(item.infoname, "detail name"),
+    text: requiredText(item.infotext, "detail text"),
+    displayOrder,
+  }));
+
+  return {
+    place: {
+      ...mapPlaceDetail(input.common),
+      infoCenter: optionalText(input.intro.infocenter),
+      restDate: optionalText(input.intro.restdate),
+      useSeason: optionalText(input.intro.useseason),
+      useTime: optionalText(input.intro.usetime),
+      parking: optionalText(input.intro.parking),
+      experienceAgeRange: optionalText(input.intro.expagerange),
+      experienceGuide: optionalText(input.intro.expguide),
+      babyCarriage: optionalText(input.intro.chkbabycarriage),
+      creditCard: optionalText(input.intro.chkcreditcard),
+      pet: optionalText(input.intro.chkpet),
+      detailSyncedAt,
+    },
+    images,
+    information,
+  };
 }

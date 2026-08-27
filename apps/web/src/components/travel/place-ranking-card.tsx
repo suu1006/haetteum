@@ -1,14 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { PlaceRankingItem } from "@haetteum/contracts";
 
-import { RatingSummary } from "@/components/travel/rating-summary";
-import type { PlaceRankingItem } from "@/features/discovery/discovery-model";
 import { cn } from "@/lib/utils";
 
 type PlaceRankingCardProps = {
   place: PlaceRankingItem;
-  href: string;
 };
+
+const fallbackImageSrc = "/images/explore/categories/popular-attraction.png";
+const officialImageHostname = "tong.visitkorea.or.kr";
 
 const rankBadgeClassNames: Record<number, string> = {
   1: "bg-rank-gold text-rank-gold-foreground",
@@ -16,24 +17,44 @@ const rankBadgeClassNames: Record<number, string> = {
   3: "bg-rank-bronze text-rank-bronze-foreground",
 };
 
-function PlaceRankingCard({ place, href }: PlaceRankingCardProps) {
+function normalizePlaceRankingImageSource(primaryImageUrl: string | null) {
+  if (!primaryImageUrl) return fallbackImageSrc;
+
+  try {
+    const imageUrl = new URL(primaryImageUrl);
+    if (imageUrl.hostname !== officialImageHostname) return fallbackImageSrc;
+    if (imageUrl.protocol === "http:") {
+      imageUrl.protocol = "https:";
+    }
+    if (
+      imageUrl.protocol !== "https:" ||
+      imageUrl.port !== "" ||
+      imageUrl.search !== ""
+    ) {
+      return fallbackImageSrc;
+    }
+    return imageUrl.toString();
+  } catch {
+    return fallbackImageSrc;
+  }
+}
+
+function PlaceRankingCard({ place }: PlaceRankingCardProps) {
   const rankLabel = `${place.rank}위`;
   const rankBadgeClassName =
     rankBadgeClassNames[place.rank] ?? "bg-primary text-primary-foreground";
+  const imageSrc = normalizePlaceRankingImageSource(place.primaryImageUrl);
 
-  return (
+  const card = (
     <article
       aria-label={`${rankLabel} ${place.title}`}
       className="grid min-w-0 gap-2"
     >
-      <Link
-        href={href}
-        className="grid min-h-11 gap-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
-      >
+      <div className="grid min-h-11 gap-2">
         <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-primary-subtle">
           <Image
-            src={place.image.src}
-            alt={place.image.alt}
+            src={imageSrc}
+            alt={place.title}
             fill
             sizes="(max-width: 480px) 30vw, 144px"
             className="object-cover"
@@ -51,18 +72,25 @@ function PlaceRankingCard({ place, href }: PlaceRankingCardProps) {
         <div className="min-w-0 space-y-1">
           <h3 className="type-label truncate text-foreground">{place.title}</h3>
           <p className="type-caption truncate text-muted-foreground">
-            {place.location}
+            {place.category}
           </p>
-          <RatingSummary
-            value={place.rating}
-            reviewCount={place.reviewCount}
-            size="compact"
-            countVariant="parenthetical"
-          />
+          <p className="type-caption text-muted-foreground">
+            인기 비율 {place.sharePercent.toFixed(1)}%
+          </p>
         </div>
-      </Link>
+      </div>
     </article>
   );
+
+  return place.placeId ? (
+    <Link
+      href={`/places/${encodeURIComponent(place.placeId)}?tab=introduction`}
+      aria-label={`${rankLabel} ${place.title} 상세 보기`}
+      className="block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
+    >
+      {card}
+    </Link>
+  ) : card;
 }
 
 export { PlaceRankingCard, type PlaceRankingCardProps };

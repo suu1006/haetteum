@@ -45,6 +45,39 @@ export const tourApiPlaceDetailSchema = z.object({
   homepage: optionalProviderText,
 });
 
+export const tourApiPlaceIntroSchema = z.object({
+  contentid: z.string(),
+  contenttypeid: optionalProviderText,
+  infocenter: optionalProviderText,
+  restdate: optionalProviderText,
+  useseason: optionalProviderText,
+  usetime: optionalProviderText,
+  parking: optionalProviderText,
+  expagerange: optionalProviderText,
+  expguide: optionalProviderText,
+  chkbabycarriage: optionalProviderText,
+  chkcreditcard: optionalProviderText,
+  chkpet: optionalProviderText,
+});
+
+export const tourApiPlaceInfoSchema = z.object({
+  contentid: z.string(),
+  contenttypeid: optionalProviderText,
+  fldgubun: optionalProviderText,
+  infoname: z.string(),
+  infotext: z.string(),
+  serialnum: z.string(),
+});
+
+export const tourApiPlaceImageSchema = z.object({
+  contentid: z.string(),
+  imgname: optionalProviderText,
+  originimgurl: z.string(),
+  smallimageurl: optionalProviderText,
+  serialnum: z.string(),
+  cpyrhtDivCd: optionalProviderText,
+});
+
 export const tourApiFestivalSchema = z.object({
   contentid: z.string(),
   contenttypeid: z.string(),

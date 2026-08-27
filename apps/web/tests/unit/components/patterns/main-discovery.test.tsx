@@ -1,7 +1,13 @@
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import type { PlaceRankingResponse } from "@haetteum/contracts";
 import axe from "axe-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DiscoverySearchPanel } from "@/components/patterns/discovery-search-panel";
 import { FestivalSection } from "@/components/patterns/festival-section";
@@ -14,6 +20,37 @@ import {
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+
+const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMocks,
+}));
+
+const rankingResponse = {
+  source: "KTO_DATALAB",
+  scope: "national",
+  periodStart: "2025-08-01",
+  periodEnd: "2026-07-31",
+  audience: "all",
+  items: Array.from({ length: 10 }, (_, index) => ({
+    rank: index + 1,
+    sourcePlaceId: `${String(index + 1).padStart(2, "0")}${"a".repeat(30)}`,
+    title: index === 0 ? "에버랜드" : `관광지 ${index + 1}`,
+    category: "레저/스포츠",
+    sharePercent: 9 - index / 10,
+    placeId:
+      index === 0 ? "84549352-0c20-4e11-af50-2d4f278f41ef" : null,
+    primaryImageUrl: null,
+    imageCopyrightType: null,
+  })),
+} satisfies PlaceRankingResponse;
+
+const readyRanking: PlaceRankingLoadState = {
+  status: "ready",
+  data: rankingResponse,
+};
 
 describe("MainDiscovery", () => {
   it("renders the five approved main-page regions in order", () => {
@@ -24,6 +61,7 @@ describe("MainDiscovery", () => {
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
         view={view}
+        ranking={readyRanking}
       />,
     );
 
@@ -36,7 +74,7 @@ describe("MainDiscovery", () => {
       "navigation",
     ]);
     expect(
-      screen.getByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
+      screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
     ).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "어디로 떠나볼까요?" }),
@@ -85,6 +123,7 @@ describe("MainDiscovery", () => {
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
         view={view}
+        ranking={readyRanking}
       />,
     );
 
@@ -118,7 +157,7 @@ describe("MainDiscovery", () => {
       screen.queryByRole("heading", { name: "테마로 떠나는 여행" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
+      screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
     ).toBeVisible();
   });
 
@@ -130,6 +169,7 @@ describe("MainDiscovery", () => {
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
         view={view}
+        ranking={readyRanking}
       />,
     );
     const results = await axe.run(container, {
@@ -148,7 +188,7 @@ describe("MainDiscovery", () => {
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
     expect(
-      screen.getByRole("heading", { name: "요즘 뜨는 축제 ✨" }),
+      screen.getByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
     ).toBeVisible();
     expect(screen.getByRole("search")).toBeVisible();
     expect(
@@ -167,10 +207,12 @@ describe("MainDiscovery", () => {
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("list", { name: "요즘 뜨는 축제 순위" }),
+      screen.getByRole("list", { name: "지금 만날 수 있는 축제 순위" }),
     ).toBeVisible();
     expect(
-      within(screen.getByRole("list", { name: "요즘 뜨는 축제 순위" }))
+      within(
+        screen.getByRole("list", { name: "지금 만날 수 있는 축제 순위" }),
+      )
         .getAllByRole("listitem")
         .map((item) => item.textContent?.match(/[123]/)?.[0]),
     ).toEqual([
@@ -191,10 +233,9 @@ describe("MainDiscovery", () => {
       "제주 바다불꽃 문화제",
       "한림 수국 여름축제",
     ]);
-    expect(screen.getByRole("link", { name: "축제 보기" })).toHaveAttribute(
-      "href",
-      "/festivals/jeju-summer-light-garden",
-    );
+    expect(
+      screen.queryByRole("link", { name: "축제 보기" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the festival tab at the same shell width as the other tabs", () => {
@@ -251,19 +292,16 @@ describe("MainDiscovery", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("toggles the featured festival bookmark", async () => {
-    const user = userEvent.setup();
+  it("does not expose unpersisted festival engagement controls", () => {
     const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
     const view = selectDiscoveryView(mainDiscoveryMock, query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
-    const featuredSave = screen.getByRole("button", {
-      name: "제주 여름빛 정원축제 저장",
-    });
-    expect(featuredSave).toHaveAttribute("aria-pressed", "false");
-    await user.click(featuredSave);
-    expect(featuredSave).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.queryByRole("button", { name: /축제.*저장/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/인기 98%/)).not.toBeInTheDocument();
   });
 
   it("offers the reference region order and marks Jeju as selected", () => {
@@ -281,6 +319,50 @@ describe("MainDiscovery", () => {
       "aria-current",
       "page",
     );
+  });
+
+  it("distinguishes festival loading errors from valid empty results", () => {
+    const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
+    const errorData = {
+      ...mainDiscoveryMock,
+      festivalDiscovery: {
+        ...mainDiscoveryMock.festivalDiscovery,
+        ranking: [],
+        festivals: [],
+        loadState: "error" as const,
+      },
+    };
+    const { rerender } = render(
+      <MainDiscovery
+        data={errorData}
+        query={query}
+        view={selectDiscoveryView(errorData, query)}
+      />,
+    );
+
+    expect(screen.getByText("축제 정보를 불러오지 못했어요.")).toBeVisible();
+    expect(screen.getByText("잠시 후 다시 시도해 주세요.")).toBeVisible();
+
+    const emptyData = {
+      ...errorData,
+      festivalDiscovery: {
+        ...errorData.festivalDiscovery,
+        loadState: "ready" as const,
+      },
+    };
+    rerender(
+      <MainDiscovery
+        data={emptyData}
+        query={query}
+        view={selectDiscoveryView(emptyData, query)}
+      />,
+    );
+    expect(
+      screen.getByText("선택한 지역에 예정된 축제가 없어요."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("축제 정보를 불러오지 못했어요."),
+    ).not.toBeInTheDocument();
   });
 
   it("has no detectable accessibility violations on the festival tab", async () => {
@@ -312,6 +394,15 @@ describe("DiscoverySearchPanel", () => {
     );
   });
 
+  it("opens the festival tab with the whole country selected", () => {
+    render(<DiscoverySearchPanel query={defaultDiscoveryQuery} />);
+
+    expect(screen.getByRole("link", { name: "관광 축제" })).toHaveAttribute(
+      "href",
+      "/?region=all&tab=festivals",
+    );
+  });
+
   it("submits search with preserved tab and region values", () => {
     render(
       <DiscoverySearchPanel
@@ -319,6 +410,7 @@ describe("DiscoverySearchPanel", () => {
           ...defaultDiscoveryQuery,
           q: "해변",
           tab: "festivals",
+          audience: "30s",
           festivalFilters: {
             ...defaultDiscoveryQuery.festivalFilters,
             free: true,
@@ -342,6 +434,9 @@ describe("DiscoverySearchPanel", () => {
     expect(
       search.querySelector('input[type="hidden"][name="festivalPrice"]'),
     ).toHaveValue("free");
+    expect(
+      search.querySelector('input[type="hidden"][name="audience"]'),
+    ).toHaveValue("30s");
   });
 
   it("builds every tab link without a scroll-target fragment", () => {
@@ -383,75 +478,185 @@ describe("DiscoverySearchPanel", () => {
 });
 
 describe("RankedPlaceSection", () => {
-  it("renders ranked places in a horizontal snap list without a visible scrollbar", () => {
+  it("renders ten nationwide API ranking cards with the period and age filters", () => {
+    render(<RankedPlaceSection ranking={readyRanking} query={defaultDiscoveryQuery} />);
+
+    expect(
+      screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
+    ).toBeVisible();
+    expect(screen.getByText("전국 · 2025.08~2026.07")).toBeVisible();
+    expect(
+      within(screen.getByRole("navigation", { name: "세대 필터" }))
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["전체", "20대", "30대", "40대", "50대", "60대 이상"]);
+    const list = screen.getByRole("list", { name: "세대별 인기관광지 순위" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(10);
+    expect(screen.getByRole("link", { name: /1위 에버랜드/ })).toHaveAttribute(
+      "href",
+      "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction",
+    );
+  });
+
+  it("marks the selected audience and keeps age-filter navigation free of scroll fragments", () => {
+    const query = { ...defaultDiscoveryQuery, audience: "30s" as const };
     render(
-      <RankedPlaceSection
-        places={mainDiscoveryMock.places.slice(0, 3)}
-        query={defaultDiscoveryQuery}
-        regions={mainDiscoveryMock.regions}
-      />,
+      <>
+        <RankedPlaceSection
+          ranking={{
+            ...readyRanking,
+            data: { ...rankingResponse, audience: "30s" },
+          }}
+          query={query}
+        />
+        <DiscoverySearchPanel query={query} />
+      </>,
     );
 
-    const list = screen.getByRole("list", { name: "지역별 인기 관광지" });
-    const listItems = within(list).getAllByRole("listitem");
-
-    expect(
-      screen.getByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("navigation", { name: "지역 필터" }),
-    ).toContainElement(screen.getByRole("link", { name: "경기" }));
-    expect(screen.getByRole("link", { name: "경기" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "30대" })).toHaveAttribute(
       "aria-current",
       "true",
     );
-    expect(listItems).toHaveLength(3);
-    expect(list).toHaveClass(
-      "flex",
-      "overflow-x-auto",
-      "snap-x",
-      "scrollbar-none",
-    );
-    expect(listItems[0]).toHaveClass("shrink-0", "snap-start");
-    expect(listItems[0]).not.toHaveAccessibleName();
-    expect(list).toContainElement(
-      screen.getByRole("article", { name: "1위 이천 테르메덴" }),
-    );
-  });
-
-  it("opens home ranked places on the course recommendation tab", () => {
-    render(
-      <RankedPlaceSection
-        places={mainDiscoveryMock.places.slice(0, 3)}
-        query={defaultDiscoveryQuery}
-        regions={mainDiscoveryMock.regions}
-      />,
-    );
-
-    expect(
-      screen.getByRole("link", { name: /1위 이천 테르메덴/ }),
-    ).toHaveAttribute("href", "/places/icheon-termeden?tab=course");
-  });
-
-  it("offers a query reset link when no ranked places match", () => {
-    render(
-      <RankedPlaceSection
-        places={[]}
-        query={{
-          ...defaultDiscoveryQuery,
-          q: "해변",
-          region: "busan",
-        }}
-      />,
-    );
-
-    expect(
-      screen.getByText("선택한 지역에서 조건에 맞는 관광지를 찾지 못했어요."),
-    ).toBeVisible();
-    expect(screen.getByRole("link", { name: "검색어 지우기" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "30대" })).toHaveAttribute(
       "href",
-      "/?region=busan&tab=recommended#places",
+      "/?region=gyeonggi&tab=recommended&audience=30s",
     );
+    expect(screen.getByRole("link", { name: "관광 축제" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("audience=30s"),
+    );
+  });
+
+  it("restores the saved vertical position after age-filter navigation", async () => {
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    const targetHref = "/?region=gyeonggi&tab=recommended&audience=20s";
+    window.history.replaceState(null, "", targetHref);
+    window.sessionStorage.setItem(
+      "haetteum:ranked-place-audience:scroll",
+      JSON.stringify({ href: targetHref, scrollY: 334 }),
+    );
+
+    try {
+      render(
+        <RankedPlaceSection
+          ranking={{
+            ...readyRanking,
+            data: { ...rankingResponse, audience: "20s" },
+          }}
+          query={{ ...defaultDiscoveryQuery, audience: "20s" }}
+        />,
+      );
+
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 334));
+      expect(
+        window.sessionStorage.getItem(
+          "haetteum:ranked-place-audience:scroll",
+        ),
+      ).toBeNull();
+    } finally {
+      window.history.replaceState(null, "", "/");
+      window.sessionStorage.removeItem(
+        "haetteum:ranked-place-audience:scroll",
+      );
+      scrollTo.mockRestore();
+    }
+  });
+
+  it("saves the current vertical position before age-filter navigation", () => {
+    const previousScrollY = window.scrollY;
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      value: 334,
+    });
+    window.sessionStorage.removeItem(
+      "haetteum:ranked-place-audience:scroll",
+    );
+
+    try {
+      render(
+        <RankedPlaceSection
+          ranking={readyRanking}
+          query={defaultDiscoveryQuery}
+        />,
+      );
+      const twentiesLink = screen.getByRole("link", { name: "20대" });
+      twentiesLink.addEventListener("click", (event) => event.preventDefault());
+
+      fireEvent.click(twentiesLink);
+
+      expect(
+        JSON.parse(
+          window.sessionStorage.getItem(
+            "haetteum:ranked-place-audience:scroll",
+          ) ?? "null",
+        ),
+      ).toEqual({
+        href: "/?region=gyeonggi&tab=recommended&audience=20s",
+        scrollY: 334,
+      });
+    } finally {
+      Object.defineProperty(window, "scrollY", {
+        configurable: true,
+        value: previousScrollY,
+      });
+      window.sessionStorage.removeItem(
+        "haetteum:ranked-place-audience:scroll",
+      );
+    }
+  });
+
+  it("shows the first-ranked place after the audience changes", () => {
+    const { rerender } = render(
+      <RankedPlaceSection
+        ranking={readyRanking}
+        query={defaultDiscoveryQuery}
+      />,
+    );
+    const initialList = screen.getByRole("list", {
+      name: "세대별 인기관광지 순위",
+    });
+    initialList.scrollLeft = 320;
+
+    rerender(
+      <RankedPlaceSection
+        ranking={{
+          status: "ready",
+          data: { ...rankingResponse, audience: "30s" },
+        }}
+        query={{ ...defaultDiscoveryQuery, audience: "30s" }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("list", { name: "세대별 인기관광지 순위" }),
+    ).toHaveProperty("scrollLeft", 0);
+  });
+
+  it("shows an error state without restoring mock ranking cards", () => {
+    render(<RankedPlaceSection ranking={{ status: "error" }} query={defaultDiscoveryQuery} />);
+
+    expect(screen.getByText("인기 관광지 순위 정보를 불러오지 못했어요.")).toBeVisible();
+    expect(screen.getByText("잠시 후 다시 시도해 주세요.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도하기" })).toBeVisible();
+    expect(screen.queryByRole("article", { name: /이천 테르메덴/ })).not.toBeInTheDocument();
+  });
+
+  it("treats an incomplete ranking response as a retryable error", () => {
+    render(
+      <RankedPlaceSection
+        ranking={{
+          status: "ready",
+          data: { ...rankingResponse, items: rankingResponse.items.slice(0, 9) },
+        }}
+        query={defaultDiscoveryQuery}
+      />,
+    );
+
+    expect(screen.getByText("인기 관광지 순위 정보를 불러오지 못했어요.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도하기" })).toBeVisible();
+    expect(
+      screen.queryByRole("list", { name: "세대별 인기관광지 순위" }),
+    ).not.toBeInTheDocument();
   });
 });
 
