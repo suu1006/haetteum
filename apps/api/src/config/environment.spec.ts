@@ -5,6 +5,9 @@ const validEnvironment = {
   API_PORT: "4000",
   WEB_ORIGIN: "http://localhost:3000",
   DATABASE_URL: "postgresql://haetteum:local@localhost:5432/haetteum",
+  KAKAO_REST_API_KEY: "kakao-rest-test-key",
+  KAKAO_CLIENT_SECRET: "kakao-client-secret-for-test",
+  KAKAO_REDIRECT_URI: "http://localhost:4000/api/v1/auth/kakao/callback",
 };
 
 describe("validateEnvironment", () => {
@@ -40,6 +43,81 @@ describe("validateEnvironment", () => {
       SERVICE_KEY: undefined,
       TOURISM_SYNC_ENABLED: false,
     });
+  });
+
+  it.each([
+    "KAKAO_REST_API_KEY",
+    "KAKAO_CLIENT_SECRET",
+    "KAKAO_REDIRECT_URI",
+  ] as const)("rejects a missing %s", (key) => {
+    const invalid = { ...validEnvironment };
+    delete invalid[key];
+
+    expect(() => validateEnvironment(invalid)).toThrow(key);
+  });
+
+  it.each([
+    "KAKAO_REST_API_KEY",
+    "KAKAO_CLIENT_SECRET",
+    "KAKAO_REDIRECT_URI",
+  ] as const)("rejects a blank %s", (key) => {
+    expect(() =>
+      validateEnvironment({ ...validEnvironment, [key]: "   " }),
+    ).toThrow(key);
+  });
+
+  it("allows a localhost callback during development and test", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        NODE_ENV: "development",
+        KAKAO_REDIRECT_URI: "http://127.0.0.1:4000/api/v1/auth/kakao/callback",
+      }),
+    ).toMatchObject({
+      KAKAO_REDIRECT_URI: "http://127.0.0.1:4000/api/v1/auth/kakao/callback",
+    });
+  });
+
+  it("rejects an HTTP localhost callback in production", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        NODE_ENV: "production",
+        KAKAO_REDIRECT_URI: "http://localhost:4000/api/v1/auth/kakao/callback",
+      }),
+    ).toThrow("KAKAO_REDIRECT_URI");
+  });
+
+  it("rejects a non-local HTTP Kakao callback", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        KAKAO_REDIRECT_URI:
+          "http://api.haetteum.example/api/v1/auth/kakao/callback",
+      }),
+    ).toThrow("KAKAO_REDIRECT_URI");
+  });
+
+  it("allows an HTTPS Kakao callback outside localhost", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        KAKAO_REDIRECT_URI:
+          "https://api.haetteum.example/api/v1/auth/kakao/callback",
+      }),
+    ).toMatchObject({
+      KAKAO_REDIRECT_URI:
+        "https://api.haetteum.example/api/v1/auth/kakao/callback",
+    });
+  });
+
+  it("requires the Kakao callback path", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        KAKAO_REDIRECT_URI: "https://api.haetteum.example/auth/kakao/callback",
+      }),
+    ).toThrow("KAKAO_REDIRECT_URI");
   });
 
   it("parses an enabled TourAPI configuration", () => {

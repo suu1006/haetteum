@@ -42,9 +42,11 @@ function TravelRecordSummary({ items }: TravelRecordSummaryProps) {
               <p className="mt-1.5 truncate text-[0.78rem] font-semibold leading-4 text-foreground">
                 {item.label}
               </p>
-              <strong className="mt-0.5 block text-[0.8rem] font-bold leading-4 text-primary">
-                {item.countLabel}
-              </strong>
+              {item.countLabel ? (
+                <strong className="mt-0.5 block text-[0.8rem] font-bold leading-4 text-primary">
+                  {item.countLabel}
+                </strong>
+              ) : null}
             </>
           );
 

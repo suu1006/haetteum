@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { IconType } from "react-icons";
 import {
   TbBell,
@@ -9,6 +13,8 @@ import {
 } from "react-icons/tb";
 
 import type { MyPageMenuItem } from "@/features/profile/my-page-model";
+import { logout } from "@/features/auth/auth-client";
+import { useAuthStore } from "@/features/auth/auth-store";
 import { cn } from "@/lib/utils";
 
 type MyPageMenuListProps = {
@@ -24,6 +30,24 @@ const menuIcons: Record<MyPageMenuItem["id"], IconType> = {
 };
 
 function MyPageMenuList({ items }: MyPageMenuListProps) {
+  const router = useRouter();
+  const setAnonymous = useAuthStore((state) => state.setAnonymous);
+  const [logoutStatus, setLogoutStatus] = useState<
+    "idle" | "pending" | "error"
+  >("idle");
+
+  async function handleLogout() {
+    setLogoutStatus("pending");
+    try {
+      await logout();
+      setAnonymous();
+      router.replace("/");
+      router.refresh();
+    } catch {
+      setLogoutStatus("error");
+    }
+  }
+
   return (
     <section aria-label="계정 메뉴" className="rounded-[1.5rem] bg-card px-5 shadow-floating">
       <ul aria-label="마이페이지 메뉴">
@@ -44,9 +68,23 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
                 className="size-6 shrink-0 text-muted-foreground"
                 strokeWidth={1.65}
               />
-              <span className="text-[0.9rem] font-semibold text-foreground">
-                {item.label}
-              </span>
+              {item.id === "logout" ? (
+                <button
+                  type="button"
+                  aria-label={
+                    logoutStatus === "error" ? "로그아웃 다시 시도" : item.label
+                  }
+                  disabled={logoutStatus === "pending"}
+                  onClick={handleLogout}
+                  className="flex min-h-11 flex-1 items-center text-left text-[0.9rem] font-semibold text-foreground outline-none disabled:opacity-60 focus-visible:ring-3 focus-visible:ring-ring/25"
+                >
+                  {logoutStatus === "pending" ? "로그아웃 중" : item.label}
+                </button>
+              ) : (
+                <span className="text-[0.9rem] font-semibold text-foreground">
+                  {item.label}
+                </span>
+              )}
               {item.hasNotice ? (
                 <>
                   <span className="sr-only">새 알림 있음</span>
@@ -67,6 +105,14 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
           );
         })}
       </ul>
+      {logoutStatus === "error" ? (
+        <p
+          role="alert"
+          className="border-t border-border/80 py-3 type-caption text-destructive"
+        >
+          로그아웃하지 못했어요. 다시 시도해 주세요.
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WelcomeActionsProps {
@@ -23,16 +23,16 @@ function WelcomeActions({
       >
         여행 시작하기
       </Link>
-      <Button
+      <Link
         className={cn(
+          buttonVariants({ variant: desktop ? "outline" : "ghost" }),
           "w-full text-white hover:bg-white/10 hover:text-white disabled:opacity-90",
           desktop && "border-white/80 bg-black/10",
         )}
-        disabled
-        variant={desktop ? "outline" : "ghost"}
+        href="/login"
       >
         로그인
-      </Button>
+      </Link>
     </div>
   );
 }

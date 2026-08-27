@@ -1,21 +1,101 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  headers: vi.fn(),
+  loadMyReviews: vi.fn(),
+  requireCurrentUser: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({ headers: mocks.headers }));
+vi.mock("next/server", () => ({ connection: vi.fn() }));
+vi.mock("@/features/auth/auth-server", () => ({
+  requireCurrentUser: mocks.requireCurrentUser,
+}));
+vi.mock("@/features/reviews/my-reviews-api", () => ({
+  loadMyReviews: mocks.loadMyReviews,
+}));
+vi.mock("@/features/auth/auth-user-hydrator", () => ({
+  AuthUserHydrator: ({ user }: { user: { id: string } }) => (
+    <output data-testid="hydrated-user">{user.id}</output>
+  ),
+}));
 
 import ReviewsPage, { metadata } from "@/app/reviews/page";
+import type { MyReviewItem } from "@/features/profile/my-reviews-model";
+
+const user = {
+  id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
+  displayName: "실제 카카오 여행자",
+  profileImageUrl: null,
+};
+
+const writtenReview: MyReviewItem = {
+  id: "24684077-a907-45c3-85bf-b509dab12377",
+  placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+  title: "실제 에버랜드 후기",
+  location: "경기 용인",
+  rating: 5,
+  date: "2026.08.26",
+  content: "DB에서 불러온 실제 작성 후기예요.",
+  likeCount: 0,
+  commentCount: 0,
+  bookmarked: false,
+  image: {
+    src: "/images/explore/categories/popular-attraction.png",
+    alt: "실제 에버랜드 후기 대표 이미지",
+  },
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.requireCurrentUser.mockResolvedValue(user);
+  mocks.headers.mockResolvedValue(
+    new Headers({ Cookie: "haetteum_session=opaque-session" }),
+  );
+  mocks.loadMyReviews.mockResolvedValue({
+    status: "ready",
+    data: { written: [writtenReview], bookmarked: [] },
+  });
+});
 
 describe("reviews page", () => {
-  it("renders the personal reviews screen with matching metadata", () => {
-    expect(metadata).toMatchObject({
-      title: "내 후기 | 해뜸",
-      description: expect.stringContaining("작성한 후기와 북마크"),
-    });
+  it("protects the exact route and renders only actual written reviews", async () => {
+    expect(metadata).toMatchObject({ title: "내 후기 | 해뜸" });
 
-    render(<ReviewsPage />);
+    render(await ReviewsPage());
 
+    expect(mocks.requireCurrentUser).toHaveBeenCalledWith("/reviews");
+    expect(screen.getByTestId("hydrated-user")).toHaveTextContent(user.id);
+    expect(mocks.loadMyReviews).toHaveBeenCalledWith(
+      "haetteum_session=opaque-session",
+    );
     expect(
-      screen.getByRole("heading", { level: 1, name: "내 후기" }),
+      screen.getByRole("article", { name: "실제 에버랜드 후기 후기" }),
     ).toBeVisible();
-    expect(screen.getByRole("tab", { name: "작성한 후기" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "북마크" })).toBeVisible();
+    expect(screen.queryByText("성산일출봉")).not.toBeInTheDocument();
+  });
+
+  it("renders an explicit failure instead of mock or false-empty review data", async () => {
+    mocks.loadMyReviews.mockResolvedValue({ status: "error" });
+
+    render(await ReviewsPage());
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "후기를 불러오지 못했어요",
+    );
+    expect(screen.queryByText("작성한 후기가 아직 없어요")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "작성한 후기 목록" })).not.toBeInTheDocument();
+  });
+
+  it("stops rendering when the session helper redirects", async () => {
+    mocks.requireCurrentUser.mockRejectedValue(
+      new Error("redirected:/login?returnTo=%2Freviews"),
+    );
+
+    await expect(ReviewsPage()).rejects.toThrow(
+      "redirected:/login?returnTo=%2Freviews",
+    );
+    expect(mocks.loadMyReviews).not.toHaveBeenCalled();
   });
 });

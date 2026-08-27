@@ -104,6 +104,28 @@ model Place {
   homepage  String? @db.Text
   /// 관광지 소개 설명
   overview  String? @db.Text
+  /// 관광지 안내센터 정보
+  infoCenter         String?   @map("info_center") @db.Text
+  /// 관광지 휴무일 안내
+  restDate           String?   @map("rest_date") @db.Text
+  /// 관광지 이용 가능 계절
+  useSeason          String?   @map("use_season") @db.Text
+  /// 관광지 이용 시간
+  useTime            String?   @map("use_time") @db.Text
+  /// 관광지 주차 안내
+  parking            String?   @db.Text
+  /// 관광지 체험 가능 연령
+  experienceAgeRange String?   @map("experience_age_range") @db.Text
+  /// 관광지 체험 안내
+  experienceGuide    String?   @map("experience_guide") @db.Text
+  /// 유모차 대여 가능 여부
+  babyCarriage       String?   @map("baby_carriage") @db.Text
+  /// 신용카드 사용 가능 여부
+  creditCard         String?   @map("credit_card") @db.Text
+  /// 반려동물 동반 가능 여부
+  pet                String?   @db.Text
+  /// TourAPI 상세정보를 마지막으로 정상 반영한 시각
+  detailSyncedAt     DateTime? @map("detail_synced_at") @db.Timestamptz(3)
 
   /// 대표 원본 이미지 URL
   primaryImageUrl     String?   @map("primary_image_url") @db.Text
@@ -126,6 +148,10 @@ model Place {
 
   region   TourismRegion    @relation(fields: [regionId], references: [id], onDelete: Restrict)
   district TourismDistrict? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  rankings PlaceRanking[]
+  images PlaceImage[]
+  detailInfos PlaceDetailInfo[]
+  reviews Review[]
 
   @@unique([source, externalId])
   @@index([regionId, isVisible])
@@ -133,6 +159,163 @@ model Place {
   @@index([contentTypeId, isVisible])
   @@index([providerModifiedAt])
   @@map("places")
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String    @db.VarChar(32)
+  providerUserId  String    @map("provider_user_id") @db.VarChar(191)
+  displayName     String    @map("display_name") @db.VarChar(100)
+  profileImageUrl String?   @map("profile_image_url") @db.Text
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  reviews  Review[]
+  sessions Session[]
+
+  @@unique([provider, providerUserId])
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash") @db.Char(64)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  lastSeenAt DateTime @map("last_seen_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
+
+model Review {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  placeId   String   @map("place_id") @db.Uuid
+  rating    Int      @db.SmallInt
+  content   String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place Place @relation(fields: [placeId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, placeId])
+  @@index([userId, updatedAt])
+  @@index([placeId])
+  @@map("reviews")
+}
+
+/// TourAPI에서 동기화한 관광지 상세 이미지
+model PlaceImage {
+  /// Haetteum 내부 관광지 이미지 식별자
+  id            String   @id @default(uuid()) @db.Uuid
+  /// 소속 관광지 식별자
+  placeId       String   @map("place_id") @db.Uuid
+  /// 이미지 원본 provider 식별자
+  source        String   @db.VarChar(32)
+  /// provider 이미지 일련번호
+  serialNumber  String   @map("serial_number") @db.VarChar(64)
+  /// provider 이미지명
+  name          String?  @db.VarChar(500)
+  /// 원본 이미지 URL
+  originalUrl   String   @map("original_url") @db.Text
+  /// 썸네일 이미지 URL
+  thumbnailUrl  String?  @map("thumbnail_url") @db.Text
+  /// 이미지 공공누리 저작권 유형
+  copyrightType String?  @map("copyright_type") @db.VarChar(20)
+  /// 상세 화면 이미지 표시 순서
+  displayOrder  Int      @map("display_order")
+  /// 내부 레코드 생성 시각
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, source, serialNumber])
+  @@index([placeId, displayOrder])
+  @@map("place_images")
+}
+
+/// TourAPI에서 동기화한 관광지 반복 상세정보
+model PlaceDetailInfo {
+  /// Haetteum 내부 반복 상세정보 식별자
+  id           String   @id @default(uuid()) @db.Uuid
+  /// 소속 관광지 식별자
+  placeId      String   @map("place_id") @db.Uuid
+  /// 상세정보 원본 provider 식별자
+  source       String   @db.VarChar(32)
+  /// provider 상세정보 일련번호
+  serialNumber String   @map("serial_number") @db.VarChar(64)
+  /// provider 상세정보 필드 그룹
+  fieldGroup   String?  @map("field_group") @db.VarChar(32)
+  /// 상세정보 이름
+  name         String   @db.VarChar(500)
+  /// 상세정보 본문
+  text         String   @db.Text
+  /// 상세 화면 표시 순서
+  displayOrder Int      @map("display_order")
+  /// 내부 레코드 생성 시각
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, source, serialNumber])
+  @@index([placeId, displayOrder])
+  @@map("place_detail_infos")
+}
+
+/// 한국관광 데이터랩 공식 다운로드에서 적재한 기간·대상별 인기관광지 순위
+model PlaceRanking {
+  /// Haetteum 내부 순위 레코드 식별자
+  id              String   @id @default(uuid()) @db.Uuid
+  /// 순위 원본 provider 식별자
+  source          String   @db.VarChar(32)
+  /// 전국 등 순위 집계 범위
+  scope           String   @db.VarChar(32)
+  /// 데이터랩 관광지 식별자
+  sourcePlaceId   String   @map("source_place_id") @db.VarChar(64)
+  /// 데이터랩 관광지명
+  sourcePlaceName String   @map("source_place_name") @db.VarChar(500)
+  /// 데이터랩 관광지 구분
+  sourceCategory  String   @map("source_category") @db.VarChar(100)
+  /// 전체 또는 세대별 집계 대상
+  audience        String   @db.VarChar(32)
+  /// 순위 집계 시작일
+  periodStart     DateTime @map("period_start") @db.Date
+  /// 순위 집계 종료일
+  periodEnd       DateTime @map("period_end") @db.Date
+  /// 집계 범위 안의 원본 순위
+  rank            Int
+  /// 데이터랩 원본 비율의 퍼센트 값
+  sharePercent    Decimal  @map("share_percent") @db.Decimal(5, 2)
+  /// 매칭된 Haetteum 관광지 식별자
+  placeId         String?  @map("place_id") @db.Uuid
+  /// 감사 가능한 원본 CSV 파일명
+  sourceFileName  String   @map("source_file_name") @db.VarChar(500)
+  /// 순위 스냅샷 적재 시각
+  importedAt      DateTime @map("imported_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  place Place? @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  @@unique([source, scope, periodStart, periodEnd, audience, rank], map: "place_rankings_snapshot_rank_key")
+  @@unique([source, scope, periodStart, periodEnd, audience, sourcePlaceId], map: "place_rankings_snapshot_source_place_id_key")
+  @@index([source, scope, audience, periodEnd, rank])
+  @@index([placeId])
+  @@map("place_rankings")
 }
 
 /// TourAPI에서 동기화한 축제 기본 정보

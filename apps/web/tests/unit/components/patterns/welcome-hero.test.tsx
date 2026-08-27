@@ -53,7 +53,7 @@ describe("WelcomeHero", () => {
     expect(screen.getByText("통합 후기 탐색")).toBeVisible();
   });
 
-  it("keeps the primary journey available while login is undecided", async () => {
+  it("keeps discovery available and links to the login journey", async () => {
     const welcomeModule = await loadModule<
       typeof import("@/components/patterns/welcome-hero")
     >("@/components/patterns/welcome-hero");
@@ -66,7 +66,10 @@ describe("WelcomeHero", () => {
     expect(
       screen.getByRole("link", { name: "여행 시작하기" }),
     ).toHaveAttribute("href", "/");
-    expect(screen.getByRole("button", { name: "로그인" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "로그인" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
   });
 
   it("art directs portrait and landscape imagery by viewport", async () => {

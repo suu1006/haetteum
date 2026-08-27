@@ -1,4 +1,31 @@
+export { AuthUserSchema, type AuthUser } from "./auth.js";
 export { HealthResponseSchema, type HealthResponse } from "./health.js";
+export {
+  ListPlaceRankingsQuerySchema,
+  PlaceRankingAudienceSchema,
+  PlaceRankingItemSchema,
+  PlaceRankingResponseSchema,
+  type ListPlaceRankingsQuery,
+  type PlaceRankingAudience,
+  type PlaceRankingItem,
+  type PlaceRankingResponse,
+} from "./place-rankings.js";
+export {
+  FestivalBrowseRegionSchema,
+  FestivalCategoryLabelSchema,
+  FestivalDiscoveryItemSchema,
+  FestivalDiscoveryQuerySchema,
+  FestivalDiscoveryRankingItemSchema,
+  FestivalDiscoveryResponseSchema,
+  FestivalStatusSchema,
+  type FestivalBrowseRegion,
+  type FestivalCategoryLabel,
+  type FestivalDiscoveryItem,
+  type FestivalDiscoveryQuery,
+  type FestivalDiscoveryRankingItem,
+  type FestivalDiscoveryResponse,
+  type FestivalStatus,
+} from "./festivals.js";
 export {
   ProblemDetailsSchema,
   type ProblemDetails,
@@ -7,11 +34,37 @@ export {
 } from "./problem-details.js";
 export {
   ListPlacesQuerySchema,
+  NearbyPlaceCategorySchema,
+  NearbyPlaceItemSchema,
+  NearbyPlacesQuerySchema,
+  NearbyPlacesResponseSchema,
+  PlaceDetailImageSchema,
+  PlaceDetailInformationItemSchema,
+  PlaceDetailResponseSchema,
   PlaceListItemSchema,
   PlaceRegionSchema,
   PlacesPageSchema,
   type ListPlacesQuery,
+  type NearbyPlaceCategory,
+  type NearbyPlaceItem,
+  type NearbyPlacesQuery,
+  type NearbyPlacesResponse,
+  type PlaceDetailImage,
+  type PlaceDetailInformationItem,
+  type PlaceDetailResponse,
   type PlaceListItem,
   type PlaceRegion,
   type PlacesPage,
 } from "./places.js";
+export {
+  CreateReviewRequestSchema,
+  MyReviewsResponseSchema,
+  ReviewIdParamsSchema,
+  ReviewItemSchema,
+  UpdateReviewRequestSchema,
+  type CreateReviewRequest,
+  type MyReviewsResponse,
+  type ReviewIdParams,
+  type ReviewItem,
+  type UpdateReviewRequest,
+} from "./reviews.js";

@@ -43,25 +43,65 @@ const ApiEnvironmentSchema = z
       }),
     END_POINT: providerEndpoint,
     SERVICE_KEY: providerSecret,
+    KAKAO_REST_API_KEY: z.string().trim().min(1),
+    KAKAO_CLIENT_SECRET: z.string().trim().min(1),
+    KAKAO_REDIRECT_URI: z.string().url(),
     TOURISM_SYNC_ENABLED: booleanFromString,
   })
   .superRefine((value, context) => {
-    if (!value.TOURISM_SYNC_ENABLED) return;
+    if (value.TOURISM_SYNC_ENABLED) {
+      if (!value.END_POINT) {
+        context.addIssue({
+          code: "custom",
+          path: ["END_POINT"],
+          message: "END_POINT is required when tourism sync is enabled",
+        });
+      }
 
-    if (!value.END_POINT) {
-      context.addIssue({
-        code: "custom",
-        path: ["END_POINT"],
-        message: "END_POINT is required when tourism sync is enabled",
-      });
+      if (!value.SERVICE_KEY) {
+        context.addIssue({
+          code: "custom",
+          path: ["SERVICE_KEY"],
+          message: "SERVICE_KEY is required when tourism sync is enabled",
+        });
+      }
     }
 
-    if (!value.SERVICE_KEY) {
-      context.addIssue({
-        code: "custom",
-        path: ["SERVICE_KEY"],
-        message: "SERVICE_KEY is required when tourism sync is enabled",
-      });
+    if (value.KAKAO_REDIRECT_URI) {
+      let redirectUri: URL;
+
+      try {
+        redirectUri = new URL(value.KAKAO_REDIRECT_URI);
+      } catch {
+        return;
+      }
+
+      const isLocalhost =
+        redirectUri.hostname === "localhost" ||
+        redirectUri.hostname === "127.0.0.1";
+      const allowsLocalhostHttp =
+        (value.NODE_ENV === "development" || value.NODE_ENV === "test") &&
+        isLocalhost;
+
+      if (redirectUri.pathname !== "/api/v1/auth/kakao/callback") {
+        context.addIssue({
+          code: "custom",
+          path: ["KAKAO_REDIRECT_URI"],
+          message: "KAKAO_REDIRECT_URI must use /api/v1/auth/kakao/callback",
+        });
+      }
+
+      if (
+        redirectUri.protocol !== "https:" &&
+        !(allowsLocalhostHttp && redirectUri.protocol === "http:")
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["KAKAO_REDIRECT_URI"],
+          message:
+            "KAKAO_REDIRECT_URI must use HTTPS unless it targets localhost",
+        });
+      }
     }
   });
 

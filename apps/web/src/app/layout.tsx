@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import { AuthBootstrap } from "@/features/auth/auth-bootstrap";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
+
 export const metadata: Metadata = {
   title: "해뜸",
   description: "Haetteum web application",
@@ -23,7 +26,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <AuthStoreProvider>
+          <AuthBootstrap />
+          {children}
+        </AuthStoreProvider>
+      </body>
     </html>
   );
 }

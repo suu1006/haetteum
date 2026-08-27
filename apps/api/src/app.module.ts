@@ -1,10 +1,14 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
+import { AuthModule } from "./auth/auth.module.js";
 import { validateEnvironment } from "./config/environment.js";
+import { FestivalsModule } from "./festivals/festivals.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { PlaceRankingsModule } from "./place-rankings/place-rankings.module.js";
 import { PlacesModule } from "./places/places.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
+import { ReviewsModule } from "./reviews/reviews.module.js";
 import { TourismModule } from "./tourism/tourism.module.js";
 
 @Module({
@@ -12,11 +16,16 @@ import { TourismModule } from "./tourism/tourism.module.js";
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
+      ignoreEnvFile: process.env.NODE_ENV === "test",
       validate: validateEnvironment,
     }),
     PrismaModule,
+    AuthModule,
     HealthModule,
+    FestivalsModule,
+    PlaceRankingsModule,
     PlacesModule,
+    ReviewsModule,
     TourismModule,
   ],
 })

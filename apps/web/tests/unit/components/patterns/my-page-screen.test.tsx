@@ -1,56 +1,111 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  logout: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
+}));
+
+vi.mock("@/features/auth/auth-client", () => ({ logout: mocks.logout }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }),
+}));
 
 import { MyPageScreen } from "@/components/patterns/my-page-screen";
-import { myPageMock } from "@/features/profile/my-page.mock";
+import { AuthStoreProvider, useAuthStore } from "@/features/auth/auth-store";
+import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
+import type { MyPageData } from "@/features/profile/my-page-model";
+
+const user = {
+  id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
+  displayName: "실제 카카오 여행자",
+  profileImageUrl: null,
+};
+
+const data: MyPageData = {
+  profile: {
+    nickname: user.displayName,
+    authLabel: "카카오로 로그인됨",
+    image: {
+      src: "/images/profile/haetteumi-avatar.png",
+      alt: `${user.displayName} 프로필`,
+    },
+  },
+  travelRecords: [
+    { id: "trips", label: "내 일정", countLabel: "0개", href: "/trips" },
+    { id: "reviews", label: "내 후기", countLabel: "2개", href: "/reviews" },
+    { id: "favorites", label: "찜한 장소", countLabel: "0개" },
+    { id: "visited", label: "방문한 장소", countLabel: "0개" },
+  ],
+  aiRecommendation: {
+    title: "AI 맞춤 여행 추천 받기",
+    description: "나만을 위한 특별한 여행 코스를 추천해드려요",
+    href: "/?region=gyeonggi&tab=recommended#ai-course",
+    image: {
+      src: "/images/discovery/reference-main/ai-course-robot.png",
+      alt: "맞춤 여행을 추천하는 해뜸 도우미",
+    },
+  },
+  menuItems: [
+    { id: "notifications", label: "알림" },
+    { id: "settings", label: "설정" },
+    { id: "support", label: "고객센터" },
+    { id: "guide", label: "이용 안내" },
+    { id: "logout", label: "로그아웃" },
+  ],
+};
+
+function AuthStateProbe() {
+  const status = useAuthStore((state) => state.status);
+  return <output data-testid="auth-status">{status}</output>;
+}
+
+function renderScreen() {
+  return render(
+    <AuthStoreProvider>
+      <AuthUserHydrator user={user} />
+      <MyPageScreen data={data} />
+      <AuthStateProbe />
+    </AuthStoreProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.logout.mockResolvedValue(undefined);
+});
 
 describe("MyPageScreen", () => {
-  it("assembles the profile, travel records, AI recommendation and account menu", () => {
-    render(<MyPageScreen data={myPageMock} />);
+  it("renders only real profile identity and truthful record counts", () => {
+    renderScreen();
 
-    expect(
-      screen.getByRole("heading", { name: "마이페이지", level: 1 }),
-    ).toBeVisible();
-    expect(screen.getByRole("img", { name: "해뜸이 프로필" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "해뜸이" })).toBeVisible();
-    expect(screen.getByText("여행자 Lv.3")).toBeVisible();
-    expect(screen.getByText("다음 레벨까지 230P 남았어요!")).toBeVisible();
-    expect(screen.getByText("2,770P")).toBeVisible();
-    expect(screen.getByRole("progressbar", { name: "다음 레벨 진행도" })).toHaveAttribute(
-      "aria-valuenow",
-      "38",
-    );
+    expect(screen.getByRole("heading", { name: user.displayName })).toBeVisible();
+    expect(screen.getByRole("img", { name: `${user.displayName} 프로필` })).toBeVisible();
+    expect(screen.getByText("카카오로 로그인됨")).toBeVisible();
+    expect(screen.queryByText(/여행자 Lv\.|다음 레벨|P$/)).not.toBeInTheDocument();
 
     const travelRecords = screen.getByRole("list", { name: "나의 여행 기록" });
     expect(within(travelRecords).getAllByRole("listitem")).toHaveLength(4);
-    expect(travelRecords).toHaveTextContent("내 일정3개");
-    expect(travelRecords).toHaveTextContent("내 후기12개");
-    expect(travelRecords).toHaveTextContent("찜한 장소28개");
-    expect(travelRecords).toHaveTextContent("방문한 장소15개");
-
-    expect(
-      screen.getByRole("link", { name: "AI 맞춤 여행 추천 받기" }),
-    ).toHaveAttribute(
-      "href",
-      "/?region=gyeonggi&tab=recommended#ai-course",
-    );
-
-    const accountMenu = screen.getByRole("list", { name: "마이페이지 메뉴" });
-    expect(within(accountMenu).getAllByRole("listitem")).toHaveLength(5);
-    expect(accountMenu).toHaveTextContent("알림");
-    expect(accountMenu).toHaveTextContent("설정");
-    expect(accountMenu).toHaveTextContent("고객센터");
-    expect(accountMenu).toHaveTextContent("이용 안내");
-    expect(accountMenu).toHaveTextContent("로그아웃");
+    expect(travelRecords).toHaveTextContent("내 일정0개");
+    expect(travelRecords).toHaveTextContent("내 후기2개");
+    expect(travelRecords).toHaveTextContent("찜한 장소0개");
+    expect(travelRecords).toHaveTextContent("방문한 장소0개");
   });
 
-  it("keeps home available and identifies My Page as the current destination", () => {
-    render(<MyPageScreen data={myPageMock} />);
+  it("keeps actual destinations linked from the personal surface", () => {
+    renderScreen();
 
-    expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute(
+    const records = screen.getByRole("list", { name: "나의 여행 기록" });
+    expect(within(records).getByRole("link", { name: /내 일정/ })).toHaveAttribute(
       "href",
-      "/",
+      "/trips",
+    );
+    expect(within(records).getByRole("link", { name: /내 후기/ })).toHaveAttribute(
+      "href",
+      "/reviews",
     );
     expect(screen.getByRole("link", { name: "마이페이지" })).toHaveAttribute(
       "aria-current",
@@ -58,29 +113,42 @@ describe("MyPageScreen", () => {
     );
   });
 
-  it("links both My Page review entry points to the personal reviews screen", () => {
-    render(<MyPageScreen data={myPageMock} />);
+  it("clears the current auth state and returns home only after logout succeeds", async () => {
+    const userEventApi = userEvent.setup();
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated"));
 
-    const travelRecords = screen.getByRole("list", { name: "나의 여행 기록" });
-    expect(
-      within(travelRecords).getByRole("link", { name: /내 후기/ }),
-    ).toHaveAttribute("href", "/reviews");
+    await userEventApi.click(screen.getByRole("button", { name: "로그아웃" }));
 
-    const mainNavigation = screen.getByRole("navigation", { name: "주요 메뉴" });
-    expect(
-      within(mainNavigation).getByRole("link", { name: "내 후기" }),
-    ).toHaveAttribute("href", "/reviews");
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("anonymous"));
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    expect(mocks.replace).toHaveBeenCalledWith("/");
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("retains authentication and exposes a retry status when logout fails", async () => {
+    const userEventApi = userEvent.setup();
+    mocks.logout.mockRejectedValue(new Error("server unavailable"));
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated"));
+
+    await userEventApi.click(screen.getByRole("button", { name: "로그아웃" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "로그아웃하지 못했어요. 다시 시도해 주세요.",
+    );
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+    expect(screen.getByRole("button", { name: "로그아웃 다시 시도" })).toBeEnabled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("has no detectable accessibility violations", async () => {
-    const { container } = render(<MyPageScreen data={myPageMock} />);
+    const { container } = renderScreen();
 
     const results = await axe.run(container, {
-      rules: {
-        "color-contrast": { enabled: false },
-      },
+      rules: { "color-contrast": { enabled: false } },
     });
-
     expect(results.violations).toEqual([]);
   });
 });

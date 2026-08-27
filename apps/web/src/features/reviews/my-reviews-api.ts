@@ -1,0 +1,79 @@
+import "server-only";
+
+import {
+  MyReviewsResponseSchema,
+  type ReviewItem,
+} from "@haetteum/contracts";
+
+import type {
+  MyReviewItem,
+  MyReviewsData,
+} from "@/features/profile/my-reviews-model";
+
+const fallbackImage = "/images/explore/categories/popular-attraction.png";
+
+export type MyReviewsLoadResult =
+  | { status: "ready"; data: MyReviewsData }
+  | { status: "error" };
+
+export async function loadMyReviews(
+  cookieHeader: string | null,
+  fetchImpl: typeof fetch = fetch,
+  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+): Promise<MyReviewsLoadResult> {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  if (!normalizedBaseUrl) return { status: "error" };
+
+  try {
+    const response = await fetchImpl(`${normalizedBaseUrl}/reviews/mine`, {
+      cache: "no-store",
+      headers: cookieHeader ? { Cookie: cookieHeader } : {},
+    });
+    if (!response.ok) return { status: "error" };
+
+    const parsed = MyReviewsResponseSchema.safeParse(await response.json());
+    if (!parsed.success) return { status: "error" };
+
+    return {
+      status: "ready",
+      data: {
+        written: parsed.data.items.map(mapReviewItem),
+        bookmarked: [],
+      },
+    };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+function mapReviewItem(item: ReviewItem): MyReviewItem {
+  return {
+    id: item.id,
+    placeId: item.placeId,
+    title: item.placeTitle,
+    location: item.location,
+    rating: item.rating,
+    date: formatKoreanDate(item.updatedAt),
+    content: item.content,
+    likeCount: 0,
+    commentCount: 0,
+    bookmarked: false,
+    image: {
+      src: item.primaryImageUrl ?? fallbackImage,
+      alt: `${item.placeTitle} 대표 이미지`,
+    },
+  };
+}
+
+function formatKoreanDate(value: string): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find(({ type: partType }) => partType === type)?.value;
+
+  return `${part("year")}.${part("month")}.${part("day")}`;
+}

@@ -1,9 +1,6 @@
 export type MyPageProfile = {
   nickname: string;
-  levelLabel: string;
-  nextLevelLabel: string;
-  pointsLabel: string;
-  progressPercent: number;
+  authLabel: string;
   image: {
     src: string;
     alt: string;
@@ -13,7 +10,7 @@ export type MyPageProfile = {
 export type TravelRecordItem = {
   id: "trips" | "reviews" | "favorites" | "visited";
   label: string;
-  countLabel: string;
+  countLabel?: string;
   href?: string;
 };
 
