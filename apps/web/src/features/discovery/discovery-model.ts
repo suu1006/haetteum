@@ -1,3 +1,5 @@
+import type { PlaceRankingAudience } from "@haetteum/contracts";
+
 import type { ThemeTravelData } from "@/features/themes/theme-travel-model";
 
 export const discoveryTabIds = [
@@ -15,18 +17,37 @@ export const regionIds = [
   "gyeongju",
   "jeonju",
 ] as const;
+export const festivalBrowseRegionIds = [
+  "all",
+  "jeju",
+  "seoul",
+  "busan",
+  "gangwon",
+  "gyeongju",
+  "jeonju",
+] as const;
 export const festivalFilterKeys = [
   "ongoing",
   "thisWeek",
   "free",
   "family",
 ] as const;
+export const placeRankingAudienceIds = [
+  "all",
+  "20s",
+  "30s",
+  "40s",
+  "50s",
+  "60s-plus",
+] as const satisfies readonly PlaceRankingAudience[];
 
 export type DiscoveryTabId = (typeof discoveryTabIds)[number];
 export type RegionId = (typeof regionIds)[number];
+type ApprovedFestivalBrowseRegionId = (typeof festivalBrowseRegionIds)[number];
 export type FestivalBrowseRegionId = "all" | RegionId;
 export type FestivalFilterKey = (typeof festivalFilterKeys)[number];
 export type FestivalFilters = Record<FestivalFilterKey, boolean>;
+export type DiscoveryAudience = PlaceRankingAudience;
 export type FestivalStatus = "ongoing" | "upcoming";
 export type FestivalAudience = "family" | "friends" | "couple";
 export type SearchParamValue = string | string[] | undefined;
@@ -36,6 +57,7 @@ export type DiscoveryQuery = {
   q: string;
   region: FestivalBrowseRegionId;
   tab: DiscoveryTabId;
+  audience: DiscoveryAudience;
   festivalFilters: FestivalFilters;
 };
 
@@ -50,6 +72,7 @@ export const defaultDiscoveryQuery: DiscoveryQuery = {
   q: "",
   region: "gyeonggi",
   tab: "recommended",
+  audience: "all",
   festivalFilters: defaultFestivalFilters,
 };
 
@@ -133,22 +156,22 @@ export type FestivalDiscoveryRankingItem = {
   id: string;
   rank: 1 | 2 | 3;
   title: string;
+  status: FestivalStatus;
+  statusLabel: "진행 중" | "곧 시작";
+  dateLabel: string;
   location: string;
-  popularityLabel: string;
-  savedCountLabel: string;
-  reviewCountLabel?: string;
-  image: DiscoveryImage;
+  categoryLabel: string;
+  image: { src: string | null; alt: string };
 };
 export type FestivalDiscoveryListItem = {
   id: string;
   title: string;
-  description: string;
+  status: FestivalStatus;
+  statusLabel: "진행 중" | "곧 시작";
   dateLabel: string;
-  endDate: string;
   location: string;
-  savedCountLabel: string;
-  tags: readonly string[];
-  image: DiscoveryImage;
+  categoryLabel: string;
+  image: { src: string | null; alt: string };
 };
 export type FestivalDiscoveryData = {
   regions: ReadonlyArray<{
@@ -157,6 +180,7 @@ export type FestivalDiscoveryData = {
   }>;
   ranking: readonly FestivalDiscoveryRankingItem[];
   festivals: readonly FestivalDiscoveryListItem[];
+  loadState: "ready" | "error";
 };
 export type MainDiscoveryData = {
   aiCourse: DiscoveryImage;
@@ -191,14 +215,17 @@ export function parseDiscoveryQuery(
 ): DiscoveryQuery {
   const tab = firstValue(searchParams.tab);
   const region = firstValue(searchParams.region);
+  const audience = firstValue(searchParams.audience);
   // 테마 여행은 데이터 연동 전까지 직접 URL 접근도 추천 탭으로 처리한다.
   const parsedTab =
     tab !== "ai-course" && discoveryTabIds.includes(tab as DiscoveryTabId)
     ? (tab as DiscoveryTabId)
     : defaultDiscoveryQuery.tab;
   const parsedRegion =
-    parsedTab === "festivals" && region === "all"
-      ? "all"
+    parsedTab === "festivals"
+      ? (festivalBrowseRegionIds as readonly string[]).includes(region ?? "")
+        ? (region as ApprovedFestivalBrowseRegionId)
+        : "all"
       : regionIds.includes(region as RegionId)
         ? (region as RegionId)
         : defaultDiscoveryQuery.region;
@@ -207,6 +234,11 @@ export function parseDiscoveryQuery(
     q: (firstValue(searchParams.q) ?? "").trim(),
     region: parsedRegion,
     tab: parsedTab,
+    audience: placeRankingAudienceIds.includes(
+      audience as DiscoveryAudience,
+    )
+      ? (audience as DiscoveryAudience)
+      : defaultDiscoveryQuery.audience,
     festivalFilters: {
       ongoing: firstValue(searchParams.festivalStatus) === "ongoing",
       thisWeek: firstValue(searchParams.festivalPeriod) === "week",
@@ -226,6 +258,9 @@ export function buildDiscoveryHref(
   if (next.q) params.set("q", next.q);
   params.set("region", next.region);
   params.set("tab", next.tab);
+  if (next.audience !== defaultDiscoveryQuery.audience) {
+    params.set("audience", next.audience);
+  }
   if (next.festivalFilters.ongoing) {
     params.set("festivalStatus", "ongoing");
   }

@@ -29,7 +29,7 @@ const discoveryTabs: ReadonlyArray<{
 const tabDefaultRegions: Record<DiscoveryTabId, DiscoveryQuery["region"]> = {
   recommended: "gyeonggi",
   places: "jeju",
-  festivals: "jeju",
+  festivals: "all",
   "ai-course": "gyeonggi",
 };
 
@@ -58,6 +58,9 @@ function DiscoverySearchPanel({
       <form action="" method="get" role="search" className="flex gap-2">
         <input name="tab" type="hidden" value={query.tab} />
         <input name="region" type="hidden" value={query.region} />
+        {query.audience !== "all" ? (
+          <input name="audience" type="hidden" value={query.audience} />
+        ) : null}
         {query.festivalFilters.ongoing ? (
           <input name="festivalStatus" type="hidden" value="ongoing" />
         ) : null}
