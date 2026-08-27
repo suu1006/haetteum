@@ -5,15 +5,21 @@ import {
   StarIcon,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 import type { MyReviewItem } from "@/features/profile/my-reviews-model";
 
 type MyReviewCardProps = {
   review: MyReviewItem;
   eager?: boolean;
+  editHref?: string;
 };
 
-function MyReviewCard({ review, eager = false }: MyReviewCardProps) {
+function MyReviewCard({
+  review,
+  eager = false,
+  editHref,
+}: MyReviewCardProps) {
   return (
     <article
       aria-label={`${review.title} 후기`}
@@ -31,10 +37,21 @@ function MyReviewCard({ review, eager = false }: MyReviewCardProps) {
       </div>
 
       <div className="flex min-w-0 flex-col py-0.5">
-        <div className="min-w-0">
-          <h2 className="truncate text-[1rem] leading-6 font-bold tracking-[-0.025em] text-foreground">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-[1rem] leading-6 font-bold tracking-[-0.025em] text-foreground">
             {review.title}
           </h2>
+          {editHref ? (
+            <Link
+              href={editHref}
+              aria-label={`${review.title} 후기 수정`}
+              className="shrink-0 rounded-md px-1 py-0.5 text-xs font-semibold text-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
+            >
+              수정
+            </Link>
+          ) : null}
+        </div>
+        <div className="min-w-0">
           <p className="type-caption mt-0.5 text-muted-foreground">
             {review.location}
           </p>

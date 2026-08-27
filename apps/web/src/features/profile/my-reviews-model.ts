@@ -18,3 +18,7 @@ export type MyReviewItem = {
 };
 
 export type MyReviewsData = Record<MyReviewsTabId, readonly MyReviewItem[]>;
+
+export type MyWrittenReviewsLoadState =
+  | { status: "ready"; items: MyReviewItem[] }
+  | { status: "error" };

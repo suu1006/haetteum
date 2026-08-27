@@ -1,56 +1,6 @@
 import type { MyReviewsData } from "@/features/profile/my-reviews-model";
 
 export const myReviewsMock = {
-  written: [
-    {
-      id: "written-icheon-termeden",
-      placeId: "icheon-termeden",
-      title: "이천 테르메덴",
-      location: "이천",
-      rating: 4.6,
-      date: "2026.08.20",
-      content: "온천도 좋고 주변 경관도 아름다워요.",
-      likeCount: 32,
-      commentCount: 5,
-      bookmarked: true,
-      image: {
-        src: "/images/discovery/reference-main/icheon-termeden.png",
-        alt: "야외 온천 풀이 있는 이천 테르메덴",
-      },
-    },
-    {
-      id: "written-everland",
-      placeId: "everland",
-      title: "에버랜드",
-      location: "용인",
-      rating: 4.5,
-      date: "2026.08.15",
-      content: "여름에 가도 즐거웠어요! 놀이기구랑 퍼레이드 최고예요.",
-      likeCount: 28,
-      commentCount: 3,
-      bookmarked: false,
-      image: {
-        src: "/images/discovery/reference-main/everland-theme-park.png",
-        alt: "정원과 놀이기구가 어우러진 용인 에버랜드",
-      },
-    },
-    {
-      id: "written-suwon-hwaseong",
-      placeId: "suwon-hwaseong",
-      title: "수원 화성",
-      location: "수원",
-      rating: 4.4,
-      date: "2026.08.10",
-      content: "역사도 배우고 산책하기도 좋은 곳이에요. 야경이 특히 멋져요.",
-      likeCount: 19,
-      commentCount: 2,
-      bookmarked: false,
-      image: {
-        src: "/images/discovery/reference-main/suwon-hwaseong.png",
-        alt: "성곽길과 누각이 이어지는 수원 화성",
-      },
-    },
-  ],
   bookmarked: [
     {
       id: "bookmarked-seongsan",
@@ -85,4 +35,4 @@ export const myReviewsMock = {
       },
     },
   ],
-} satisfies MyReviewsData;
+} satisfies Pick<MyReviewsData, "bookmarked">;
