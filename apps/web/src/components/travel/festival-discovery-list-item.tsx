@@ -1,59 +1,40 @@
-import Image from "next/image";
 import { MapPinIcon } from "lucide-react";
 
+import { FestivalRemoteImage } from "@/components/travel/festival-remote-image";
 import type { FestivalDiscoveryListItem as FestivalDiscoveryListItemData } from "@/features/discovery/discovery-model";
 import { cn } from "@/lib/utils";
 
 type FestivalDiscoveryListItemProps = {
   festival: FestivalDiscoveryListItemData;
+  eager?: boolean;
 };
-
-const seoulDateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Seoul",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function getSeoulCalendarDate(now: Date) {
-  const dateParts = seoulDateFormatter.formatToParts(now);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    dateParts.find((datePart) => datePart.type === type)?.value ?? "";
-
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function isFestivalEnded(endDate: string, now = new Date()) {
-  return getSeoulCalendarDate(now) > endDate;
-}
 
 function FestivalDiscoveryListItem({
   festival,
+  eager = false,
 }: FestivalDiscoveryListItemProps) {
-  const ended = isFestivalEnded(festival.endDate);
-
   return (
     <article
       aria-label={festival.title}
       className="h-full overflow-hidden rounded-xl border border-border/70 bg-card shadow-card"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-primary-subtle">
-        <Image
+        <FestivalRemoteImage
           src={festival.image.src}
           alt={festival.image.alt}
-          fill
           sizes="(max-width: 480px) calc((100vw - 3.5rem) / 2), 210px"
+          loading={eager ? "eager" : "lazy"}
           className="object-cover"
         />
         <span
           className={cn(
             "absolute top-2 left-2 rounded-md px-2.5 py-1 text-[0.65rem] leading-4 font-semibold shadow-sm",
-            ended
-              ? "bg-foreground/72 text-background"
-              : "bg-primary text-primary-foreground",
+            festival.status === "ongoing"
+              ? "bg-primary text-primary-foreground"
+              : "bg-card/92 text-primary backdrop-blur-sm",
           )}
         >
-          {ended ? "종료" : "진행중"}
+          {festival.statusLabel}
         </span>
       </div>
 
@@ -67,6 +48,9 @@ function FestivalDiscoveryListItem({
         <p className="mt-1 flex min-w-0 items-center gap-1 text-[0.68rem] leading-4 text-muted-foreground">
           <MapPinIcon aria-hidden="true" className="size-3 shrink-0" />
           <span className="truncate">{festival.location}</span>
+        </p>
+        <p className="mt-1.5 w-fit rounded-full bg-primary-subtle px-2 py-0.5 text-[0.62rem] leading-4 font-medium text-primary">
+          {festival.categoryLabel}
         </p>
       </div>
     </article>

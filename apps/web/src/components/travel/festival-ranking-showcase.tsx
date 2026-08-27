@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { FlameIcon, HeartIcon, MapPinIcon } from "lucide-react";
+import { CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
+import { FestivalRemoteImage } from "@/components/travel/festival-remote-image";
 import {
   Carousel,
   type CarouselApi,
@@ -12,7 +11,6 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import type { FestivalDiscoveryRankingItem } from "@/features/discovery/discovery-model";
-import { buildFestivalDetailHref } from "@/features/festivals/festival-detail-model";
 import { cn } from "@/lib/utils";
 
 type FestivalRankingShowcaseProps = {
@@ -22,8 +20,6 @@ type FestivalRankingShowcaseProps = {
 type FestivalRankingActiveCardProps = {
   active: boolean;
   festival: FestivalDiscoveryRankingItem;
-  saved: boolean;
-  onToggleSaved: () => void;
 };
 
 type FestivalRankingMotionState = {
@@ -101,8 +97,6 @@ function applyFestivalRankingMotion(
 function FestivalRankingActiveCard({
   active,
   festival,
-  saved,
-  onToggleSaved,
 }: FestivalRankingActiveCardProps) {
   return (
     <div
@@ -120,10 +114,9 @@ function FestivalRankingActiveCard({
         aria-label={`${festival.rank}위 ${festival.title}`}
         className="relative h-[14.125rem] overflow-hidden rounded-[1.125rem] bg-primary text-image-foreground shadow-floating"
       >
-        <Image
+        <FestivalRemoteImage
           src={festival.image.src}
           alt={festival.image.alt}
-          fill
           sizes="(max-width: 407px) 48vw, 196px"
           loading="eager"
           draggable={false}
@@ -133,20 +126,6 @@ function FestivalRankingActiveCard({
           aria-hidden="true"
           className="absolute inset-0 bg-[linear-gradient(to_top,oklch(0.31_0.17_294/0.98)_0%,oklch(0.33_0.17_294/0.86)_30%,transparent_66%)]"
         />
-
-        <button
-          type="button"
-          aria-label={`${festival.title} 저장`}
-          aria-pressed={saved}
-          tabIndex={active ? 0 : -1}
-          onClick={onToggleSaved}
-          className="absolute top-2 right-2 flex size-11 items-center justify-center rounded-full bg-black/30 text-white outline-none backdrop-blur-sm transition-colors hover:bg-black/45 focus-visible:ring-3 focus-visible:ring-white/70"
-        >
-          <HeartIcon
-            aria-hidden="true"
-            className={cn("size-5", saved && "fill-current")}
-          />
-        </button>
 
         <div className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
           <p className="text-[2.8rem] leading-none font-bold tracking-[-0.08em]">
@@ -160,26 +139,16 @@ function FestivalRankingActiveCard({
             {festival.location}
           </p>
           <div className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-[0.65rem] leading-4 text-white/88">
-            <span className="flex items-center gap-0.5 font-semibold text-white">
-              <FlameIcon aria-hidden="true" className="size-3" />
-              인기 {festival.popularityLabel}
+            <span className="rounded-full bg-white/18 px-2 py-0.5 font-semibold text-white backdrop-blur-sm">
+              {festival.statusLabel}
             </span>
             <span aria-hidden="true">/</span>
-            <span>저장 {festival.savedCountLabel}</span>
-            {festival.reviewCountLabel ? (
-              <>
-                <span aria-hidden="true">/</span>
-                <span>후기 {festival.reviewCountLabel}</span>
-              </>
-            ) : null}
+            <span>{festival.categoryLabel}</span>
           </div>
-          <Link
-            href={buildFestivalDetailHref(festival.id)}
-            tabIndex={active ? 0 : -1}
-            className="mt-2 flex h-8 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary outline-none transition-transform active:translate-y-px focus-visible:ring-3 focus-visible:ring-white/70"
-          >
-            축제 보기
-          </Link>
+          <p className="mt-1.5 flex items-center gap-1 text-[0.65rem] leading-4 text-white/88">
+            <CalendarDaysIcon aria-hidden="true" className="size-3" />
+            {festival.dateLabel}
+          </p>
         </div>
       </article>
     </div>
@@ -219,10 +188,9 @@ function FestivalRankingCompactCard({
         className="block w-full text-left outline-none focus-visible:rounded-xl focus-visible:ring-3 focus-visible:ring-primary/45"
       >
         <span className="relative block h-[7.9rem] overflow-hidden rounded-xl bg-primary-subtle">
-          <Image
+          <FestivalRemoteImage
             src={festival.image.src}
             alt={festival.image.alt}
-            fill
             sizes="(max-width: 407px) 25vw, 102px"
             loading="eager"
             draggable={false}
@@ -240,11 +208,8 @@ function FestivalRankingCompactCard({
           {festival.location}
         </span>
         <span className="mt-1 flex items-center gap-1 whitespace-nowrap text-[0.58rem] leading-3 text-muted-foreground">
-          <span className="flex items-center gap-0.5">
-            <FlameIcon aria-hidden="true" className="size-2.5 text-primary" />
-            인기 {festival.popularityLabel}
-          </span>
-          <span>저장 {festival.savedCountLabel}</span>
+          <CalendarDaysIcon aria-hidden="true" className="size-2.5 text-primary" />
+          {festival.dateLabel}
         </span>
       </button>
     </div>
@@ -260,9 +225,6 @@ function FestivalRankingShowcase({
   );
   const [api, setApi] = useState<CarouselApi>();
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
-  const [savedFestivalIds, setSavedFestivalIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
 
   const updateRankingMotion = useCallback(
     (carouselApi: NonNullable<CarouselApi>, reducedMotion: boolean) => {
@@ -383,27 +345,15 @@ function FestivalRankingShowcase({
     api?.scrollTo(index);
   }
 
-  function toggleSavedFestival(id: string) {
-    setSavedFestivalIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
   if (festivals.length === 0) {
-    return <ol aria-label="요즘 뜨는 축제 순위" />;
+    return <ol aria-label="지금 만날 수 있는 축제 순위" />;
   }
 
   const selectedFestival = festivals[selectedIndex] ?? festivals[initialIndex];
 
   return (
     <Carousel
-      aria-label="요즘 뜨는 축제 순위"
+      aria-label="지금 만날 수 있는 축제 순위"
       opts={{
         align: "center",
         containScroll: false,
@@ -416,7 +366,7 @@ function FestivalRankingShowcase({
     >
       <CarouselContent
         role="list"
-        aria-label="요즘 뜨는 축제 순위"
+        aria-label="지금 만날 수 있는 축제 순위"
         className="-ml-0 select-none touch-pan-y cursor-grab active:cursor-grabbing"
       >
         {festivals.map((festival, index) => {
@@ -438,8 +388,6 @@ function FestivalRankingShowcase({
                 <FestivalRankingActiveCard
                   active={active}
                   festival={festival}
-                  saved={savedFestivalIds.has(festival.id)}
-                  onToggleSaved={() => toggleSavedFestival(festival.id)}
                 />
                 <FestivalRankingCompactCard
                   active={active}

@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AiCourseBanner } from "@/components/travel/ai-course-banner";
 import { FestivalCardRail } from "@/components/travel/festival-card-rail";
@@ -20,35 +20,16 @@ import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 
 describe("FestivalDiscoveryListItem", () => {
-  const festival = {
-    ...mainDiscoveryMock.festivalDiscovery.festivals[0],
-    endDate: "2026-08-30",
-  };
+  const festival = mainDiscoveryMock.festivalDiscovery.festivals[0];
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("shows 진행중 through the festival end date", () => {
-    vi.setSystemTime(new Date("2026-08-30T14:59:59.999Z"));
-
+  it("shows factual status, dates, address, and category", () => {
     render(<FestivalDiscoveryListItem festival={festival} />);
 
-    expect(screen.getByText("진행중")).toBeVisible();
+    expect(screen.getByText("진행 중")).toBeVisible();
     expect(screen.getByText(festival.dateLabel)).toBeVisible();
     expect(screen.getByText(festival.location)).toBeVisible();
-  });
-
-  it("shows 종료 after the festival end date has passed", () => {
-    vi.setSystemTime(new Date("2026-08-30T15:00:00.000Z"));
-
-    render(<FestivalDiscoveryListItem festival={festival} />);
-
-    expect(screen.getByText("종료")).toBeVisible();
+    expect(screen.getByText(festival.categoryLabel)).toBeVisible();
+    expect(screen.queryByText(/저장/)).not.toBeInTheDocument();
   });
 });
 
@@ -170,7 +151,7 @@ describe("FestivalRankingShowcase", () => {
     );
 
     const ranking = screen.getByRole("list", {
-      name: "요즘 뜨는 축제 순위",
+      name: "지금 만날 수 있는 축제 순위",
     });
 
     for (const image of within(ranking).getAllByRole("img")) {
@@ -211,6 +192,28 @@ describe("FestivalRankingShowcase", () => {
     expect(
       screen.getByRole("article", { name: "1위 제주 여름빛 정원축제" }),
     ).toHaveAttribute("aria-current", "true");
+  });
+
+  it("shows factual status and dates without fake popularity or engagement", () => {
+    render(
+      <FestivalRankingShowcase
+        festivals={mainDiscoveryMock.festivalDiscovery.ranking}
+      />,
+    );
+
+    expect(screen.getAllByText("진행 중").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2026. 8. 22. – 8. 30.").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText(/인기 98%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/저장 8.2만/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/후기 2.6천/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /저장/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "축제 보기" }),
+    ).not.toBeInTheDocument();
   });
 
   it("automatically cycles through ranks 1, 2, 3 and back to 1 every three seconds", () => {
