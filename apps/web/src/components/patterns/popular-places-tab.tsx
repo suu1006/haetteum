@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
+import { PopularReelRail } from "@/components/travel/popular-reel-rail";
 import { PopularVideoRail } from "@/components/travel/popular-video-rail";
 import {
   TravelThemeItem,
@@ -20,12 +21,14 @@ import {
   type TravelThemeItem as TravelThemeItemData,
   type VideoCourseItem,
 } from "@/features/discovery/discovery-model";
+import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 
 type PopularPlacesTabProps = {
   videos: readonly PopularVideoItem[];
   themes: readonly TravelThemeItemData[];
   courses: readonly VideoCourseItem[];
   query: DiscoveryQuery;
+  popularReels?: PopularReelsLoadState | null;
 };
 
 type SectionHeadingProps = {
@@ -61,10 +64,10 @@ function SectionHeading({
   );
 }
 
-function VideoBrowseAction({ videoId }: { videoId: string }) {
+function VideoBrowseAction({ href }: { href: string }) {
   return (
     <Link
-      href={`/reels/${videoId}`}
+      href={href}
       scroll={false}
       className="type-caption inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-card px-3 font-semibold text-primary outline-none transition-colors hover:bg-primary-subtle focus-visible:ring-3 focus-visible:ring-ring/25 active:scale-[0.98]"
     >
@@ -88,8 +91,11 @@ function PopularPlacesTab({
   themes,
   courses,
   query,
+  popularReels,
 }: PopularPlacesTabProps) {
   const headingIdPrefix = useId();
+  const liveReels =
+    popularReels?.status === "ready" ? popularReels.data.items : null;
   const popularVideosTitleId = `${headingIdPrefix}-popular-videos-title`;
   const travelThemesTitleId = `${headingIdPrefix}-travel-themes-title`;
   const videoCoursesTitleId = `${headingIdPrefix}-video-courses-title`;
@@ -113,10 +119,16 @@ function PopularPlacesTab({
             />
           }
           action={
-            videos[0] ? <VideoBrowseAction videoId={videos[0].id} /> : undefined
+            liveReels && liveReels[0] ? (
+              <VideoBrowseAction href={`/reels/place/${liveReels[0].placeId}`} />
+            ) : videos[0] ? (
+              <VideoBrowseAction href={`/reels/${videos[0].id}`} />
+            ) : undefined
           }
         />
-        {videos.length > 0 ? (
+        {liveReels ? (
+          <PopularReelRail reels={liveReels} />
+        ) : videos.length > 0 ? (
           <PopularVideoRail videos={videos} />
         ) : (
           <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">

@@ -126,6 +126,8 @@ model Place {
   pet                String?   @db.Text
   /// TourAPI 상세정보를 마지막으로 정상 반영한 시각
   detailSyncedAt     DateTime? @map("detail_synced_at") @db.Timestamptz(3)
+  /// 관광지 릴스를 YouTube에서 마지막으로 수집 시도한 시각
+  reelsSyncedAt      DateTime? @map("reels_synced_at") @db.Timestamptz(3)
 
   /// 대표 원본 이미지 URL
   primaryImageUrl     String?   @map("primary_image_url") @db.Text
@@ -152,6 +154,7 @@ model Place {
   images PlaceImage[]
   detailInfos PlaceDetailInfo[]
   reviews Review[]
+  reels PlaceReel[]
 
   @@unique([source, externalId])
   @@index([regionId, isVisible])
@@ -316,6 +319,44 @@ model PlaceRanking {
   @@index([source, scope, audience, periodEnd, rank])
   @@index([placeId])
   @@map("place_rankings")
+}
+
+/// YouTube Data API에서 수집한 관광지 릴스(세로 숏폼) 캐시
+model PlaceReel {
+  /// Haetteum 내부 릴스 식별자
+  id              String   @id @default(uuid()) @db.Uuid
+  /// 소속 관광지 식별자
+  placeId         String   @map("place_id") @db.Uuid
+  /// 릴스 원본 provider 식별자
+  provider        String   @db.VarChar(32)
+  /// provider가 부여한 영상 식별자
+  providerVideoId String   @map("provider_video_id") @db.VarChar(32)
+  /// 영상 제목
+  title           String   @db.VarChar(500)
+  /// 업로드 채널명
+  channelTitle    String   @map("channel_title") @db.VarChar(255)
+  /// 세로 썸네일 이미지 URL
+  thumbnailUrl    String   @map("thumbnail_url") @db.Text
+  /// 영상 길이(초)
+  durationSeconds Int      @map("duration_seconds")
+  /// 조회수이며 제공되지 않으면 NULL
+  viewCount       BigInt?  @map("view_count")
+  /// 영상 공개 시각
+  publishedAt     DateTime @map("published_at") @db.Timestamptz(3)
+  /// 릴스 목록 표시 순서
+  displayOrder    Int      @map("display_order")
+  /// 릴스를 provider에서 마지막으로 정상 조회한 시각
+  fetchedAt       DateTime @map("fetched_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, provider, providerVideoId])
+  @@index([placeId, displayOrder])
+  @@map("place_reels")
 }
 
 /// TourAPI에서 동기화한 축제 기본 정보

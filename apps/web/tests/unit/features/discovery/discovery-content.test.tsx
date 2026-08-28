@@ -96,6 +96,54 @@ describe("DiscoveryContent", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("renders the live YouTube reel rail on the popular-place tab", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+    const reelsResponse = {
+      source: "YOUTUBE",
+      audience: "all",
+      items: [
+        {
+          provider: "YOUTUBE",
+          videoId: "dQw4w9WgXcQ",
+          title: "성산일출봉 브이로그",
+          channelTitle: "여행 채널",
+          thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/oardefault.jpg",
+          durationSeconds: 42,
+          viewCount: 12000,
+          publishedAt: "2026-08-20T21:00:00.000Z",
+          embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+          placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+          placeTitle: "성산일출봉",
+          region: "제주특별자치도",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify(reelsResponse), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      await DiscoveryContent({
+        searchParams: Promise.resolve({ tab: "places", region: "jeju" }),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/place-reels?audience=all&limit=12",
+      { cache: "no-store" },
+    );
+    const reelLink = screen.getByRole("link", {
+      name: /성산일출봉 릴스 미리보기/,
+    });
+    expect(reelLink).toHaveAttribute(
+      "href",
+      "/reels/place/84549352-0c20-4e11-af50-2d4f278f41ef",
+    );
+  });
+
   it("loads live festival discovery data only for the festival tab", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(

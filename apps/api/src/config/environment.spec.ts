@@ -176,4 +176,39 @@ describe("validateEnvironment", () => {
       }),
     ).toThrow("END_POINT");
   });
+
+  it("allows the API to boot with place reels disabled and no YouTube key", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        YOUTUBE_API_KEY: "",
+        PLACE_REELS_ENABLED: "false",
+      }),
+    ).toMatchObject({
+      YOUTUBE_API_KEY: undefined,
+      PLACE_REELS_ENABLED: false,
+    });
+  });
+
+  it("parses an enabled place reels configuration", () => {
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        YOUTUBE_API_KEY: "youtube-key-for-test",
+        PLACE_REELS_ENABLED: "true",
+      }),
+    ).toMatchObject({
+      YOUTUBE_API_KEY: "youtube-key-for-test",
+      PLACE_REELS_ENABLED: true,
+    });
+  });
+
+  it("rejects enabled place reels without a YouTube key", () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        PLACE_REELS_ENABLED: "true",
+      }),
+    ).toThrow("YOUTUBE_API_KEY");
+  });
 });

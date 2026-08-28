@@ -15,6 +15,10 @@ import {
   PlaceListItemSchema,
   PlaceRankingResponseSchema,
   ListPlaceRankingsQuerySchema,
+  ListPopularReelsQuerySchema,
+  PlaceReelItemSchema,
+  PlaceReelListResponseSchema,
+  PopularReelsResponseSchema,
   PlacesPageSchema,
   PlaceRankingAudienceSchema,
   ProblemDetailsSchema,
@@ -399,6 +403,73 @@ describe("place ranking contracts", () => {
         periodStart: "2025-02-30",
       }),
     ).toThrow();
+  });
+});
+
+describe("place reels contracts", () => {
+  const reel = {
+    provider: "YOUTUBE",
+    videoId: "dQw4w9WgXcQ",
+    title: "성산일출봉 일출 브이로그",
+    channelTitle: "여행하는 haetteum",
+    thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/oardefault.jpg",
+    durationSeconds: 42,
+    viewCount: 128000,
+    publishedAt: "2026-08-20T21:00:00.000Z",
+    embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+  } as const;
+
+  it("accepts a factual reel item with a nullable view count", () => {
+    expect(PlaceReelItemSchema.parse(reel)).toEqual(reel);
+    expect(PlaceReelItemSchema.parse({ ...reel, viewCount: null }).viewCount).toBe(
+      null,
+    );
+  });
+
+  it("rejects a non-short duration and a malformed video id", () => {
+    expect(() =>
+      PlaceReelItemSchema.parse({ ...reel, durationSeconds: 61 }),
+    ).toThrow();
+    expect(() =>
+      PlaceReelItemSchema.parse({ ...reel, videoId: "too-short" }),
+    ).toThrow();
+  });
+
+  it("accepts a per-place list response and a nullable fetchedAt", () => {
+    const response = PlaceReelListResponseSchema.parse({
+      placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+      source: "YOUTUBE",
+      fetchedAt: null,
+      items: [reel],
+    });
+
+    expect(response.items).toHaveLength(1);
+    expect(response.fetchedAt).toBe(null);
+  });
+
+  it("defaults the popular reels query and validates the aggregate response", () => {
+    expect(ListPopularReelsQuerySchema.parse({})).toEqual({
+      audience: "all",
+      limit: 12,
+    });
+    expect(() =>
+      ListPopularReelsQuerySchema.parse({ limit: 31 }),
+    ).toThrow();
+
+    expect(
+      PopularReelsResponseSchema.parse({
+        source: "YOUTUBE",
+        audience: "all",
+        items: [
+          {
+            ...reel,
+            placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+            placeTitle: "성산일출봉",
+            region: "제주특별자치도",
+          },
+        ],
+      }).items[0]?.placeTitle,
+    ).toBe("성산일출봉");
   });
 });
 

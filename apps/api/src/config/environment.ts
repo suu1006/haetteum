@@ -47,8 +47,18 @@ const ApiEnvironmentSchema = z
     KAKAO_CLIENT_SECRET: z.string().trim().min(1),
     KAKAO_REDIRECT_URI: z.string().url(),
     TOURISM_SYNC_ENABLED: booleanFromString,
+    YOUTUBE_API_KEY: providerSecret,
+    PLACE_REELS_ENABLED: booleanFromString,
   })
   .superRefine((value, context) => {
+    if (value.PLACE_REELS_ENABLED && !value.YOUTUBE_API_KEY) {
+      context.addIssue({
+        code: "custom",
+        path: ["YOUTUBE_API_KEY"],
+        message: "YOUTUBE_API_KEY is required when place reels are enabled",
+      });
+    }
+
     if (value.TOURISM_SYNC_ENABLED) {
       if (!value.END_POINT) {
         context.addIssue({

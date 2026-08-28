@@ -6,6 +6,7 @@ import { validateEnvironment } from "./config/environment.js";
 import { FestivalsModule } from "./festivals/festivals.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { PlaceRankingsModule } from "./place-rankings/place-rankings.module.js";
+import { PlaceReelsModule } from "./place-reels/place-reels.module.js";
 import { PlacesModule } from "./places/places.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
 import { ReviewsModule } from "./reviews/reviews.module.js";
@@ -24,6 +25,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     HealthModule,
     FestivalsModule,
     PlaceRankingsModule,
+    PlaceReelsModule,
     PlacesModule,
     ReviewsModule,
     TourismModule,

@@ -17,6 +17,7 @@ import type {
   MainDiscoveryData,
 } from "@/features/discovery/discovery-model";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
 
 export type MainDiscoveryProps = {
@@ -24,6 +25,7 @@ export type MainDiscoveryProps = {
   query: DiscoveryQuery;
   view: DiscoveryView;
   ranking?: PlaceRankingLoadState | null;
+  popularReels?: PopularReelsLoadState | null;
 };
 
 const mainDiscoveryStyle = {
@@ -37,6 +39,7 @@ function MainDiscovery({
   query,
   view,
   ranking = { status: "error" },
+  popularReels = null,
 }: MainDiscoveryProps) {
   return (
     <div
@@ -64,6 +67,7 @@ function MainDiscovery({
             themes={view.travelThemes}
             courses={view.videoCourses}
             query={query}
+            popularReels={popularReels}
           />
         ) : null}
         {view.showThemeTravel ? (

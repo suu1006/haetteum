@@ -11,6 +11,18 @@ export {
   type PlaceRankingResponse,
 } from "./place-rankings.js";
 export {
+  ListPopularReelsQuerySchema,
+  PlaceReelItemSchema,
+  PlaceReelListResponseSchema,
+  PopularReelItemSchema,
+  PopularReelsResponseSchema,
+  type ListPopularReelsQuery,
+  type PlaceReelItem,
+  type PlaceReelListResponse,
+  type PopularReelItem,
+  type PopularReelsResponse,
+} from "./place-reels.js";
+export {
   FestivalBrowseRegionSchema,
   FestivalCategoryLabelSchema,
   FestivalDiscoveryItemSchema,
