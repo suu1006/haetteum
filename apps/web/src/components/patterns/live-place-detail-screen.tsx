@@ -1,17 +1,18 @@
 import type {
-  NearbyPlaceCategory,
-  NearbyPlacesResponse,
   PlaceDetailResponse,
+  PlaceReviewsResponse,
 } from "@haetteum/contracts";
-import Image from "next/image";
 
+import { LiveCourseContent } from "@/components/patterns/live-place-course-content";
+import { LiveGeneratedCourseContent } from "@/components/patterns/live-generated-course-content";
+import { LiveInformationContent } from "@/components/patterns/live-place-information-content";
+import { LivePlaceReviewList } from "@/components/travel/live-place-review-list";
+import { LoadFailureNotice } from "@/components/travel/load-failure-notice";
 import { PlaceDetailHeader } from "@/components/travel/place-detail-header";
-import { PlaceDetailPreparation } from "@/components/travel/place-detail-preparation";
 import { PlaceDetailTabs } from "@/components/travel/place-detail-tabs";
 import { PlaceImageGallery } from "@/components/travel/place-image-gallery";
 import type { PlaceDetailQuery } from "@/features/places/place-detail-model";
-
-type LiveNearby = Partial<Record<NearbyPlaceCategory, NearbyPlacesResponse>>;
+import { resolveOfficialImageSource } from "@/lib/official-image";
 
 function LiveIntroduction({ place }: { place: PlaceDetailResponse }) {
   const guides = [
@@ -30,7 +31,10 @@ function LiveIntroduction({ place }: { place: PlaceDetailResponse }) {
     <section aria-label={`${place.title} 소개`}>
       <PlaceImageGallery
         title={place.title}
-        images={place.images.map((image) => ({ src: image.url, alt: image.alt }))}
+        images={place.images.map((image) => ({
+          src: resolveOfficialImageSource(image.url),
+          alt: image.alt,
+        }))}
       />
       <div className="space-y-4 bg-card px-5 py-5">
         <h2 className="type-title-lg text-foreground">{place.title}</h2>
@@ -56,66 +60,14 @@ function LiveIntroduction({ place }: { place: PlaceDetailResponse }) {
   );
 }
 
-function NearbySection({ response }: { response: NearbyPlacesResponse }) {
-  if (response.status === "unavailable") {
-    return <p className="type-body-md mt-3 text-muted-foreground">주변 장소 정보를 불러오지 못했어요.</p>;
-  }
-  return (
-    <ul className="mt-3 divide-y divide-border">
-      {response.items.map((item) => (
-        <li key={item.providerPlaceId} className="flex items-center gap-3 py-3">
-          <div className="relative size-14 overflow-hidden rounded-lg bg-muted">
-            <Image src="/images/explore/categories/popular-attraction.png" alt="" fill sizes="56px" className="object-cover" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <a href={item.placeUrl} target="_blank" rel="noreferrer" className="type-label text-foreground">
-              {item.title}
-            </a>
-            <p className="type-caption truncate text-muted-foreground">{item.categoryLabel}</p>
-          </div>
-          <span className="type-caption text-muted-foreground">
-            {item.distanceMeters == null ? "거리 미제공" : `직선거리 ${item.distanceMeters.toLocaleString("ko-KR")}m`}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function LiveInformation({ place, nearby }: { place: PlaceDetailResponse; nearby: LiveNearby }) {
-  return (
-    <section aria-label={`${place.title} 정보`} className="space-y-3 px-3 py-4">
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="type-title-md text-foreground">기본 정보</h2>
-        <dl className="mt-3 space-y-2 type-body-md">
-          {place.address ? <div><dt className="text-muted-foreground">주소</dt><dd>{place.address}</dd></div> : null}
-          {place.telephone ? <div><dt className="text-muted-foreground">연락처</dt><dd>{place.telephone}</dd></div> : null}
-          {place.homepage ? <div><dt className="text-muted-foreground">홈페이지</dt><dd><a href={place.homepage}>바로가기</a></dd></div> : null}
-        </dl>
-      </div>
-      {place.information.map((item) => (
-        <section key={item.id} className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="type-title-md">{item.name}</h2><p className="type-body-md mt-2">{item.text}</p>
-        </section>
-      ))}
-      {(["attraction", "restaurant", "cafe"] as const).map((category) => (
-        <section key={category} className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="type-title-md">{category === "attraction" ? "주변 관광지" : category === "restaurant" ? "주변 맛집" : "주변 카페"}</h2>
-          <NearbySection response={nearby[category] ?? { status: "unavailable", reason: "provider_unavailable" }} />
-        </section>
-      ))}
-    </section>
-  );
-}
-
 export function LivePlaceDetailScreen({
   place,
   query,
-  nearby = {},
+  reviews,
 }: {
   place: PlaceDetailResponse;
   query: PlaceDetailQuery;
-  nearby?: LiveNearby;
+  reviews?: PlaceReviewsResponse | null;
 }) {
   return (
     <div className="mx-auto min-h-screen w-full max-w-[30rem] bg-background pb-[calc(7rem+var(--safe-area-bottom))]">
@@ -124,14 +76,22 @@ export function LivePlaceDetailScreen({
         <PlaceDetailTabs placeId={place.id} currentTab={query.tab} />
       </div>
       {query.tab === "introduction" ? <LiveIntroduction place={place} /> : null}
-      {query.tab === "information" ? <LiveInformation place={place} nearby={nearby} /> : null}
-      {query.tab === "reviews" ? (
-        <section className="px-4 py-16 text-center">
-          <h2 className="type-title-md text-foreground">아직 등록된 후기가 없어요</h2>
-          <p className="type-body-md mt-2 text-muted-foreground">해뜸의 첫 후기를 기다리고 있어요.</p>
-        </section>
+      {query.tab === "information" ? (
+        <LiveInformationContent place={place} />
       ) : null}
-      {query.tab === "course" ? <PlaceDetailPreparation placeId={place.id} tab="course" /> : null}
+      {query.tab === "reviews" ? (
+        reviews == null ? (
+          <LoadFailureNotice label="후기" />
+        ) : (
+          <LivePlaceReviewList reviews={reviews} />
+        )
+      ) : null}
+      {query.tab === "course" ? (
+        <>
+          <LiveGeneratedCourseContent placeId={place.id} />
+          <LiveCourseContent placeId={place.id} />
+        </>
+      ) : null}
     </div>
   );
 }

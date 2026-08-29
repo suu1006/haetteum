@@ -1,9 +1,10 @@
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PlaceDetailScreen } from "@/components/patterns/place-detail-screen";
 import { LivePlaceDetailScreen } from "@/components/patterns/live-place-detail-screen";
-import { loadNearbyPlaces, loadPlaceDetail } from "@/features/places/place-detail-api";
+import { loadPlaceDetail, loadPlaceReviews } from "@/features/places/place-detail-api";
 import {
   getPlaceDetailById,
   getPlaceStaticParams,
@@ -12,6 +13,10 @@ import {
   parsePlaceDetailQuery,
   type PlaceDetailSearchParams,
 } from "@/features/places/place-detail-model";
+import { placeCoursesQueryOptions } from "@/features/places/place-course-query";
+import { generatedCourseQueryOptions } from "@/features/places/place-generated-course-query";
+import { placeNearbyQueryOptions } from "@/features/places/place-nearby-query";
+import { getServerQueryClient } from "@/features/query/query-client.server";
 
 type PlaceDetailPageProps = {
   params: Promise<{ placeId: string }>;
@@ -76,19 +81,31 @@ export default async function PlaceDetailPage({
         </main>
       );
     }
-    const nearby = query.tab === "information"
-      ? Object.fromEntries(
-          await Promise.all(
-            (["attraction", "restaurant", "cafe"] as const).map(async (category) => [
-              category,
-              await loadNearbyPlaces(placeId, category),
-            ]),
-          ),
-        )
-      : {};
+    const queryClient = getServerQueryClient();
+    if (query.tab === "information") {
+      await Promise.all(
+        (["attraction", "restaurant", "cafe"] as const).map((category) =>
+          queryClient.fetchQuery(placeNearbyQueryOptions(placeId, category)),
+        ),
+      );
+    }
+    if (query.tab === "course") {
+      await Promise.all([
+        queryClient.fetchQuery(placeCoursesQueryOptions(placeId)),
+        queryClient.fetchQuery(generatedCourseQueryOptions(placeId)),
+      ]);
+    }
+    const reviews =
+      query.tab === "reviews" ? await loadPlaceReviews(placeId) : null;
     return (
       <main className="min-h-screen bg-background">
-        <LivePlaceDetailScreen place={result.data} query={query} nearby={nearby} />
+        <HydrationBoundary state={dehydrate(queryClient)}>
+          <LivePlaceDetailScreen
+            place={result.data}
+            query={query}
+            reviews={reviews?.status === "ready" ? reviews.data : null}
+          />
+        </HydrationBoundary>
       </main>
     );
   }

@@ -3,6 +3,7 @@ import "./globals.css";
 
 import { AuthBootstrap } from "@/features/auth/auth-bootstrap";
 import { AuthStoreProvider } from "@/features/auth/auth-store";
+import { QueryProvider } from "@/features/query/query-provider";
 
 export const metadata: Metadata = {
   title: "해뜸",
@@ -27,10 +28,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko">
       <body>
-        <AuthStoreProvider>
-          <AuthBootstrap />
-          {children}
-        </AuthStoreProvider>
+        <QueryProvider>
+          <AuthStoreProvider>
+            <AuthBootstrap />
+            {children}
+          </AuthStoreProvider>
+        </QueryProvider>
       </body>
     </html>
   );
