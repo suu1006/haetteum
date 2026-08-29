@@ -15,15 +15,16 @@ import {
   MyReviewsResponseSchema,
   NearbyPlacesQuerySchema,
   NearbyPlacesResponseSchema,
-  PlaceCourseItemSchema,
-  PlaceCoursesResponseSchema,
   PlaceDetailResponseSchema,
   PlaceListItemSchema,
   PlaceRankingResponseSchema,
   ListPlaceRankingsQuerySchema,
   ListPopularReelsQuerySchema,
+  PlaceCourseItemSchema,
+  PlaceCoursesResponseSchema,
   PlaceReelItemSchema,
   PlaceReelListResponseSchema,
+  PlaceReviewsResponseSchema,
   PopularReelsResponseSchema,
   PlacesPageSchema,
   PlaceRankingAudienceSchema,
@@ -239,7 +240,7 @@ describe("places contracts", () => {
       }),
     ).toThrow();
   });
-}
+
   it("validates a generated course's anchor and Kakao stops, and rejects a bad placeUrl", () => {
     const ready = {
       status: "ready",
@@ -758,5 +759,81 @@ describe("place course contracts", () => {
         items: [],
       }).items,
     ).toEqual([]);
+  });
+});
+
+describe("place review list contracts", () => {
+  const placeId = "84549352-0c20-4e11-af50-2d4f278f41ef";
+  const emptyDistribution = [
+    { score: 5, count: 0 },
+    { score: 4, count: 0 },
+    { score: 3, count: 0 },
+    { score: 2, count: 0 },
+    { score: 1, count: 0 },
+  ] as const;
+
+  it("represents a place with no review as a null average", () => {
+    const summary = PlaceReviewsResponseSchema.parse({
+      placeId,
+      reviewCount: 0,
+      averageRating: null,
+      ratingDistribution: emptyDistribution,
+      items: [],
+    });
+
+    expect(summary.averageRating).toBe(null);
+    expect(summary.items).toEqual([]);
+  });
+
+  it("exposes only the author's display name and avatar", () => {
+    const item = PlaceReviewsResponseSchema.parse({
+      placeId,
+      reviewCount: 1,
+      averageRating: 4.5,
+      ratingDistribution: [
+        { score: 5, count: 0 },
+        { score: 4, count: 1 },
+        { score: 3, count: 0 },
+        { score: 2, count: 0 },
+        { score: 1, count: 0 },
+      ],
+      items: [
+        {
+          id: "347c54e6-91ac-46b0-a371-176364401f82",
+          rating: 4,
+          content: "전망이 좋았습니다.",
+          author: { displayName: "정수", profileImageUrl: null },
+          createdAt: "2026-08-26T03:00:00.000Z",
+          updatedAt: "2026-08-26T03:00:00.000Z",
+        },
+      ],
+    }).items[0];
+
+    expect(Object.keys(item?.author ?? {}).sort()).toEqual([
+      "displayName",
+      "profileImageUrl",
+    ]);
+  });
+
+  it("requires a bucket for every score and rejects an out-of-range average", () => {
+    expect(() =>
+      PlaceReviewsResponseSchema.parse({
+        placeId,
+        reviewCount: 0,
+        averageRating: null,
+        ratingDistribution: emptyDistribution.slice(0, 4),
+        items: [],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      PlaceReviewsResponseSchema.parse({
+        placeId,
+        reviewCount: 1,
+        averageRating: 5.5,
+        ratingDistribution: emptyDistribution,
+        items: [],
+      }),
+    ).toThrow();
   });
 });

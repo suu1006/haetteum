@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+
 import type { Server } from "node:http";
 
 import { ProblemDetailsSchema, ReviewItemSchema } from "@haetteum/contracts";
@@ -14,18 +14,9 @@ import { configureApp } from "../src/configure-app.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
-const WEB_ORIGIN = "http://localhost:3000";
-const MIGRATIONS = [
-  "../prisma/migrations/20260821000000_add_tourism_place_foundation/migration.sql",
-  "../prisma/migrations/20260822000000_add_tourism_database_comments/migration.sql",
-  "../prisma/migrations/20260824135934_scope_tourism_district_provider_code/migration.sql",
-  "../prisma/migrations/20260825000000_add_festivals/migration.sql",
-  "../prisma/migrations/20260825170000_add_place_rankings/migration.sql",
-  "../prisma/migrations/20260826130000_add_users_and_reviews/migration.sql",
-  "../prisma/migrations/20260826150000_add_place_details/migration.sql",
-  "../prisma/migrations/20260826190000_add_kakao_auth_sessions/migration.sql",
-] as const;
+import { applyMigrations } from "./apply-migrations.js";
 
+const WEB_ORIGIN = "http://localhost:3000";
 type AuthenticatedTestUser = {
   id: string;
   sessionToken: string;
@@ -52,11 +43,7 @@ describe("Reviews API session ownership (e2e)", () => {
     try {
       await client.query(`CREATE SCHEMA "${schemaName}"`);
       await client.query(`SET search_path TO "${schemaName}"`);
-      for (const migrationPath of MIGRATIONS) {
-        await client.query(
-          await readFile(new URL(migrationPath, import.meta.url), "utf8"),
-        );
-      }
+      await applyMigrations(client);
     } finally {
       client.release();
     }

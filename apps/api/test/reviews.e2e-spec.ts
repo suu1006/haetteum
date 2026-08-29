@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+
 import type { Server } from "node:http";
 
 import {
   MyReviewsResponseSchema,
+  PlaceReviewsResponseSchema,
   ProblemDetailsSchema,
   ReviewItemSchema,
 } from "@haetteum/contracts";
@@ -18,18 +19,9 @@ import { configureApp } from "../src/configure-app.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
-const WEB_ORIGIN = "http://localhost:3000";
-const MIGRATIONS = [
-  "../prisma/migrations/20260821000000_add_tourism_place_foundation/migration.sql",
-  "../prisma/migrations/20260822000000_add_tourism_database_comments/migration.sql",
-  "../prisma/migrations/20260824135934_scope_tourism_district_provider_code/migration.sql",
-  "../prisma/migrations/20260825000000_add_festivals/migration.sql",
-  "../prisma/migrations/20260825170000_add_place_rankings/migration.sql",
-  "../prisma/migrations/20260826130000_add_users_and_reviews/migration.sql",
-  "../prisma/migrations/20260826150000_add_place_details/migration.sql",
-  "../prisma/migrations/20260826190000_add_kakao_auth_sessions/migration.sql",
-] as const;
+import { applyMigrations } from "./apply-migrations.js";
 
+const WEB_ORIGIN = "http://localhost:3000";
 type AuthenticatedTestUser = {
   id: string;
   sessionToken: string;
@@ -58,11 +50,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     try {
       await client.query(`CREATE SCHEMA "${schemaName}"`);
       await client.query(`SET search_path TO "${schemaName}"`);
-      for (const migrationPath of MIGRATIONS) {
-        await client.query(
-          await readFile(new URL(migrationPath, import.meta.url), "utf8"),
-        );
-      }
+      await applyMigrations(client);
     } finally {
       client.release();
     }
@@ -242,6 +230,66 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       content: "수정한 후기",
     });
     expect(updated.updatedAt).toBe(persisted.updatedAt.toISOString());
+  });
+
+  it("serves the place review summary publicly without a session", async () => {
+    const application = requireApp(app);
+    const reviewPlaceId = requirePlaceId(placeId);
+
+    const emptyResponse = await request(getHttpServer(application))
+      .get(`/api/v1/place-reviews/${reviewPlaceId}`)
+      .expect(200);
+    expect(
+      PlaceReviewsResponseSchema.parse(emptyResponse.body as unknown),
+    ).toEqual({
+      placeId: reviewPlaceId,
+      reviewCount: 0,
+      averageRating: null,
+      ratingDistribution: [
+        { score: 5, count: 0 },
+        { score: 4, count: 0 },
+        { score: 3, count: 0 },
+        { score: 2, count: 0 },
+        { score: 1, count: 0 },
+      ],
+      items: [],
+    });
+
+    await request(getHttpServer(application))
+      .post("/api/v1/reviews")
+      .set("Cookie", sessionCookie(currentUser))
+      .set("Origin", WEB_ORIGIN)
+      .send({ placeId: reviewPlaceId, rating: 4, content: "공개 후기" })
+      .expect(201);
+
+    const listedResponse = await request(getHttpServer(application))
+      .get(`/api/v1/place-reviews/${reviewPlaceId}`)
+      .expect(200);
+    const listed = PlaceReviewsResponseSchema.parse(
+      listedResponse.body as unknown,
+    );
+
+    expect(listed.reviewCount).toBe(1);
+    expect(listed.averageRating).toBe(4);
+    expect(listed.ratingDistribution).toContainEqual({ score: 4, count: 1 });
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0]).toMatchObject({
+      rating: 4,
+      content: "공개 후기",
+      author: { displayName: "리뷰 E2E 작성자" },
+    });
+  });
+
+  it("reports a missing place for the public review list", async () => {
+    const application = requireApp(app);
+
+    const response = await request(getHttpServer(application))
+      .get("/api/v1/place-reviews/00000000-0000-4000-8000-000000000000")
+      .expect(404);
+
+    expect(ProblemDetailsSchema.parse(response.body as unknown)).toMatchObject({
+      code: "PLACE_NOT_FOUND",
+    });
   });
 
   it("rejects a second review for the same place and leaves one database row", async () => {

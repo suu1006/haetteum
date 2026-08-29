@@ -38,8 +38,49 @@ export const MyReviewsResponseSchema = z.object({
   items: z.array(ReviewItemSchema),
 });
 
+export const PlaceReviewAuthorSchema = z.object({
+  displayName: z.string().min(1),
+  profileImageUrl: z.string().url().nullable(),
+});
+
+export const PlaceReviewItemSchema = z.object({
+  id: z.string().uuid(),
+  rating: RatingSchema,
+  content: ReviewContentSchema,
+  author: PlaceReviewAuthorSchema,
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const PlaceReviewRatingBucketSchema = z.object({
+  score: z.union([
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(4),
+    z.literal(5),
+  ]),
+  count: z.number().int().nonnegative(),
+});
+
+export const PlaceReviewsResponseSchema = z.object({
+  placeId: z.string().uuid(),
+  reviewCount: z.number().int().nonnegative(),
+  /// 후기가 없으면 null
+  averageRating: z.number().min(1).max(5).nullable(),
+  /// 5점부터 1점까지 내림차순 5개 구간
+  ratingDistribution: z.array(PlaceReviewRatingBucketSchema).length(5),
+  items: z.array(PlaceReviewItemSchema),
+});
+
 export type ReviewIdParams = z.infer<typeof ReviewIdParamsSchema>;
 export type CreateReviewRequest = z.infer<typeof CreateReviewRequestSchema>;
 export type UpdateReviewRequest = z.infer<typeof UpdateReviewRequestSchema>;
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export type MyReviewsResponse = z.infer<typeof MyReviewsResponseSchema>;
+export type PlaceReviewAuthor = z.infer<typeof PlaceReviewAuthorSchema>;
+export type PlaceReviewItem = z.infer<typeof PlaceReviewItemSchema>;
+export type PlaceReviewRatingBucket = z.infer<
+  typeof PlaceReviewRatingBucketSchema
+>;
+export type PlaceReviewsResponse = z.infer<typeof PlaceReviewsResponseSchema>;

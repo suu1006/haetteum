@@ -7,6 +7,9 @@ import {
 import type {
   CreateReviewRequest,
   MyReviewsResponse,
+  PlaceReviewItem,
+  PlaceReviewRatingBucket,
+  PlaceReviewsResponse,
   ReviewItem,
   UpdateReviewRequest,
 } from "@haetteum/contracts";
@@ -31,7 +34,21 @@ export const REVIEW_SELECT = {
   },
 } satisfies Prisma.ReviewSelect;
 
+export const PLACE_REVIEW_SELECT = {
+  id: true,
+  rating: true,
+  content: true,
+  createdAt: true,
+  updatedAt: true,
+  user: { select: { displayName: true, profileImageUrl: true } },
+} satisfies Prisma.ReviewSelect;
+
 type ReviewRow = Prisma.ReviewGetPayload<{ select: typeof REVIEW_SELECT }>;
+type PlaceReviewRow = Prisma.ReviewGetPayload<{
+  select: typeof PLACE_REVIEW_SELECT;
+}>;
+
+const RATING_SCORES = [5, 4, 3, 2, 1] as const;
 
 @Injectable()
 export class ReviewsService {
@@ -45,6 +62,62 @@ export class ReviewsService {
     });
 
     return { items: rows.map(mapReviewRow) };
+  }
+
+  /**
+   * 관광지 상세 후기 탭이 쓰는 공개 목록이다.
+   * 로그인 없이 열람할 수 있어야 하므로 작성자는 표시 이름과 프로필 이미지만 노출한다.
+   */
+  async listForPlace(placeId: string): Promise<PlaceReviewsResponse> {
+    const place = await this.prisma.place.findUnique({
+      where: { id: placeId, isVisible: true },
+      select: { id: true },
+    });
+    if (place === null) {
+      throw new NotFoundException({
+        code: "PLACE_NOT_FOUND",
+        detail: "장소를 찾을 수 없습니다.",
+      });
+    }
+
+    const [rows, grouped] = await Promise.all([
+      this.prisma.review.findMany({
+        where: { placeId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: PLACE_REVIEW_SELECT,
+      }),
+      this.prisma.review.groupBy({
+        by: ["rating"],
+        where: { placeId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const countByScore = new Map(
+      grouped.map((bucket) => [bucket.rating, bucket._count._all]),
+    );
+    const ratingDistribution: PlaceReviewRatingBucket[] = RATING_SCORES.map(
+      (score) => ({ score, count: countByScore.get(score) ?? 0 }),
+    );
+    const reviewCount = ratingDistribution.reduce(
+      (total, bucket) => total + bucket.count,
+      0,
+    );
+    const ratingTotal = ratingDistribution.reduce(
+      (total, bucket) => total + bucket.score * bucket.count,
+      0,
+    );
+
+    return {
+      placeId,
+      reviewCount,
+      averageRating:
+        reviewCount === 0
+          ? null
+          : Math.round((ratingTotal / reviewCount) * 10) / 10,
+      ratingDistribution,
+      items: rows.map(mapPlaceReviewRow),
+    };
   }
 
   async findMine(userId: string, reviewId: string): Promise<ReviewItem> {
@@ -136,6 +209,20 @@ function mapReviewRow(row: ReviewRow): ReviewItem {
     rating: row.rating,
     content: row.content,
     primaryImageUrl: row.place.primaryImageUrl,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function mapPlaceReviewRow(row: PlaceReviewRow): PlaceReviewItem {
+  return {
+    id: row.id,
+    rating: row.rating,
+    content: row.content,
+    author: {
+      displayName: row.user.displayName,
+      profileImageUrl: row.user.profileImageUrl,
+    },
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

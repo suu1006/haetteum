@@ -7,7 +7,11 @@ import type {
 } from "@haetteum/contracts";
 
 import { Prisma } from "../generated/prisma/client.js";
-import { REVIEW_SELECT, ReviewsService } from "./reviews.service.js";
+import {
+  PLACE_REVIEW_SELECT,
+  REVIEW_SELECT,
+  ReviewsService,
+} from "./reviews.service.js";
 
 const REVIEW_ID = "10000000-0000-4000-8000-000000000001";
 const PLACE_ID = "20000000-0000-4000-8000-000000000001";
@@ -251,5 +255,116 @@ describe("ReviewsService", () => {
       }),
     );
     expect(reviewUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReviewsService.listForPlace", () => {
+  function placeReviewRow(rating: number, displayName = "정수") {
+    return {
+      id: REVIEW_ID,
+      rating,
+      content: "분단의 현실이 실감나는 곳이었어요.",
+      createdAt: new Date("2026-08-25T03:00:00.000Z"),
+      updatedAt: new Date("2026-08-26T03:00:00.000Z"),
+      user: {
+        displayName,
+        profileImageUrl: "https://example.test/avatar.jpg",
+      },
+    };
+  }
+
+  it("throws when the place is missing or hidden", async () => {
+    const service = new ReviewsService({
+      place: {
+        findUnique: jest.fn<() => Promise<null>>().mockResolvedValue(null),
+      },
+    } as never);
+
+    await expect(service.listForPlace(PLACE_ID)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it("returns an empty summary with a null average when no review exists", async () => {
+    const service = new ReviewsService({
+      place: {
+        findUnique: jest
+          .fn<() => Promise<unknown>>()
+          .mockResolvedValue({ id: PLACE_ID }),
+      },
+      review: {
+        findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        groupBy: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+      },
+    } as never);
+
+    await expect(service.listForPlace(PLACE_ID)).resolves.toEqual({
+      placeId: PLACE_ID,
+      reviewCount: 0,
+      averageRating: null,
+      ratingDistribution: [
+        { score: 5, count: 0 },
+        { score: 4, count: 0 },
+        { score: 3, count: 0 },
+        { score: 2, count: 0 },
+        { score: 1, count: 0 },
+      ],
+      items: [],
+    });
+  });
+
+  it("summarizes the ratings and exposes only the author's public profile", async () => {
+    const findMany = jest
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValue([placeReviewRow(5), placeReviewRow(4, "haetteum")]);
+    const service = new ReviewsService({
+      place: {
+        findUnique: jest
+          .fn<() => Promise<unknown>>()
+          .mockResolvedValue({ id: PLACE_ID }),
+      },
+      review: {
+        findMany,
+        groupBy: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+          { rating: 5, _count: { _all: 2 } },
+          { rating: 4, _count: { _all: 1 } },
+        ]),
+      },
+    } as never);
+
+    const result = await service.listForPlace(PLACE_ID);
+
+    expect(result.reviewCount).toBe(3);
+    expect(result.averageRating).toBe(4.7);
+    expect(result.ratingDistribution).toEqual([
+      { score: 5, count: 2 },
+      { score: 4, count: 1 },
+      { score: 3, count: 0 },
+      { score: 2, count: 0 },
+      { score: 1, count: 0 },
+    ]);
+    expect(result.items[0]).toEqual({
+      id: REVIEW_ID,
+      rating: 5,
+      content: "분단의 현실이 실감나는 곳이었어요.",
+      author: {
+        displayName: "정수",
+        profileImageUrl: "https://example.test/avatar.jpg",
+      },
+      createdAt: "2026-08-25T03:00:00.000Z",
+      updatedAt: "2026-08-26T03:00:00.000Z",
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: { placeId: PLACE_ID },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: PLACE_REVIEW_SELECT,
+    });
+  });
+
+  it("never selects the reviewer's identity beyond display name and avatar", () => {
+    expect(PLACE_REVIEW_SELECT.user.select).toEqual({
+      displayName: true,
+      profileImageUrl: true,
+    });
   });
 });
