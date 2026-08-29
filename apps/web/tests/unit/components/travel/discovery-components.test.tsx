@@ -1,5 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import type { PlaceRankingItem } from "@haetteum/contracts";
+import type {
+  HotPlaceRankingItem,
+  PlaceRankingItem,
+} from "@haetteum/contracts";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,10 +12,9 @@ import {
   type BottomNavigationItem,
 } from "@/components/travel/bottom-navigation";
 import { FestivalListItem } from "@/components/travel/festival-list-item";
-import { FestivalCardRail } from "@/components/travel/festival-card-rail";
 import { FestivalFeatureBanner } from "@/components/travel/festival-feature-banner";
 import { FestivalFilterGroup } from "@/components/travel/festival-filter-group";
-import { FestivalRankingCard } from "@/components/travel/festival-ranking-card";
+import { HotPlaceRankingCard } from "@/components/travel/hot-place-ranking-card";
 import { PlaceRankingCard } from "@/components/travel/place-ranking-card";
 import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { CourseQuickSaveCard } from "@/components/travel/course-quick-save-card";
@@ -41,6 +43,8 @@ describe("PlaceRankingCard", () => {
     placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
     primaryImageUrl: "https://tong.visitkorea.or.kr/everland.jpg",
     imageCopyrightType: "공공누리",
+    imageAttribution: null,
+    imageAttributionUrl: null,
   };
 
   it("links a matched provider place to the real introduction detail", () => {
@@ -174,6 +178,35 @@ describe("PlaceRankingCard", () => {
       expect.stringContaining("popular-attraction.png"),
     );
   });
+
+  it("allows a Wikimedia Commons image and shows its photo credit", () => {
+    render(
+      <PlaceRankingCard
+        place={{
+          ...matchedPlace,
+          primaryImageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/a/a9/example.jpg",
+          imageAttribution: "Iddd00, CC BY-SA 4.0, Wikimedia Commons",
+          imageAttributionUrl:
+            "https://commons.wikimedia.org/wiki/File:example.jpg",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("url=https%3A%2F%2Fupload.wikimedia.org"),
+    );
+    expect(
+      screen.getByText("사진 출처: Iddd00, CC BY-SA 4.0, Wikimedia Commons"),
+    ).toBeVisible();
+  });
+
+  it("shows no photo credit line when the image has none", () => {
+    render(<PlaceRankingCard place={matchedPlace} />);
+
+    expect(screen.queryByText(/사진 출처:/)).not.toBeInTheDocument();
+  });
 });
 
 describe("PlaceRankingRetryButton", () => {
@@ -188,35 +221,124 @@ describe("PlaceRankingRetryButton", () => {
   });
 });
 
-describe("FestivalListItem", () => {
-  it("renders date and location in a named festival article", () => {
-    const festival = mainDiscoveryMock.festivals.find(
-      (item) => item.region === "gyeonggi",
-    );
-    if (!festival) {
-      throw new Error("Expected a Gyeonggi festival fixture.");
-    }
+describe("HotPlaceRankingCard", () => {
+  const matchedPlace: HotPlaceRankingItem = {
+    rank: 1,
+    sourcePlaceId: "0123456789abcdef0123456789abcdef",
+    title: "장릉",
+    category: "관광명소",
+    provinceName: "강원특별자치도",
+    districtName: "영월군",
+    growthPercent: 398.9,
+    placeId: "84549352-0c20-4e11-af50-2d4f278f41ef",
+    primaryImageUrl: "https://tong.visitkorea.or.kr/jangneung.jpg",
+    imageCopyrightType: "공공누리",
+    imageAttribution: null,
+    imageAttributionUrl: null,
+  };
 
+  it("shows the visit-growth metric and links a matched provider place", () => {
+    render(<HotPlaceRankingCard place={matchedPlace} />);
+
+    expect(screen.getByRole("article", { name: "1위 장릉" })).toBeVisible();
+    expect(screen.getByText("관광명소")).toBeVisible();
+    expect(screen.getByText("방문 급상승 398.9%")).toBeVisible();
+    expect(screen.getByRole("link", { name: /1위 장릉/ })).toHaveAttribute(
+      "href",
+      "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction",
+    );
+  });
+
+  it("keeps an unmatched hot-place card non-interactive with the fallback image", () => {
     render(
-      <FestivalListItem
-        festival={festival}
-        href="/festivals/icheon-rice-cultural-festival"
+      <HotPlaceRankingCard
+        place={{ ...matchedPlace, placeId: null, primaryImageUrl: null }}
       />,
     );
 
     expect(
-      screen.getByRole("article", { name: "이천쌀문화축제" }),
+      screen.queryByRole("link", { name: /1위 장릉/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "장릉" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("popular-attraction.png"),
+    );
+  });
+
+  it("shows the photo credit for a Wikimedia Commons-sourced image", () => {
+    render(
+      <HotPlaceRankingCard
+        place={{
+          ...matchedPlace,
+          imageAttribution: "Shinfull, CC BY-SA 3.0, Wikimedia Commons",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText("사진 출처: Shinfull, CC BY-SA 3.0, Wikimedia Commons"),
+    ).toBeVisible();
+  });
+});
+
+describe("FestivalListItem", () => {
+  it("renders date and location in a named festival article", () => {
+    render(
+      <FestivalListItem
+        festival={{
+          id: "9f0c1e2a-1111-4aaa-8bbb-000000000001",
+          title: "이천 도자기 축제",
+          status: "ongoing",
+          statusLabel: "진행 중",
+          dateLabel: "2026. 8. 1. – 8. 31.",
+          location: "경기 이천시",
+          categoryLabel: "지역특산물축제",
+          image: {
+            src: "https://tong.visitkorea.or.kr/cms/resource/1/a.jpg",
+            alt: "이천 도자기 축제 대표 이미지",
+          },
+        }}
+        href="/festivals/9f0c1e2a-1111-4aaa-8bbb-000000000001"
+      />,
+    );
+
+    expect(
+      screen.getByRole("article", { name: "이천 도자기 축제" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("img", { name: "가을 들판의 이천쌀문화축제" })
+      screen.getByRole("img", { name: "이천 도자기 축제 대표 이미지" })
         .parentElement,
     ).toHaveClass("relative");
-    expect(screen.getByText("2026. 10. 21. – 10. 25.")).toBeVisible();
-    expect(screen.getByText("이천시 일원")).toBeVisible();
-    expect(screen.getByRole("link", { name: /이천쌀문화축제/ })).toHaveAttribute(
+    expect(screen.getByText("2026. 8. 1. – 8. 31.")).toBeVisible();
+    expect(screen.getByText("경기 이천시")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /이천 도자기 축제/ }),
+    ).toHaveAttribute(
       "href",
-      "/festivals/icheon-rice-cultural-festival",
+      "/festivals/9f0c1e2a-1111-4aaa-8bbb-000000000001",
     );
+  });
+
+  it("shows a placeholder when the festival has no image", () => {
+    render(
+      <FestivalListItem
+        festival={{
+          id: "9f0c1e2a-1111-4aaa-8bbb-000000000002",
+          title: "이미지 없는 축제",
+          status: "upcoming",
+          statusLabel: "곧 시작",
+          dateLabel: "2026. 8. 20. – 8. 25.",
+          location: "지역 정보 없음",
+          categoryLabel: "축제",
+          image: { src: null, alt: "이미지 없는 축제 대표 이미지" },
+        }}
+        href="/festivals/9f0c1e2a-1111-4aaa-8bbb-000000000002"
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", { name: "이미지 없는 축제 대표 이미지" }),
+    ).toHaveAttribute("data-image-state", "placeholder");
   });
 });
 
@@ -247,37 +369,6 @@ describe("FestivalFilterGroup", () => {
   });
 });
 
-describe("FestivalRankingCard", () => {
-  it("renders rank, status and metadata in a named festival article", () => {
-    const festival = mainDiscoveryMock.festivals.find(
-      (item) => item.id === "jeju-summer-light-garden",
-    );
-    if (!festival) {
-      throw new Error("Expected the Jeju summer light garden fixture.");
-    }
-
-    render(
-      <FestivalRankingCard
-        festival={festival}
-        href="/festivals/jeju-summer-light-garden"
-      />,
-    );
-
-    expect(
-      screen.getByRole("article", { name: "1위 제주 여름빛 정원축제" }),
-    ).toBeVisible();
-    expect(screen.getByText("진행 중")).toBeVisible();
-    expect(screen.getByText("가족")).toBeVisible();
-    expect(screen.getByText("야간")).toBeVisible();
-    expect(
-      screen.getByRole("img", { name: "제주 들판에 핀 여름꽃" }),
-    ).toHaveAttribute("loading", "eager");
-    expect(
-      screen.getByRole("link", { name: /1위 제주 여름빛 정원축제/ }),
-    ).toHaveAttribute("href", "/festivals/jeju-summer-light-garden");
-  });
-});
-
 describe("FestivalFeatureBanner", () => {
   it("renders the monthly festival feature from props", () => {
     render(<FestivalFeatureBanner feature={mainDiscoveryMock.festivalFeature} />);
@@ -286,26 +377,6 @@ describe("FestivalFeatureBanner", () => {
       screen.getByRole("heading", { name: "제주 가을 산책 주간" }),
     ).toBeVisible();
     expect(screen.getByText("2026. 9. 19. – 10. 11.")).toBeVisible();
-  });
-});
-
-describe("FestivalCardRail", () => {
-  it("reveals additional festivals once and reports completion", async () => {
-    const user = userEvent.setup();
-    const festivals = mainDiscoveryMock.festivals.filter(
-      (festival) => festival.region === "jeju",
-    );
-
-    render(<FestivalCardRail festivals={festivals} />);
-
-    expect(screen.getAllByRole("article", { name: /위 / })).toHaveLength(4);
-
-    await user.click(screen.getByRole("button", { name: "더 많은 축제 보기" }));
-
-    expect(screen.getAllByRole("article", { name: /위 / })).toHaveLength(6);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "추가 축제를 모두 펼쳤어요",
-    );
   });
 });
 
