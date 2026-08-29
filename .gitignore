@@ -20,3 +20,4 @@ yarn-error.log*
 **/.vercel/
 .omx/
 design-qa.md
+.claude/worktrees/
