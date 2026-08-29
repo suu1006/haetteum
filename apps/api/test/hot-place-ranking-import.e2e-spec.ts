@@ -10,13 +10,15 @@ import { Pool } from "pg";
 
 import { AppModule } from "../src/app.module.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
-import { PlaceRankingImportService } from "../src/place-rankings/place-ranking-import.service.js";
+import { HotPlaceRankingImportService } from "../src/hot-place-rankings/hot-place-ranking-import.service.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
 import { applyMigrations } from "./apply-migrations.js";
 
-const CSV_HEADER = "순위,관광지ID,관심지점명,구분,연령대,비율";
-const DOWNLOAD_TIMESTAMP = "20260825074520";
+const CSV_HEADER =
+  "순위,기준년월,시도명,시군구명,관광지ID,관심지점명,구분,연령대,성장율";
+const DOWNLOAD_TIMESTAMP = "20260828074520";
+const BASE_YEAR_MONTH = "202607";
 const audienceFileLabels = {
   ALL: "전체",
   TWENTIES: "20대",
@@ -41,30 +43,33 @@ const audiences = Object.keys(audienceFileLabels) as Audience[];
 const snapshotWhere = {
   source: "KTO_DATALAB",
   scope: "NATIONAL",
-  periodStart: new Date("2025-08-01T00:00:00.000Z"),
+  periodStart: new Date("2026-07-01T00:00:00.000Z"),
   periodEnd: new Date("2026-07-31T00:00:00.000Z"),
 };
 
 function sourcePlaceId(audienceIndex: number, rank: number) {
   return `${audienceIndex.toString(16).padStart(2, "0")}${rank
     .toString(16)
-    .padStart(2, "0")}${"b".repeat(28)}`;
+    .padStart(2, "0")}${"c".repeat(28)}`;
 }
 
 function rankingRows(audience: Audience, audienceIndex: number) {
   const csvValue = audienceCsvValues[audience];
 
-  return Array.from({ length: 30 }, (_, index) => {
+  return Array.from({ length: 10 }, (_, index) => {
     const rank = index + 1;
-    const sharePercent = (9.1 - rank * 0.1).toFixed(1);
+    const growthPercent = (500 - rank * 20).toFixed(1);
 
     return [
       rank.toString(),
+      BASE_YEAR_MONTH,
+      "강원특별자치도",
+      "영월군",
       sourcePlaceId(audienceIndex, rank),
-      rank === 1 ? "에버랜드" : `테스트 관광지 ${audience}-${rank}`,
-      rank === 1 ? "레저/스포츠" : "문화시설",
+      rank === 1 ? "장릉" : `테스트 핫플레이스 ${audience}-${rank}`,
+      rank === 1 ? "관광명소" : "레저/스포츠",
       csvValue,
-      sharePercent,
+      growthPercent,
     ].join(",");
   });
 }
@@ -74,16 +79,16 @@ function csvForAudience(audience: Audience, audienceIndex: number) {
 }
 
 function fileNameForAudience(audience: Audience) {
-  return `${DOWNLOAD_TIMESTAMP}_세대별 인기관광지(${audienceFileLabels[audience]}).csv`;
+  return `${DOWNLOAD_TIMESTAMP}_세대별 핫플레이스(${audienceFileLabels[audience]}).csv`;
 }
 
 async function writeRankingDirectory(
   mutate?: (files: Record<Audience, string>) => Record<Audience, string>,
 ) {
-  const root = await mkdtemp(join(tmpdir(), "haetteum-ranking-import-e2e-"));
+  const root = await mkdtemp(join(tmpdir(), "haetteum-hot-place-import-e2e-"));
   const directory = join(
     root,
-    `${DOWNLOAD_TIMESTAMP}_전국_202508-202607_데이터랩_다운로드`,
+    `${DOWNLOAD_TIMESTAMP}_전국_202607-202607_데이터랩_다운로드`,
   );
   const files = Object.fromEntries(
     audiences.map((audience, index) => [
@@ -122,11 +127,11 @@ function replaceLine(
   return `${lines.join("\n")}\n`;
 }
 
-describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
+describe("HotPlaceRankingImportService PostgreSQL integration (e2e)", () => {
   let app: INestApplication | undefined;
   let prisma: PrismaClient | undefined;
   let adminPool: Pool | undefined;
-  let service: PlaceRankingImportService;
+  let service: HotPlaceRankingImportService;
   let schemaName: string;
   let tempRoots: string[] = [];
 
@@ -134,7 +139,7 @@ describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) throw new Error("DATABASE_URL is required for E2E tests");
 
-    schemaName = `place_ranking_e2e_${randomUUID().replaceAll("-", "")}`;
+    schemaName = `hot_place_ranking_e2e_${randomUUID().replaceAll("-", "")}`;
     adminPool = new Pool({ connectionString: databaseUrl });
     const client = await adminPool.connect();
     try {
@@ -161,7 +166,7 @@ describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
-    service = app.get(PlaceRankingImportService);
+    service = app.get(HotPlaceRankingImportService);
   });
 
   afterEach(async () => {
@@ -186,7 +191,7 @@ describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
     }
   });
 
-  it("replaces the strict six-audience snapshot idempotently", async () => {
+  it("replaces the strict six-audience hot-place snapshot idempotently", async () => {
     if (!prisma) throw new Error("Prisma test client is missing");
     const { directory, root } = await writeRankingDirectory();
     tempRoots.push(root);
@@ -194,70 +199,65 @@ describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
     await expect(service.importDirectory(directory)).resolves.toMatchObject({
       source: "KTO_DATALAB",
       scope: "NATIONAL",
-      periodStart: "2025-08-01",
+      baseYearMonth: "202607",
+      periodStart: "2026-07-01",
       periodEnd: "2026-07-31",
       audienceCount: 6,
-      importedCount: 180,
+      importedCount: 60,
     });
     await expect(service.importDirectory(directory)).resolves.toMatchObject({
       audienceCount: 6,
-      importedCount: 180,
+      importedCount: 60,
     });
 
-    expect(await prisma.placeRanking.count({ where: snapshotWhere })).toBe(180);
+    expect(await prisma.hotPlaceRanking.count({ where: snapshotWhere })).toBe(
+      60,
+    );
     expect(
-      await prisma.placeRanking.groupBy({
+      await prisma.hotPlaceRanking.groupBy({
         by: ["audience"],
         where: snapshotWhere,
         _count: { _all: true },
       }),
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ audience: "ALL", _count: { _all: 30 } }),
-        expect.objectContaining({
-          audience: "TWENTIES",
-          _count: { _all: 30 },
-        }),
-        expect.objectContaining({
-          audience: "THIRTIES",
-          _count: { _all: 30 },
-        }),
-        expect.objectContaining({
-          audience: "FORTIES",
-          _count: { _all: 30 },
-        }),
-        expect.objectContaining({
-          audience: "FIFTIES",
-          _count: { _all: 30 },
-        }),
+        expect.objectContaining({ audience: "ALL", _count: { _all: 10 } }),
         expect.objectContaining({
           audience: "SIXTIES_PLUS",
-          _count: { _all: 30 },
+          _count: { _all: 10 },
         }),
       ]),
     );
+    const first = await prisma.hotPlaceRanking.findFirstOrThrow({
+      where: { ...snapshotWhere, audience: "ALL", rank: 1 },
+    });
+    expect(Number(first.growthPercent)).toBe(480);
+    expect(first.provinceName).toBe("강원특별자치도");
   });
 
   it("keeps the existing snapshot when parsing fails before the transaction", async () => {
     if (!prisma) throw new Error("Prisma test client is missing");
-    await prisma.placeRanking.create({
+    await prisma.hotPlaceRanking.create({
       data: {
         ...snapshotWhere,
+        baseYearMonth: "202607",
+        provinceName: "서울특별시",
+        districtName: "중구",
         audience: "ALL",
         rank: 1,
         sourcePlaceId: "sentinel-source-place-id",
         sourcePlaceName: "기존 스냅샷",
-        sourceCategory: "문화시설",
-        sharePercent: "1.0",
+        sourceCategory: "관광명소",
+        growthPercent: "1.0",
         placeId: null,
         sourceFileName: "sentinel.csv",
-        importedAt: new Date("2026-08-25T07:45:20.000Z"),
+        importedAt: new Date("2026-08-28T07:45:20.000Z"),
       },
     });
     const { directory, root } = await writeRankingDirectory((files) => ({
       ...files,
       ALL: replaceLine(files.ALL, 1, (columns) => {
-        columns[1] = "not-a-valid-source-id";
+        columns[4] = "not-a-valid-source-id";
         return columns;
       }),
     }));
@@ -268,13 +268,15 @@ describe("PlaceRankingImportService PostgreSQL integration (e2e)", () => {
     );
 
     await expect(
-      prisma.placeRanking.findFirstOrThrow({
+      prisma.hotPlaceRanking.findFirstOrThrow({
         where: { ...snapshotWhere, sourcePlaceId: "sentinel-source-place-id" },
       }),
     ).resolves.toMatchObject({
       sourcePlaceName: "기존 스냅샷",
       rank: 1,
     });
-    expect(await prisma.placeRanking.count({ where: snapshotWhere })).toBe(1);
+    expect(await prisma.hotPlaceRanking.count({ where: snapshotWhere })).toBe(
+      1,
+    );
   });
 });

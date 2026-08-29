@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { resolveDatalabAreaCode } from "../tourism/datalab-area-code.js";
 import {
   buildSearchKeywords,
   pickRelevantCandidate,
@@ -13,13 +14,14 @@ import {
 import type { TourApiPort } from "../tourism/tour-api.types.js";
 import { TOUR_API_PORT } from "../tourism/tourism.constants.js";
 import {
-  parsePlaceRankingDirectory,
-  type ParsedPlaceRankingRow,
-} from "./place-ranking-csv.js";
+  parseHotPlaceRankingDirectory,
+  type ParsedHotPlaceRankingRow,
+} from "./hot-place-ranking-csv.js";
 
-export interface PlaceRankingImportSummary {
+export interface HotPlaceRankingImportSummary {
   source: string;
   scope: string;
+  baseYearMonth: string;
   periodStart: string;
   periodEnd: string;
   audienceCount: number;
@@ -42,9 +44,9 @@ type SnapshotIdentity = {
   periodEnd: Date;
 };
 
-type PlaceRankingCreateManyInput = Prisma.PlaceRankingCreateManyInput;
+type HotPlaceRankingCreateManyInput = Prisma.HotPlaceRankingCreateManyInput;
 
-interface PlaceRankingPrisma {
+interface HotPlaceRankingPrisma {
   place: {
     findMany(args: {
       where: { isVisible: true };
@@ -56,14 +58,26 @@ interface PlaceRankingPrisma {
       };
     }): Promise<PlaceCandidate[]>;
   };
-  placeRanking: {
+  hotPlaceRanking: {
     deleteMany(args: { where: SnapshotIdentity }): Promise<unknown>;
-    createMany(args: { data: PlaceRankingCreateManyInput[] }): Promise<unknown>;
+    createMany(args: {
+      data: HotPlaceRankingCreateManyInput[];
+    }): Promise<unknown>;
     findMany(args: {
       where: { primaryImageUrl: null } | { placeId: null };
-      select: { id: true; sourcePlaceId: true; sourcePlaceName: true };
+      select: {
+        id: true;
+        sourcePlaceId: true;
+        sourcePlaceName: true;
+        provinceName: true;
+      };
     }): Promise<
-      Array<{ id: string; sourcePlaceId: string; sourcePlaceName: string }>
+      Array<{
+        id: string;
+        sourcePlaceId: string;
+        sourcePlaceName: string;
+        provinceName: string;
+      }>
     >;
     update(args: {
       where: { id: string };
@@ -73,7 +87,7 @@ interface PlaceRankingPrisma {
     }): Promise<unknown>;
   };
   $transaction<T>(
-    callback: (transaction: PlaceRankingPrisma) => Promise<T>,
+    callback: (transaction: HotPlaceRankingPrisma) => Promise<T>,
   ): Promise<T>;
 }
 
@@ -92,11 +106,11 @@ export function normalizePlaceTitle(value: string): string {
 }
 
 @Injectable()
-export class PlaceRankingImportService {
-  private readonly logger = new Logger(PlaceRankingImportService.name);
+export class HotPlaceRankingImportService {
+  private readonly logger = new Logger(HotPlaceRankingImportService.name);
 
   constructor(
-    @Inject(PrismaService) private readonly prisma: PlaceRankingPrisma,
+    @Inject(PrismaService) private readonly prisma: HotPlaceRankingPrisma,
     @Optional()
     @Inject(TOUR_API_PORT)
     private readonly tourApi: TourApiPort | null = null,
@@ -105,9 +119,11 @@ export class PlaceRankingImportService {
     private readonly placeLinks: RankingPlaceLinker | null = null,
   ) {}
 
-  async importDirectory(directory: string): Promise<PlaceRankingImportSummary> {
+  async importDirectory(
+    directory: string,
+  ): Promise<HotPlaceRankingImportSummary> {
     const [snapshot, places] = await Promise.all([
-      parsePlaceRankingDirectory(directory),
+      parseHotPlaceRankingDirectory(directory),
       this.prisma.place.findMany({
         where: { isVisible: true },
         select: {
@@ -141,13 +157,14 @@ export class PlaceRankingImportService {
     };
 
     await this.prisma.$transaction(async (transaction) => {
-      await transaction.placeRanking.deleteMany({ where: snapshotIdentity });
-      await transaction.placeRanking.createMany({ data: rows });
+      await transaction.hotPlaceRanking.deleteMany({ where: snapshotIdentity });
+      await transaction.hotPlaceRanking.createMany({ data: rows });
     });
 
     return {
       source: snapshot.source,
       scope: snapshot.scope,
+      baseYearMonth: snapshot.baseYearMonth,
       periodStart: formatDateOnly(snapshot.periodStart),
       periodEnd: formatDateOnly(snapshot.periodEnd),
       audienceCount: new Set(snapshot.rows.map((row) => row.audience)).size,
@@ -163,11 +180,11 @@ export class PlaceRankingImportService {
    * 검색 실패는 조용히 건너뛰어(이미지 null 유지) 스냅샷 적재 자체는 막지 않는다.
    */
   private async fillDisplayImages(
-    rows: PlaceRankingCreateManyInput[],
+    rows: HotPlaceRankingCreateManyInput[],
   ): Promise<void> {
     if (this.tourApi === null) return;
 
-    const imageCache = new Map<string, string | null>();
+    const cache = new Map<string, string | null>();
     const copyrightCache = new Map<string, string | null>();
 
     for (const row of rows) {
@@ -175,13 +192,16 @@ export class PlaceRankingImportService {
 
       const key = row.sourcePlaceId;
 
-      if (!imageCache.has(key)) {
-        const resolved = await this.resolveDisplayImage(row.sourcePlaceName);
-        imageCache.set(key, resolved.imageUrl);
+      if (!cache.has(key)) {
+        const resolved = await this.resolveDisplayImage(
+          row.sourcePlaceName,
+          row.provinceName,
+        );
+        cache.set(key, resolved.imageUrl);
         copyrightCache.set(key, resolved.copyrightType);
       }
 
-      row.primaryImageUrl = imageCache.get(key) ?? null;
+      row.primaryImageUrl = cache.get(key) ?? null;
       row.imageCopyrightType = copyrightCache.get(key) ?? null;
     }
   }
@@ -192,9 +212,14 @@ export class PlaceRankingImportService {
    * TourAPI 키워드 검색 순으로 확정하고 데이터랩 관광지 식별자 단위로 캐싱한다.
    */
   async backfillDisplayImages(): Promise<RankingImageBackfillSummary> {
-    const rows = await this.prisma.placeRanking.findMany({
+    const rows = await this.prisma.hotPlaceRanking.findMany({
       where: { primaryImageUrl: null },
-      select: { id: true, sourcePlaceId: true, sourcePlaceName: true },
+      select: {
+        id: true,
+        sourcePlaceId: true,
+        sourcePlaceName: true,
+        provinceName: true,
+      },
     });
 
     if (rows.length === 0 || this.tourApi === null) {
@@ -234,13 +259,16 @@ export class PlaceRankingImportService {
           : cache.get(row.sourcePlaceId);
 
       if (resolved === undefined) {
-        resolved = await this.resolveDisplayImage(row.sourcePlaceName);
+        resolved = await this.resolveDisplayImage(
+          row.sourcePlaceName,
+          row.provinceName,
+        );
         cache.set(row.sourcePlaceId, resolved);
       }
 
       if (resolved.imageUrl === null) continue;
 
-      await this.prisma.placeRanking.update({
+      await this.prisma.hotPlaceRanking.update({
         where: { id: row.id },
         data: {
           primaryImageUrl: resolved.imageUrl,
@@ -257,12 +285,17 @@ export class PlaceRankingImportService {
    * 관광지와 연결되지 않은 행을 TourAPI 키워드 검색으로 다시 연결한다.
    * 지역 기반 동기화가 담지 않는 콘텐츠 타입 때문에 이름 정확매칭이 실패한 행이
    * 대부분이며, 연결되지 않으면 카드가 링크로 렌더되지 않아 상세 화면으로 갈 수 없다.
-   * 데이터랩 관광지 식별자 단위로 캐싱해 세대별 행에 걸친 중복 호출을 없앤다.
+   * 데이터랩 시도명으로 검색 지역을 좁히고, 관광지 식별자 단위로 캐싱한다.
    */
   async backfillPlaceLinks(): Promise<RankingPlaceLinkBackfillSummary> {
-    const rows = await this.prisma.placeRanking.findMany({
+    const rows = await this.prisma.hotPlaceRanking.findMany({
       where: { placeId: null },
-      select: { id: true, sourcePlaceId: true, sourcePlaceName: true },
+      select: {
+        id: true,
+        sourcePlaceId: true,
+        sourcePlaceName: true,
+        provinceName: true,
+      },
     });
 
     if (rows.length === 0 || this.placeLinks === null) {
@@ -274,10 +307,12 @@ export class PlaceRankingImportService {
 
     for (const row of rows) {
       if (!cache.has(row.sourcePlaceId)) {
+        const areaCode = resolveDatalabAreaCode(row.provinceName);
         cache.set(
           row.sourcePlaceId,
           await this.placeLinks.resolvePlaceId({
             placeName: row.sourcePlaceName,
+            ...(areaCode === undefined ? {} : { areaCode }),
           }),
         );
       }
@@ -286,7 +321,7 @@ export class PlaceRankingImportService {
 
       if (placeId === null) continue;
 
-      await this.prisma.placeRanking.update({
+      await this.prisma.hotPlaceRanking.update({
         where: { id: row.id },
         data: { placeId },
       });
@@ -298,15 +333,19 @@ export class PlaceRankingImportService {
 
   private async resolveDisplayImage(
     placeName: string,
+    provinceName: string,
   ): Promise<{ imageUrl: string | null; copyrightType: string | null }> {
     if (this.tourApi === null) {
       return { imageUrl: null, copyrightType: null };
     }
 
+    const areaCode = resolveDatalabAreaCode(provinceName);
+
     try {
       for (const keyword of buildSearchKeywords(placeName)) {
         const candidates = await this.tourApi.searchPlaceCandidates({
           keyword,
+          areaCode,
         });
         const match = pickRelevantCandidate(candidates, keyword);
         const imageUrl = httpsImageUrl(match?.firstimage ?? match?.firstimage2);
@@ -328,6 +367,16 @@ export class PlaceRankingImportService {
   }
 }
 
+function httpsImageUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+
+  if (trimmed === "") return null;
+  if (trimmed.startsWith("https://")) return trimmed;
+  if (trimmed.startsWith("http://")) return `https://${trimmed.slice(7)}`;
+
+  return null;
+}
+
 function buildCandidateIndex(places: PlaceCandidate[]) {
   const candidateIndex = new Map<string, PlaceCandidate[]>();
 
@@ -347,9 +396,9 @@ function toCreateManyInput(
   periodStart: Date,
   periodEnd: Date,
   importedAt: Date,
-  row: ParsedPlaceRankingRow,
+  row: ParsedHotPlaceRankingRow,
   candidateIndex: Map<string, PlaceCandidate[]>,
-): PlaceRankingCreateManyInput {
+): HotPlaceRankingCreateManyInput {
   const candidates = candidateIndex.get(
     normalizePlaceTitle(row.sourcePlaceName),
   );
@@ -358,6 +407,9 @@ function toCreateManyInput(
   return {
     source,
     scope,
+    baseYearMonth: row.baseYearMonth,
+    provinceName: row.provinceName,
+    districtName: row.districtName,
     sourcePlaceId: row.sourcePlaceId,
     sourcePlaceName: row.sourcePlaceName,
     sourceCategory: row.sourceCategory,
@@ -365,23 +417,13 @@ function toCreateManyInput(
     periodStart,
     periodEnd,
     rank: row.rank,
-    sharePercent: new Prisma.Decimal(row.sharePercent),
+    growthPercent: new Prisma.Decimal(row.growthPercent),
     placeId: match?.id ?? null,
     primaryImageUrl: httpsImageUrl(match?.primaryImageUrl ?? undefined),
     imageCopyrightType: match?.imageCopyrightType ?? null,
     sourceFileName: row.sourceFileName,
     importedAt,
   };
-}
-
-function httpsImageUrl(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-
-  if (trimmed === "") return null;
-  if (trimmed.startsWith("https://")) return trimmed;
-  if (trimmed.startsWith("http://")) return `https://${trimmed.slice(7)}`;
-
-  return null;
 }
 
 function formatDateOnly(value: Date): string {

@@ -5,6 +5,7 @@ import { AuthModule } from "./auth/auth.module.js";
 import { validateEnvironment } from "./config/environment.js";
 import { FestivalsModule } from "./festivals/festivals.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { HotPlaceRankingsModule } from "./hot-place-rankings/hot-place-rankings.module.js";
 import { PlaceRankingsModule } from "./place-rankings/place-rankings.module.js";
 import { PlaceReelsModule } from "./place-reels/place-reels.module.js";
 import { PlacesModule } from "./places/places.module.js";
@@ -24,6 +25,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     AuthModule,
     HealthModule,
     FestivalsModule,
+    HotPlaceRankingsModule,
     PlaceRankingsModule,
     PlaceReelsModule,
     PlacesModule,

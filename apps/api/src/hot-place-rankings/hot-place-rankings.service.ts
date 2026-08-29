@@ -1,15 +1,18 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 
 import type {
-  ListPlaceRankingsQuery,
-  PlaceRankingAudience,
-  PlaceRankingItem,
-  PlaceRankingResponse,
+  HotPlaceRankingAudience,
+  HotPlaceRankingItem,
+  HotPlaceRankingResponse,
+  ListHotPlaceRankingsQuery,
 } from "@haetteum/contracts";
 
 import { PrismaService } from "../prisma/prisma.service.js";
-import { DATALAB_SOURCE, NATIONAL_SCOPE } from "./place-ranking.constants.js";
-import type { RankingAudienceDb } from "./place-ranking-csv.js";
+import {
+  DATALAB_SOURCE,
+  NATIONAL_SCOPE,
+} from "./hot-place-ranking.constants.js";
+import type { HotPlaceRankingAudienceDb } from "./hot-place-ranking-csv.js";
 
 const AUDIENCE_TO_DB = {
   all: "ALL",
@@ -18,14 +21,16 @@ const AUDIENCE_TO_DB = {
   "40s": "FORTIES",
   "50s": "FIFTIES",
   "60s-plus": "SIXTIES_PLUS",
-} as const satisfies Record<PlaceRankingAudience, RankingAudienceDb>;
+} as const satisfies Record<HotPlaceRankingAudience, HotPlaceRankingAudienceDb>;
 
-type PlaceRankingRow = {
+type HotPlaceRankingRow = {
   rank: number;
   sourcePlaceId: string;
   sourcePlaceName: string;
   sourceCategory: string;
-  sharePercent: { toNumber(): number };
+  provinceName: string;
+  districtName: string;
+  growthPercent: { toNumber(): number };
   placeId: string | null;
   primaryImageUrl: string | null;
   imageCopyrightType: string | null;
@@ -34,12 +39,14 @@ type PlaceRankingRow = {
 };
 
 @Injectable()
-export class PlaceRankingsService {
+export class HotPlaceRankingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(input: ListPlaceRankingsQuery): Promise<PlaceRankingResponse> {
+  async list(
+    input: ListHotPlaceRankingsQuery,
+  ): Promise<HotPlaceRankingResponse> {
     const audience = AUDIENCE_TO_DB[input.audience];
-    const snapshot = await this.prisma.placeRanking.findFirst({
+    const snapshot = await this.prisma.hotPlaceRanking.findFirst({
       where: {
         source: DATALAB_SOURCE,
         scope: NATIONAL_SCOPE,
@@ -49,6 +56,7 @@ export class PlaceRankingsService {
       select: {
         source: true,
         scope: true,
+        baseYearMonth: true,
         periodStart: true,
         periodEnd: true,
       },
@@ -56,12 +64,12 @@ export class PlaceRankingsService {
 
     if (snapshot === null) {
       throw new NotFoundException({
-        code: "PLACE_RANKING_SNAPSHOT_NOT_FOUND",
-        detail: "세대별 인기관광지 순위 데이터를 찾을 수 없습니다.",
+        code: "HOT_PLACE_RANKING_SNAPSHOT_NOT_FOUND",
+        detail: "세대별 핫플레이스 순위 데이터를 찾을 수 없습니다.",
       });
     }
 
-    const rows = await this.prisma.placeRanking.findMany({
+    const rows = await this.prisma.hotPlaceRanking.findMany({
       where: {
         source: snapshot.source,
         scope: snapshot.scope,
@@ -76,7 +84,9 @@ export class PlaceRankingsService {
         sourcePlaceId: true,
         sourcePlaceName: true,
         sourceCategory: true,
-        sharePercent: true,
+        provinceName: true,
+        districtName: true,
+        growthPercent: true,
         placeId: true,
         primaryImageUrl: true,
         imageCopyrightType: true,
@@ -88,6 +98,7 @@ export class PlaceRankingsService {
     return {
       source: "KTO_DATALAB",
       scope: "national",
+      baseYearMonth: snapshot.baseYearMonth,
       periodStart: dateOnly(snapshot.periodStart),
       periodEnd: dateOnly(snapshot.periodEnd),
       audience: input.audience,
@@ -96,13 +107,15 @@ export class PlaceRankingsService {
   }
 }
 
-function mapRankingRow(row: PlaceRankingRow): PlaceRankingItem {
+function mapRankingRow(row: HotPlaceRankingRow): HotPlaceRankingItem {
   return {
     rank: row.rank,
     sourcePlaceId: row.sourcePlaceId,
     title: row.sourcePlaceName,
     category: row.sourceCategory,
-    sharePercent: row.sharePercent.toNumber(),
+    provinceName: row.provinceName,
+    districtName: row.districtName,
+    growthPercent: row.growthPercent.toNumber(),
     placeId: row.placeId ?? null,
     primaryImageUrl: httpsImageUrl(row.primaryImageUrl),
     imageCopyrightType: row.imageCopyrightType ?? null,

@@ -151,6 +151,7 @@ model Place {
   region   TourismRegion    @relation(fields: [regionId], references: [id], onDelete: Restrict)
   district TourismDistrict? @relation(fields: [districtId], references: [id], onDelete: SetNull)
   rankings PlaceRanking[]
+  hotPlaceRankings HotPlaceRanking[]
   images PlaceImage[]
   detailInfos PlaceDetailInfo[]
   reviews Review[]
@@ -303,6 +304,14 @@ model PlaceRanking {
   sharePercent    Decimal  @map("share_percent") @db.Decimal(5, 2)
   /// 매칭된 Haetteum 관광지 식별자
   placeId         String?  @map("place_id") @db.Uuid
+  /// 랭킹 노출용 대표 이미지 URL이며 매칭된 관광지 또는 TourAPI 키워드 검색에서 확정
+  primaryImageUrl String?  @map("primary_image_url") @db.Text
+  /// 대표 이미지 공공누리 저작권 유형
+  imageCopyrightType String? @map("image_copyright_type") @db.VarChar(20)
+  /// TourAPI 밖에서(Wikimedia Commons 등) 가져온 이미지의 저작자 표시 문구
+  imageAttribution String? @map("image_attribution") @db.Text
+  /// imageAttribution 문구가 링크할 출처 페이지 URL
+  imageAttributionUrl String? @map("image_attribution_url") @db.Text
   /// 감사 가능한 원본 CSV 파일명
   sourceFileName  String   @map("source_file_name") @db.VarChar(500)
   /// 순위 스냅샷 적재 시각
@@ -319,6 +328,64 @@ model PlaceRanking {
   @@index([source, scope, audience, periodEnd, rank])
   @@index([placeId])
   @@map("place_rankings")
+}
+
+/// 한국관광 데이터랩 공식 다운로드에서 적재한 기간·대상별 핫플레이스(방문 급상승) 순위
+model HotPlaceRanking {
+  /// Haetteum 내부 순위 레코드 식별자
+  id              String   @id @default(uuid()) @db.Uuid
+  /// 순위 원본 provider 식별자
+  source          String   @db.VarChar(32)
+  /// 전국 등 순위 집계 범위
+  scope           String   @db.VarChar(32)
+  /// 데이터랩 기준년월 (YYYYMM)
+  baseYearMonth   String   @map("base_year_month") @db.VarChar(6)
+  /// 데이터랩 시도명
+  provinceName    String   @map("province_name") @db.VarChar(100)
+  /// 데이터랩 시군구명
+  districtName    String   @map("district_name") @db.VarChar(100)
+  /// 데이터랩 관광지 식별자
+  sourcePlaceId   String   @map("source_place_id") @db.VarChar(64)
+  /// 데이터랩 관광지명
+  sourcePlaceName String   @map("source_place_name") @db.VarChar(500)
+  /// 데이터랩 관광지 구분
+  sourceCategory  String   @map("source_category") @db.VarChar(100)
+  /// 전체 또는 세대별 집계 대상
+  audience        String   @db.VarChar(32)
+  /// 순위 집계 시작일
+  periodStart     DateTime @map("period_start") @db.Date
+  /// 순위 집계 종료일
+  periodEnd       DateTime @map("period_end") @db.Date
+  /// 집계 범위 안의 원본 순위
+  rank            Int
+  /// 데이터랩 원본 성장율의 퍼센트 값
+  growthPercent   Decimal  @map("growth_percent") @db.Decimal(7, 2)
+  /// 매칭된 Haetteum 관광지 식별자
+  placeId         String?  @map("place_id") @db.Uuid
+  /// 랭킹 노출용 대표 이미지 URL이며 매칭된 관광지 또는 TourAPI 키워드 검색에서 확정
+  primaryImageUrl String?  @map("primary_image_url") @db.Text
+  /// 대표 이미지 공공누리 저작권 유형
+  imageCopyrightType String? @map("image_copyright_type") @db.VarChar(20)
+  /// TourAPI 밖에서(Wikimedia Commons 등) 가져온 이미지의 저작자 표시 문구
+  imageAttribution String? @map("image_attribution") @db.Text
+  /// imageAttribution 문구가 링크할 출처 페이지 URL
+  imageAttributionUrl String? @map("image_attribution_url") @db.Text
+  /// 감사 가능한 원본 CSV 파일명
+  sourceFileName  String   @map("source_file_name") @db.VarChar(500)
+  /// 순위 스냅샷 적재 시각
+  importedAt      DateTime @map("imported_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  place Place? @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  @@unique([source, scope, periodStart, periodEnd, audience, rank], map: "hot_place_rankings_snapshot_rank_key")
+  @@unique([source, scope, periodStart, periodEnd, audience, sourcePlaceId], map: "hot_place_rankings_snapshot_source_place_id_key")
+  @@index([source, scope, audience, periodEnd, rank])
+  @@index([placeId])
+  @@map("hot_place_rankings")
 }
 
 /// YouTube Data API에서 수집한 관광지 릴스(세로 숏폼) 캐시

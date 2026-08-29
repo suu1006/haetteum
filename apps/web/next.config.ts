@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
         search: "",
       },
       {
+        // TourAPI에 없는 장소의 대체 출처(공공누리/CC 라이선스 확인된 것만 사용)
+        protocol: "https",
+        hostname: "upload.wikimedia.org",
+        port: "",
+        pathname: "/**",
+        search: "",
+      },
+      {
         protocol: "https",
         hostname: "k.kakaocdn.net",
         port: "",

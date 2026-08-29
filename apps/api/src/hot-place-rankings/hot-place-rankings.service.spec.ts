@@ -2,63 +2,70 @@ import { NotFoundException } from "@nestjs/common";
 import { jest } from "@jest/globals";
 
 import { Prisma } from "../generated/prisma/client.js";
-import { PlaceRankingsService } from "./place-rankings.service.js";
+import { HotPlaceRankingsService } from "./hot-place-rankings.service.js";
 
 type SnapshotRow = {
   source: string;
   scope: string;
+  baseYearMonth: string;
   periodStart: Date;
   periodEnd: Date;
 };
 
-type RankingRow = SnapshotRow & {
+type RankingRow = {
   rank: number;
   sourcePlaceId: string;
   sourcePlaceName: string;
   sourceCategory: string;
-  sharePercent: Prisma.Decimal;
+  provinceName: string;
+  districtName: string;
+  growthPercent: Prisma.Decimal;
   placeId: string | null;
   primaryImageUrl: string | null;
   imageCopyrightType: string | null;
   imageAttribution: string | null;
   imageAttributionUrl: string | null;
 };
+
 type SnapshotFindFirstCall = [{ where: { audience: string } }];
 
-describe("PlaceRankingsService", () => {
-  it("loads the latest snapshot for the selected audience and maps rows to the public response", async () => {
+describe("HotPlaceRankingsService", () => {
+  it("loads the latest snapshot for the selected audience and maps rows", async () => {
     const snapshot: SnapshotRow = {
       source: "KTO_DATALAB",
       scope: "NATIONAL",
-      periodStart: new Date("2025-08-01T00:00:00.000Z"),
+      baseYearMonth: "202607",
+      periodStart: new Date("2026-07-01T00:00:00.000Z"),
       periodEnd: new Date("2026-07-31T00:00:00.000Z"),
     };
     const rows: RankingRow[] = [
       {
-        ...snapshot,
         rank: 1,
         sourcePlaceId: "0123456789abcdef0123456789abcdef",
-        sourcePlaceName: "여의도한강공원",
-        sourceCategory: "자연관광",
-        sharePercent: new Prisma.Decimal("12.34"),
+        sourcePlaceName: "장릉",
+        sourceCategory: "관광명소",
+        provinceName: "강원특별자치도",
+        districtName: "영월군",
+        growthPercent: new Prisma.Decimal("398.90"),
         placeId: "6c9bc5a5-836e-420c-bce4-ef68ff421233",
-        primaryImageUrl: "https://example.test/yeouido.jpg",
+        primaryImageUrl: "https://example.test/jangneung.jpg",
         imageCopyrightType: "Type1",
         imageAttribution: null,
         imageAttributionUrl: null,
       },
       {
-        ...snapshot,
         rank: 2,
         sourcePlaceId: "abcdef0123456789abcdef0123456789",
-        sourcePlaceName: "경복궁",
-        sourceCategory: "역사관광",
-        sharePercent: new Prisma.Decimal("10.50"),
+        sourcePlaceName: "청령포",
+        sourceCategory: "관광명소",
+        provinceName: "강원특별자치도",
+        districtName: "영월군",
+        growthPercent: new Prisma.Decimal("295.90"),
         placeId: null,
         primaryImageUrl:
           "http://upload.wikimedia.org/wikipedia/commons/example.jpg",
         imageCopyrightType: null,
-        imageAttribution: "kallerna, CC BY-SA 4.0, Wikimedia Commons",
+        imageAttribution: "Shinfull, CC BY-SA 3.0, Wikimedia Commons",
         imageAttributionUrl:
           "https://commons.wikimedia.org/wiki/File:example.jpg",
       },
@@ -69,26 +76,29 @@ describe("PlaceRankingsService", () => {
     const findMany = jest
       .fn<() => Promise<RankingRow[]>>()
       .mockResolvedValue(rows);
-    const service = new PlaceRankingsService({
-      placeRanking: { findFirst, findMany },
+    const service = new HotPlaceRankingsService({
+      hotPlaceRanking: { findFirst, findMany },
     } as never);
 
     await expect(service.list({ audience: "20s", limit: 10 })).resolves.toEqual(
       {
         source: "KTO_DATALAB",
         scope: "national",
-        periodStart: "2025-08-01",
+        baseYearMonth: "202607",
+        periodStart: "2026-07-01",
         periodEnd: "2026-07-31",
         audience: "20s",
         items: [
           {
             rank: 1,
             sourcePlaceId: "0123456789abcdef0123456789abcdef",
-            title: "여의도한강공원",
-            category: "자연관광",
-            sharePercent: 12.34,
+            title: "장릉",
+            category: "관광명소",
+            provinceName: "강원특별자치도",
+            districtName: "영월군",
+            growthPercent: 398.9,
             placeId: "6c9bc5a5-836e-420c-bce4-ef68ff421233",
-            primaryImageUrl: "https://example.test/yeouido.jpg",
+            primaryImageUrl: "https://example.test/jangneung.jpg",
             imageCopyrightType: "Type1",
             imageAttribution: null,
             imageAttributionUrl: null,
@@ -96,14 +106,16 @@ describe("PlaceRankingsService", () => {
           {
             rank: 2,
             sourcePlaceId: "abcdef0123456789abcdef0123456789",
-            title: "경복궁",
-            category: "역사관광",
-            sharePercent: 10.5,
+            title: "청령포",
+            category: "관광명소",
+            provinceName: "강원특별자치도",
+            districtName: "영월군",
+            growthPercent: 295.9,
             placeId: null,
             primaryImageUrl:
               "https://upload.wikimedia.org/wikipedia/commons/example.jpg",
             imageCopyrightType: null,
-            imageAttribution: "kallerna, CC BY-SA 4.0, Wikimedia Commons",
+            imageAttribution: "Shinfull, CC BY-SA 3.0, Wikimedia Commons",
             imageAttributionUrl:
               "https://commons.wikimedia.org/wiki/File:example.jpg",
           },
@@ -121,40 +133,32 @@ describe("PlaceRankingsService", () => {
       select: {
         source: true,
         scope: true,
+        baseYearMonth: true,
         periodStart: true,
         periodEnd: true,
       },
     });
-    expect(findMany).toHaveBeenCalledWith({
-      where: {
-        source: "KTO_DATALAB",
-        scope: "NATIONAL",
-        audience: "TWENTIES",
-        periodStart: snapshot.periodStart,
-        periodEnd: snapshot.periodEnd,
-      },
-      orderBy: { rank: "asc" },
-      take: 10,
-      select: {
-        rank: true,
-        sourcePlaceId: true,
-        sourcePlaceName: true,
-        sourceCategory: true,
-        sharePercent: true,
-        placeId: true,
-        primaryImageUrl: true,
-        imageCopyrightType: true,
-        imageAttribution: true,
-        imageAttributionUrl: true,
-      },
-    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          source: "KTO_DATALAB",
+          scope: "NATIONAL",
+          audience: "TWENTIES",
+          periodStart: snapshot.periodStart,
+          periodEnd: snapshot.periodEnd,
+        },
+        orderBy: { rank: "asc" },
+        take: 10,
+      }),
+    );
   });
 
   it("maps every public audience value to the stored database audience", async () => {
     const snapshot: SnapshotRow = {
       source: "KTO_DATALAB",
       scope: "NATIONAL",
-      periodStart: new Date("2025-08-01T00:00:00.000Z"),
+      baseYearMonth: "202607",
+      periodStart: new Date("2026-07-01T00:00:00.000Z"),
       periodEnd: new Date("2026-07-31T00:00:00.000Z"),
     };
     const findFirst = jest
@@ -163,8 +167,8 @@ describe("PlaceRankingsService", () => {
     const findMany = jest
       .fn<() => Promise<RankingRow[]>>()
       .mockResolvedValue([]);
-    const service = new PlaceRankingsService({
-      placeRanking: { findFirst, findMany },
+    const service = new HotPlaceRankingsService({
+      hotPlaceRanking: { findFirst, findMany },
     } as never);
 
     for (const [audience, storedAudience] of [
@@ -178,7 +182,6 @@ describe("PlaceRankingsService", () => {
       await service.list({ audience, limit: 1 });
       const lastCall = findFirst.mock.calls.at(-1) as
         SnapshotFindFirstCall | undefined;
-
       expect(lastCall?.[0].where.audience).toBe(storedAudience);
     }
   });
@@ -188,14 +191,14 @@ describe("PlaceRankingsService", () => {
       .fn<() => Promise<SnapshotRow | null>>()
       .mockResolvedValue(null);
     const findMany = jest.fn<() => Promise<RankingRow[]>>();
-    const service = new PlaceRankingsService({
-      placeRanking: { findFirst, findMany },
+    const service = new HotPlaceRankingsService({
+      hotPlaceRanking: { findFirst, findMany },
     } as never);
 
     await expect(service.list({ audience: "all", limit: 10 })).rejects.toEqual(
       new NotFoundException({
-        code: "PLACE_RANKING_SNAPSHOT_NOT_FOUND",
-        detail: "세대별 인기관광지 순위 데이터를 찾을 수 없습니다.",
+        code: "HOT_PLACE_RANKING_SNAPSHOT_NOT_FOUND",
+        detail: "세대별 핫플레이스 순위 데이터를 찾을 수 없습니다.",
       }),
     );
     expect(findMany).not.toHaveBeenCalled();

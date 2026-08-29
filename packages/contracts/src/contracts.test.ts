@@ -7,6 +7,8 @@ import {
   FestivalDiscoveryQuerySchema,
   FestivalDiscoveryResponseSchema,
   HealthResponseSchema,
+  HotPlaceRankingResponseSchema,
+  ListHotPlaceRankingsQuerySchema,
   ListPlacesQuerySchema,
   MyReviewsResponseSchema,
   NearbyPlacesQuerySchema,
@@ -365,6 +367,8 @@ describe("place ranking contracts", () => {
             placeId: null,
             primaryImageUrl: null,
             imageCopyrightType: null,
+            imageAttribution: null,
+            imageAttributionUrl: null,
           },
         ],
       }).items[0]?.sharePercent,
@@ -381,6 +385,8 @@ describe("place ranking contracts", () => {
       placeId: null,
       primaryImageUrl: null,
       imageCopyrightType: null,
+      imageAttribution: null,
+      imageAttributionUrl: null,
     };
     const response = {
       source: "KTO_DATALAB",
@@ -401,6 +407,69 @@ describe("place ranking contracts", () => {
       PlaceRankingResponseSchema.parse({
         ...response,
         periodStart: "2025-02-30",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("hot place ranking contracts", () => {
+  const item = {
+    rank: 1,
+    sourcePlaceId: "5ceb29adcd4b4944f1d50efcfac3aa12",
+    title: "장릉",
+    category: "관광명소",
+    provinceName: "강원특별자치도",
+    districtName: "영월군",
+    growthPercent: 398.9,
+    placeId: null,
+    primaryImageUrl: null,
+    imageCopyrightType: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
+  };
+  const response = {
+    source: "KTO_DATALAB",
+    scope: "national",
+    baseYearMonth: "202607",
+    periodStart: "2026-07-01",
+    periodEnd: "2026-07-31",
+    audience: "all",
+    items: [item],
+  };
+
+  it("defaults the audience and limit and accepts only approved audiences", () => {
+    expect(ListHotPlaceRankingsQuerySchema.parse({})).toEqual({
+      audience: "all",
+      limit: 10,
+    });
+    expect(() =>
+      ListHotPlaceRankingsQuerySchema.parse({ audience: "teens" }),
+    ).toThrow();
+    expect(() =>
+      ListHotPlaceRankingsQuerySchema.parse({ audience: "all", limit: 11 }),
+    ).toThrow();
+  });
+
+  it("keeps growth percentages above 100 and requires the base year month", () => {
+    expect(
+      HotPlaceRankingResponseSchema.parse(response).items[0]?.growthPercent,
+    ).toBe(398.9);
+    expect(
+      HotPlaceRankingResponseSchema.parse({
+        ...response,
+        items: [{ ...item, growthPercent: 959.6 }],
+      }).items[0]?.growthPercent,
+    ).toBe(959.6);
+    expect(() =>
+      HotPlaceRankingResponseSchema.parse({
+        ...response,
+        baseYearMonth: "2026-07",
+      }),
+    ).toThrow();
+    expect(() =>
+      HotPlaceRankingResponseSchema.parse({
+        ...response,
+        items: [{ ...item, growthPercent: 0 }],
       }),
     ).toThrow();
   });

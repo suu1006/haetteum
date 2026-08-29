@@ -23,6 +23,8 @@ export const PlaceRankingItemSchema = z.object({
   placeId: z.string().uuid().nullable(),
   primaryImageUrl: z.string().url().nullable(),
   imageCopyrightType: z.string().nullable(),
+  imageAttribution: z.string().nullable(),
+  imageAttributionUrl: z.string().url().nullable(),
 });
 
 export const PlaceRankingResponseSchema = z.object({

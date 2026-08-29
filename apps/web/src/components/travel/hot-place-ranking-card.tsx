@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { PlaceRankingItem } from "@haetteum/contracts";
+import type { HotPlaceRankingItem } from "@haetteum/contracts";
 
 import { resolveOfficialImageSource } from "@/lib/official-image";
 import { cn } from "@/lib/utils";
 
-type PlaceRankingCardProps = {
-  place: PlaceRankingItem;
+type HotPlaceRankingCardProps = {
+  place: HotPlaceRankingItem;
 };
 
 const rankBadgeClassNames: Record<number, string> = {
@@ -15,7 +15,7 @@ const rankBadgeClassNames: Record<number, string> = {
   3: "bg-rank-bronze text-rank-bronze-foreground",
 };
 
-function PlaceRankingCard({ place }: PlaceRankingCardProps) {
+function HotPlaceRankingCard({ place }: HotPlaceRankingCardProps) {
   const rankLabel = `${place.rank}위`;
   const rankBadgeClassName =
     rankBadgeClassNames[place.rank] ?? "bg-primary text-primary-foreground";
@@ -51,7 +51,7 @@ function PlaceRankingCard({ place }: PlaceRankingCardProps) {
             {place.category}
           </p>
           <p className="type-caption text-muted-foreground">
-            인기 비율 {place.sharePercent.toFixed(1)}%
+            방문 급상승 {place.growthPercent.toFixed(1)}%
           </p>
           {place.imageAttribution ? (
             <p className="type-caption truncate text-muted-foreground/70">
@@ -74,4 +74,4 @@ function PlaceRankingCard({ place }: PlaceRankingCardProps) {
   ) : card;
 }
 
-export { PlaceRankingCard, type PlaceRankingCardProps };
+export { HotPlaceRankingCard, type HotPlaceRankingCardProps };

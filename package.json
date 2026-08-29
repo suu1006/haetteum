@@ -19,6 +19,7 @@
     "tourism:smoke": "pnpm --filter @haetteum/api tourism:smoke",
     "festival:sync": "pnpm --filter @haetteum/api festival:sync",
     "ranking:import": "pnpm --filter @haetteum/api ranking:import",
+    "hotplace:import": "pnpm --filter @haetteum/api hotplace:import",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @haetteum/api db:generate",

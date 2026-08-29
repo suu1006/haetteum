@@ -11,6 +11,16 @@ export {
   type PlaceRankingResponse,
 } from "./place-rankings.js";
 export {
+  HotPlaceRankingAudienceSchema,
+  HotPlaceRankingItemSchema,
+  HotPlaceRankingResponseSchema,
+  ListHotPlaceRankingsQuerySchema,
+  type HotPlaceRankingAudience,
+  type HotPlaceRankingItem,
+  type HotPlaceRankingResponse,
+  type ListHotPlaceRankingsQuery,
+} from "./hot-place-rankings.js";
+export {
   ListPopularReelsQuerySchema,
   PlaceReelItemSchema,
   PlaceReelListResponseSchema,

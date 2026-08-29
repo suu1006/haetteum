@@ -16,7 +16,13 @@ jest.unstable_mockModule("./place-ranking-csv.js", () => ({
 const { PlaceRankingImportService, normalizePlaceTitle } =
   await import("./place-ranking-import.service.js");
 
-type PlaceCandidate = { id: string; title: string; isVisible: boolean };
+type PlaceCandidate = {
+  id: string;
+  title: string;
+  isVisible: boolean;
+  primaryImageUrl?: string | null;
+  imageCopyrightType?: string | null;
+};
 type PlaceRankingRow = Record<string, unknown>;
 type FakeTransaction = <T>(
   callback: (transaction: FakePrisma) => Promise<T>,
@@ -30,23 +36,42 @@ const audiences = [
   "SIXTIES_PLUS",
 ] as const;
 
+type BackfillRow = {
+  id: string;
+  sourcePlaceId: string;
+  sourcePlaceName: string;
+};
+
 class FakePrisma {
   places: PlaceCandidate[] = [];
   committedRows: PlaceRankingRow[] = [{ id: "existing-ranking" }];
   createdRows: PlaceRankingRow[] = [];
   deletedSnapshot: unknown;
   failCreateMany = false;
+  imagelessRows: BackfillRow[] = [];
+  unlinkedRows: BackfillRow[] = [];
+  updates: Array<{ id: string; data: Record<string, unknown> }> = [];
 
   place = {
     findMany: jest.fn(async (args: unknown) => {
       expect(args).toEqual({
         where: { isVisible: true },
-        select: { id: true, title: true },
+        select: {
+          id: true,
+          title: true,
+          primaryImageUrl: true,
+          imageCopyrightType: true,
+        },
       });
 
       return this.places
         .filter((place) => place.isVisible)
-        .map(({ id, title }) => ({ id, title }));
+        .map(({ id, title, primaryImageUrl, imageCopyrightType }) => ({
+          id,
+          title,
+          primaryImageUrl: primaryImageUrl ?? null,
+          imageCopyrightType: imageCopyrightType ?? null,
+        }));
     }),
   };
 
@@ -65,6 +90,24 @@ class FakePrisma {
       this.committedRows = args.data;
       return { count: args.data.length };
     }),
+    findMany: jest.fn(async (args: { where: Record<string, unknown> }) => {
+      if ("placeId" in args.where) {
+        expect(args).toMatchObject({ where: { placeId: null } });
+        return this.unlinkedRows;
+      }
+
+      expect(args).toMatchObject({ where: { primaryImageUrl: null } });
+      return this.imagelessRows;
+    }),
+    update: jest.fn(
+      async (args: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        this.updates.push({ id: args.where.id, data: args.data });
+        return { id: args.where.id };
+      },
+    ),
   };
 
   $transaction: jest.MockedFunction<FakeTransaction> = jest.fn(
@@ -211,6 +254,163 @@ describe("PlaceRankingImportService", () => {
     expect(prisma.committedRows).toBe(originalRows);
     expect(prisma.createdRows).toHaveLength(0);
     expect(prisma.deletedSnapshot).toBeUndefined();
+  });
+
+  it("copies the matched place image and fills the rest from TourAPI", async () => {
+    const prisma = new FakePrisma();
+    prisma.places = [
+      {
+        id: "place-1",
+        title: "에버랜드",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/everland.jpg",
+        imageCopyrightType: "Type1",
+      },
+    ];
+    parsePlaceRankingDirectory.mockResolvedValue(
+      snapshot([
+        rankingRow({
+          rank: 1,
+          sourcePlaceId: "s-1",
+          sourcePlaceName: "에버랜드",
+        }),
+        rankingRow({
+          rank: 2,
+          sourcePlaceId: "s-2",
+          sourcePlaceName: "남이섬",
+        }),
+      ]),
+    );
+    const searchPlaceCandidates = jest.fn(
+      async (input: { keyword: string }) => [
+        {
+          contentid: "9",
+          contenttypeid: "12",
+          title: input.keyword,
+          firstimage2: `http://tong.visitkorea.or.kr/${input.keyword}.jpg`,
+          cpyrhtDivCd: "Type3",
+        },
+      ],
+    );
+
+    const service = new PlaceRankingImportService(prisma, {
+      searchPlaceCandidates,
+    } as never);
+
+    await service.importDirectory("/tmp/rankings");
+
+    expect(searchPlaceCandidates).toHaveBeenCalledTimes(1);
+    expect(searchPlaceCandidates).toHaveBeenCalledWith({ keyword: "남이섬" });
+    expect(prisma.createdRows[0]).toMatchObject({
+      primaryImageUrl: "https://cdn.test/everland.jpg",
+      imageCopyrightType: "Type1",
+    });
+    expect(prisma.createdRows[1]).toMatchObject({
+      primaryImageUrl: "https://tong.visitkorea.or.kr/남이섬.jpg",
+      imageCopyrightType: "Type3",
+    });
+  });
+});
+
+describe("PlaceRankingImportService.backfillDisplayImages", () => {
+  it("prefers a matched place image and falls back to a cached TourAPI lookup", async () => {
+    const prisma = new FakePrisma();
+    prisma.places = [
+      {
+        id: "place-1",
+        title: "에버랜드",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/everland.jpg",
+        imageCopyrightType: "Type1",
+      },
+    ];
+    prisma.imagelessRows = [
+      { id: "row-a", sourcePlaceId: "s-1", sourcePlaceName: "에버랜드" },
+      { id: "row-b", sourcePlaceId: "s-2", sourcePlaceName: "남이섬" },
+      { id: "row-c", sourcePlaceId: "s-2", sourcePlaceName: "남이섬" },
+    ];
+    const searchPlaceCandidates = jest.fn(async () => [
+      {
+        contentid: "9",
+        contenttypeid: "12",
+        title: "남이섬",
+        firstimage: "http://tong.visitkorea.or.kr/namiseom.jpg",
+      },
+    ]);
+
+    const service = new PlaceRankingImportService(prisma, {
+      searchPlaceCandidates,
+    } as never);
+
+    await expect(service.backfillDisplayImages()).resolves.toEqual({
+      scanned: 3,
+      updated: 3,
+    });
+    expect(searchPlaceCandidates).toHaveBeenCalledTimes(1);
+    expect(prisma.updates).toEqual([
+      {
+        id: "row-a",
+        data: {
+          primaryImageUrl: "https://cdn.test/everland.jpg",
+          imageCopyrightType: "Type1",
+        },
+      },
+      {
+        id: "row-b",
+        data: {
+          primaryImageUrl: "https://tong.visitkorea.or.kr/namiseom.jpg",
+          imageCopyrightType: null,
+        },
+      },
+      {
+        id: "row-c",
+        data: {
+          primaryImageUrl: "https://tong.visitkorea.or.kr/namiseom.jpg",
+          imageCopyrightType: null,
+        },
+      },
+    ]);
+  });
+
+  it("links unmatched rows once per source place and skips unresolved names", async () => {
+    const prisma = new FakePrisma();
+    prisma.unlinkedRows = [
+      { id: "row-a", sourcePlaceId: "s-1", sourcePlaceName: "코엑스" },
+      { id: "row-b", sourcePlaceId: "s-1", sourcePlaceName: "코엑스" },
+      { id: "row-c", sourcePlaceId: "s-2", sourcePlaceName: "이름없는곳" },
+    ];
+    const resolvePlaceId = jest.fn(async (input: { placeName: string }) =>
+      input.placeName === "코엑스" ? "place-coex" : null,
+    );
+
+    const service = new PlaceRankingImportService(prisma, null, {
+      resolvePlaceId,
+    });
+
+    await expect(service.backfillPlaceLinks()).resolves.toEqual({
+      scanned: 3,
+      linked: 2,
+    });
+    expect(resolvePlaceId).toHaveBeenCalledTimes(2);
+    expect(prisma.updates).toEqual([
+      { id: "row-a", data: { placeId: "place-coex" } },
+      { id: "row-b", data: { placeId: "place-coex" } },
+    ]);
+  });
+
+  it("reports the scan without linking when the link service is unavailable", async () => {
+    const prisma = new FakePrisma();
+    prisma.unlinkedRows = [
+      { id: "row-a", sourcePlaceId: "s-1", sourcePlaceName: "코엑스" },
+    ];
+
+    const service = new PlaceRankingImportService(prisma);
+
+    await expect(service.backfillPlaceLinks()).resolves.toEqual({
+      scanned: 1,
+      linked: 0,
+    });
+    expect(prisma.updates).toEqual([]);
   });
 });
 
