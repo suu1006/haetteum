@@ -3,6 +3,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 
 import { FestivalRepository } from "./festival.repository.js";
 import { FestivalSyncService } from "./festival-sync.service.js";
+import { FestivalSyncScheduler } from "./festival-sync.scheduler.js";
 import { RankingPlaceLinkService } from "./ranking-place-link.service.js";
 import { TourApiClient } from "./tour-api.client.js";
 import {
@@ -22,6 +23,7 @@ import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
     FestivalSyncService,
     FestivalRepository,
     TourismSyncScheduler,
+    FestivalSyncScheduler,
     RankingPlaceLinkService,
     TourApiClient,
     { provide: TOUR_API_PORT, useExisting: TourApiClient },

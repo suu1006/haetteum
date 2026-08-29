@@ -83,6 +83,59 @@ describe("loadFestivalDiscovery", () => {
     });
   });
 
+  it("orders the festival list by the earliest event date first", async () => {
+    const unordered = {
+      ...response,
+      items: [
+        {
+          ...response.items[0],
+          id: "33333333-3333-4333-8333-333333333333",
+          externalId: "300",
+          title: "9월 축제",
+          status: "UPCOMING",
+          eventStartDate: "2026-09-10",
+          eventEndDate: "2026-09-12",
+        },
+        {
+          ...response.items[0],
+          id: "11111111-1111-4111-8111-111111111111",
+          externalId: "100",
+          title: "8월 축제",
+          status: "ONGOING",
+          eventStartDate: "2026-08-20",
+          eventEndDate: "2026-08-30",
+        },
+        {
+          ...response.items[0],
+          id: "22222222-2222-4222-8222-222222222222",
+          externalId: "200",
+          title: "9월 초 축제",
+          status: "UPCOMING",
+          eventStartDate: "2026-09-01",
+          eventEndDate: "2026-09-05",
+        },
+      ],
+    };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(unordered), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await loadFestivalDiscovery(
+      "jeju",
+      fetchImpl,
+      "http://localhost:4000/api/v1",
+    );
+
+    expect(result.festivals.map((festival) => festival.title)).toEqual([
+      "8월 축제",
+      "9월 초 축제",
+      "9월 축제",
+    ]);
+  });
+
   it.each([
     { label: "a missing API base URL", baseUrl: "", response: undefined },
     {

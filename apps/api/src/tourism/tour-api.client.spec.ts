@@ -254,6 +254,143 @@ describe("TourApiClient", () => {
     expect(typeof FESTIVAL_API_PORT).toBe("symbol");
   });
 
+  it("calls detailIntro2 with the festival content type", async () => {
+    const { client, fetch } = createClient();
+    fetch.mockResolvedValueOnce(
+      jsonResponse(
+        pageFor(
+          {
+            contentid: festivalItem.contentid,
+            contenttypeid: "15",
+            eventplace: "장안1수변공원",
+            playtime: "17:00~22:00",
+            usetimefestival: "입장료 무료",
+            sponsor1: "동대문구",
+            sponsor1tel: "02-3291-5506",
+          },
+          { numOfRows: 1 },
+        ),
+      ),
+    );
+
+    await expect(
+      client.getFestivalIntro(festivalItem.contentid),
+    ).resolves.toMatchObject({
+      eventplace: "장안1수변공원",
+      playtime: "17:00~22:00",
+      usetimefestival: "입장료 무료",
+      sponsor1: "동대문구",
+      sponsor1tel: "02-3291-5506",
+    });
+
+    const url = requestUrl(fetch);
+    expect(url.pathname).toBe("/KorService2/detailIntro2");
+    expect(url.searchParams.get("contentId")).toBe(festivalItem.contentid);
+    expect(url.searchParams.get("contentTypeId")).toBe("15");
+  });
+
+  it("calls areaBasedList2 for travel courses without a region filter", async () => {
+    const { client, fetch } = createClient();
+    const courseItem = {
+      contentid: "2372032",
+      contenttypeid: "25",
+      title: "이국적인 분위기와 달콤한 도시 송도",
+      modifiedtime: "20260827090244",
+      lDongRegnCd: "",
+    };
+    fetch.mockResolvedValueOnce(
+      jsonResponse(pageFor(courseItem, { pageNo: 2, totalCount: 1069 })),
+    );
+
+    await expect(client.getCoursePage({ pageNo: 2 })).resolves.toMatchObject({
+      items: [courseItem],
+      totalCount: 1069,
+    });
+
+    const url = requestUrl(fetch);
+    expect(url.pathname).toBe("/KorService2/areaBasedList2");
+    expect(url.searchParams.get("contentTypeId")).toBe("25");
+    expect(url.searchParams.get("arrange")).toBe("C");
+    // 여행코스는 lDongRegnCd·areaCode가 비어 있어 지역으로 좁힐 수 없다.
+    expect(url.searchParams.get("lDongRegnCd")).toBeNull();
+    expect(url.searchParams.get("areaCode")).toBeNull();
+  });
+
+  it("calls detailInfo2 with the course content type and a stop-sized page", async () => {
+    const { client, fetch } = createClient();
+    const stop = {
+      contentid: "2372032",
+      contenttypeid: "25",
+      subnum: "0",
+      subcontentid: "2350389",
+      subname: "버거룸181",
+    };
+    fetch.mockResolvedValueOnce(
+      jsonResponse(pageFor(stop, { numOfRows: 50, totalCount: 1 })),
+    );
+
+    await expect(client.getCourseStops("2372032")).resolves.toEqual([stop]);
+
+    const url = requestUrl(fetch);
+    expect(url.pathname).toBe("/KorService2/detailInfo2");
+    expect(url.searchParams.get("contentId")).toBe("2372032");
+    expect(url.searchParams.get("contentTypeId")).toBe("25");
+    expect(url.searchParams.get("numOfRows")).toBe("50");
+  });
+
+  it("calls detailIntro2 with the course content type", async () => {
+    const { client, fetch } = createClient();
+    fetch.mockResolvedValueOnce(
+      jsonResponse(
+        pageFor(
+          {
+            contentid: "2372032",
+            contenttypeid: "25",
+            distance: "5.19km",
+            taketime: "5시간",
+            schedule: "기타",
+            theme: "지자체",
+          },
+          { numOfRows: 1 },
+        ),
+      ),
+    );
+
+    await expect(client.getCourseIntro("2372032")).resolves.toMatchObject({
+      distance: "5.19km",
+      taketime: "5시간",
+      theme: "지자체",
+    });
+
+    expect(requestUrl(fetch).searchParams.get("contentTypeId")).toBe("25");
+  });
+
+  it("rejects with EMPTY_RESPONSE when a course detail returns no item", async () => {
+    const { client, fetch } = createClient();
+    fetch.mockResolvedValueOnce(
+      jsonResponse(pageFor("", { numOfRows: 1, totalCount: 0 })),
+    );
+
+    await expect(client.getCourseIntro("2372032")).rejects.toMatchObject({
+      operation: "detailIntro2",
+      providerCode: "EMPTY_RESPONSE",
+    });
+  });
+
+  it("rejects with EMPTY_RESPONSE when detailIntro2 returns no festival item", async () => {
+    const { client, fetch } = createClient();
+    fetch.mockResolvedValueOnce(
+      jsonResponse(pageFor("", { numOfRows: 1, totalCount: 0 })),
+    );
+
+    await expect(
+      client.getFestivalIntro(festivalItem.contentid),
+    ).rejects.toMatchObject({
+      operation: "detailIntro2",
+      providerCode: "EMPTY_RESPONSE",
+    });
+  });
+
   it("normalizes a single item object, an item array, and empty items", async () => {
     const { client, fetch } = createClient();
 
@@ -516,5 +653,45 @@ describe("TourApiClient", () => {
     expect(imageUrl.pathname).toBe("/KorService2/detailImage2");
     expect(imageUrl.searchParams.get("imageYN")).toBe("Y");
     expect(imageUrl.searchParams.has("subImageYN")).toBe(false);
+  });
+
+  it("searchPlaceByKeyword queries searchKeyword2 for image-bearing results", async () => {
+    const { client, fetch } = createClient();
+    fetch.mockResolvedValueOnce(jsonResponse(pageFor([placeItem])));
+
+    await expect(
+      client.searchPlaceByKeyword({ keyword: "아침미소목장", areaCode: "39" }),
+    ).resolves.toEqual(placeItem);
+
+    const url = requestUrl(fetch);
+    expect(url.pathname).toBe("/KorService2/searchKeyword2");
+    expect(url.searchParams.get("keyword")).toBe("아침미소목장");
+    expect(url.searchParams.get("arrange")).toBe("O");
+    expect(url.searchParams.get("areaCode")).toBe("39");
+    expect(url.searchParams.get("numOfRows")).toBe("20");
+  });
+
+  it("searchPlaceByKeyword retries without areaCode when the region search is empty", async () => {
+    const { client, fetch } = createClient();
+    fetch
+      .mockResolvedValueOnce(jsonResponse(pageFor([], { totalCount: 0 })))
+      .mockResolvedValueOnce(jsonResponse(pageFor([placeItem])));
+
+    await expect(
+      client.searchPlaceByKeyword({ keyword: "아침미소목장", areaCode: "11" }),
+    ).resolves.toEqual(placeItem);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(requestUrl(fetch, 0).searchParams.get("areaCode")).toBe("11");
+    expect(requestUrl(fetch, 1).searchParams.has("areaCode")).toBe(false);
+  });
+
+  it("searchPlaceByKeyword returns null for a blank keyword without calling the API", async () => {
+    const { client, fetch } = createClient();
+
+    await expect(
+      client.searchPlaceByKeyword({ keyword: "   " }),
+    ).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

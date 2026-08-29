@@ -74,6 +74,7 @@ const EXPECTED_DATABASE_COMMENTS = {
       credit_card: "신용카드 사용 가능 여부",
       pet: "반려동물 동반 가능 여부",
       detail_synced_at: "TourAPI 상세정보를 마지막으로 정상 반영한 시각",
+      reels_synced_at: "관광지 릴스를 YouTube에서 마지막으로 수집 시도한 시각",
       primary_image_url: "대표 원본 이미지 URL",
       primary_thumbnail_url: "대표 썸네일 이미지 URL",
       image_copyright_type: "대표 이미지 공공누리 저작권 유형",
@@ -132,6 +133,12 @@ const EXPECTED_DATABASE_COMMENTS = {
       rank: "집계 범위 안의 원본 순위",
       share_percent: "데이터랩 원본 비율의 퍼센트 값",
       place_id: "매칭된 Haetteum 관광지 식별자",
+      primary_image_url:
+        "랭킹 노출용 대표 이미지 URL이며 매칭된 관광지 또는 TourAPI 키워드 검색에서 확정",
+      image_copyright_type: "대표 이미지 공공누리 저작권 유형",
+      image_attribution:
+        "TourAPI 밖에서(Wikimedia Commons 등) 가져온 이미지의 저작자 표시 문구",
+      image_attribution_url: "imageAttribution 문구가 링크할 출처 페이지 URL",
       source_file_name: "감사 가능한 원본 CSV 파일명",
       imported_at: "순위 스냅샷 적재 시각",
       created_at: "내부 레코드 생성 시각",
@@ -160,6 +167,8 @@ const EXPECTED_DATABASE_COMMENTS = {
       category2: "TourAPI 신분류 중분류 코드",
       category3: "TourAPI 신분류 소분류 코드",
       telephone: "축제 안내 전화번호",
+      is_visible:
+        "provider가 콘텐츠를 계속 제공하는지 여부(비표출 전환 시 false)",
       primary_image_url: "대표 원본 이미지 URL",
       primary_thumbnail_url: "대표 썸네일 이미지 URL",
       image_copyright_type: "대표 이미지 공공누리 저작권 유형",

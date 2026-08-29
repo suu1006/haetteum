@@ -35,7 +35,9 @@ export class FestivalSyncService {
       fetchedCount: 0,
       insertedCount: 0,
       updatedCount: 0,
+      deactivatedCount: 0,
     };
+    const seenExternalIds = new Set<string>();
     const lastSyncedAt = new Date();
     const run = await this.repository.createSyncRun(rangeStart);
 
@@ -64,6 +66,8 @@ export class FestivalSyncService {
           mapFestival(item, lastSyncedAt),
         );
         const delta = await this.repository.upsertPage(festivals);
+        for (const festival of festivals)
+          seenExternalIds.add(festival.externalId);
         counters.fetchedCount += page.items.length;
         counters.insertedCount += delta.insertedCount;
         counters.updatedCount += delta.updatedCount;
@@ -75,6 +79,13 @@ export class FestivalSyncService {
       if (counters.fetchedCount === 0) {
         throw new SafeFestivalSyncError("TourAPI returned zero festivals");
       }
+
+      counters.deactivatedCount = await this.repository.deactivateMissing({
+        rangeStart,
+        rangeEnd,
+        seenExternalIds,
+        lastSyncedAt,
+      });
 
       return await this.repository.completeSyncRun(run.id, counters);
     } catch (error) {

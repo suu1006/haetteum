@@ -4,11 +4,9 @@ import { fileURLToPath } from "node:url";
 import { NestFactory } from "@nestjs/core";
 
 import type { FestivalSyncService } from "./festival-sync.service.js";
+import { FESTIVAL_SYNC_RANGE } from "./tourism.constants.js";
 
-export const FESTIVAL_SYNC_RANGE = {
-  eventStartDate: "20260101",
-  eventEndDate: "20271231",
-} as const;
+export { FESTIVAL_SYNC_RANGE };
 
 type CommandOutput = (message: string) => void;
 type FestivalSyncRunner = Pick<FestivalSyncService, "fullSync">;
@@ -29,6 +27,7 @@ export async function executeFestivalSync(
         fetchedCount: summary.fetchedCount,
         insertedCount: summary.insertedCount,
         updatedCount: summary.updatedCount,
+        deactivatedCount: summary.deactivatedCount,
         failedCount: summary.failedCount,
         runId: summary.runId,
       }),

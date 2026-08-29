@@ -2,6 +2,7 @@ import { Prisma } from "../generated/prisma/client.js";
 
 import {
   mapChangedPlace,
+  mapCourseBundle,
   mapDistrict,
   mapFestival,
   mapPlace,
@@ -93,6 +94,7 @@ describe("TourAPI mapper", () => {
       imageCopyrightType: "Type1",
       providerCreatedAt: new Date("2019-07-17T03:34:56.000Z"),
       providerModifiedAt: new Date("2026-08-24T08:36:55.000Z"),
+      isVisible: true,
       lastSyncedAt,
     });
   });
@@ -412,5 +414,166 @@ describe("TourAPI mapper", () => {
         displayOrder: 0,
       },
     ]);
+  });
+});
+
+describe("mapCourseBundle", () => {
+  const item = {
+    contentid: "2372032",
+    contenttypeid: "25",
+    title: "이국적인 분위기와 달콤한 도시 송도",
+    mapx: "126.6368401215",
+    mapy: "37.3967115076",
+    modifiedtime: "20260827090244",
+    lDongRegnCd: "",
+  };
+  const common = {
+    contentid: "2372032",
+    overview: "국제도시 송도의 맛코스.",
+  };
+  const intro = {
+    contentid: "2372032",
+    distance: "5.19km",
+    taketime: "5시간",
+    schedule: "기타",
+    theme: "지자체",
+  };
+  const syncedAt = new Date("2026-08-29T00:00:00.000Z");
+
+  it("normalizes the course with its stops renumbered from one", () => {
+    const course = mapCourseBundle({
+      item,
+      common,
+      intro,
+      stops: [
+        {
+          contentid: "2372032",
+          subnum: "0",
+          subcontentid: "2350389",
+          subname: "버거룸181",
+          subdetailoverview: "수제버거 전문점",
+          subdetailimg:
+            "http://tong.visitkorea.or.kr/cms/resource/29/2050729_image2_1.jpg",
+        },
+        {
+          contentid: "2372032",
+          subnum: "1",
+          subcontentid: "1851364",
+          subname: "인천 컴팩 스마트시티",
+        },
+      ],
+      lastSyncedAt: syncedAt,
+    });
+
+    expect(course).toMatchObject({
+      source: "TOUR_API",
+      externalId: "2372032",
+      title: "이국적인 분위기와 달콤한 도시 송도",
+      overview: "국제도시 송도의 맛코스.",
+      takeTime: "5시간",
+      distance: "5.19km",
+      schedule: "기타",
+      theme: "지자체",
+      lastSyncedAt: syncedAt,
+    });
+    expect(course.stops).toEqual([
+      {
+        sequence: 1,
+        externalPlaceId: "2350389",
+        title: "버거룸181",
+        overview: "수제버거 전문점",
+        imageUrl:
+          "https://tong.visitkorea.or.kr/cms/resource/29/2050729_image2_1.jpg",
+      },
+      {
+        sequence: 2,
+        externalPlaceId: "1851364",
+        title: "인천 컴팩 스마트시티",
+        overview: null,
+        imageUrl: null,
+      },
+    ]);
+  });
+
+  it("keeps only the first appearance when a stop repeats across subnum values", () => {
+    const course = mapCourseBundle({
+      item,
+      common,
+      intro,
+      stops: [
+        {
+          contentid: "2372032",
+          subnum: "1",
+          subcontentid: "1851364",
+          subname: "인천 컴팩 스마트시티",
+        },
+        {
+          contentid: "2372032",
+          subnum: "1",
+          subcontentid: "2350373",
+          subname: "그리다디저트",
+        },
+        {
+          contentid: "2372032",
+          subnum: "2",
+          subcontentid: "1851364",
+          subname: "인천 컴팩 스마트시티",
+        },
+      ],
+      lastSyncedAt: syncedAt,
+    });
+
+    expect(course.stops.map((stop) => stop.externalPlaceId)).toEqual([
+      "1851364",
+      "2350373",
+    ]);
+    expect(course.stops.map((stop) => stop.sequence)).toEqual([1, 2]);
+  });
+
+  it("falls back to the first stop image when the course carries none", () => {
+    const course = mapCourseBundle({
+      item: { ...item, firstimage: "" },
+      common,
+      intro,
+      stops: [
+        { contentid: "2372032", subcontentid: "2350389", subname: "버거룸181" },
+        {
+          contentid: "2372032",
+          subcontentid: "1851364",
+          subname: "인천 컴팩 스마트시티",
+          subdetailimg:
+            "https://tong.visitkorea.or.kr/cms/resource/52/2015152_image2_1.jpg",
+        },
+      ],
+      lastSyncedAt: syncedAt,
+    });
+
+    expect(course.primaryImageUrl).toBe(
+      "https://tong.visitkorea.or.kr/cms/resource/52/2015152_image2_1.jpg",
+    );
+  });
+
+  it("rejects a bundle whose content type is not a travel course", () => {
+    expect(() =>
+      mapCourseBundle({
+        item: { ...item, contenttypeid: "12" },
+        common,
+        intro,
+        stops: [],
+        lastSyncedAt: syncedAt,
+      }),
+    ).toThrow("Invalid TourAPI course content type");
+  });
+
+  it("rejects a bundle whose detail responses belong to another content", () => {
+    expect(() =>
+      mapCourseBundle({
+        item,
+        common: { ...common, contentid: "9999999" },
+        intro,
+        stops: [],
+        lastSyncedAt: syncedAt,
+      }),
+    ).toThrow("Invalid TourAPI course common detail content ID");
   });
 });

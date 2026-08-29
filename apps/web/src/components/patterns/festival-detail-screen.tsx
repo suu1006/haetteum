@@ -5,14 +5,12 @@ import { FestivalDetailActions } from "@/components/travel/festival-detail-actio
 import { FestivalDetailHeader } from "@/components/travel/festival-detail-header";
 import { FestivalGallery } from "@/components/travel/festival-gallery";
 import { FestivalIntroduction } from "@/components/travel/festival-introduction";
-import { FestivalProgramGrid } from "@/components/travel/festival-program-grid";
-import { FestivalRecommendationPoints } from "@/components/travel/festival-recommendation-points";
 import { FestivalSummary } from "@/components/travel/festival-summary";
-import { NearbyCourseList } from "@/components/travel/nearby-course-list";
-import type { FestivalDetail } from "@/features/festivals/festival-detail-model";
+import type { FestivalDetailView } from "@/features/festivals/festival-detail-model";
+import { cn } from "@/lib/utils";
 
 type FestivalDetailScreenProps = {
-  festival: FestivalDetail;
+  festival: FestivalDetailView;
 };
 
 const detailStyle = {
@@ -22,12 +20,19 @@ const detailStyle = {
 } as CSSProperties;
 
 function FestivalDetailScreen({ festival }: FestivalDetailScreenProps) {
+  const hasBottomActions = Boolean(festival.homepage || festival.mapUrl);
+
   return (
     <main
-      className="min-h-screen max-w-[30rem] mx-auto bg-background pb-[var(--festival-detail-action-reserve)]"
-      style={detailStyle}
+      className={cn(
+        "min-h-screen max-w-[30rem] mx-auto bg-background",
+        hasBottomActions
+          ? "pb-[var(--festival-detail-action-reserve)]"
+          : "sticky-safe-area-bottom",
+      )}
+      style={hasBottomActions ? detailStyle : undefined}
     >
-      <div data-detail-region="header">
+      <div data-detail-region="header" className="sticky top-0 z-40">
         <FestivalDetailHeader title={festival.title} />
       </div>
       <div data-detail-region="gallery">
@@ -37,37 +42,51 @@ function FestivalDetailScreen({ festival }: FestivalDetailScreenProps) {
         <div data-detail-region="summary">
           <FestivalSummary festival={festival} />
         </div>
-        <Card data-detail-region="introduction" className="gap-0 py-4">
-          <CardContent>
-            <FestivalIntroduction introduction={festival.introduction} />
-          </CardContent>
-        </Card>
-        {festival.programs.length > 0 ? (
-          <Card data-detail-region="programs" className="gap-0 py-4">
+
+        {festival.overview ? (
+          <Card data-detail-region="introduction" className="gap-0 py-4">
             <CardContent>
-              <FestivalProgramGrid programs={festival.programs} />
+              <FestivalIntroduction introduction={festival.overview} />
             </CardContent>
           </Card>
         ) : null}
-        {festival.recommendationPoints.length > 0 ? (
-          <Card data-detail-region="points" className="gap-0 py-4">
+
+        {festival.eventInfo.length > 0 ? (
+          <Card data-detail-region="event-info" className="gap-0 py-4">
             <CardContent>
-              <FestivalRecommendationPoints
-                points={festival.recommendationPoints}
+              <h2 className="type-label text-foreground">행사 정보</h2>
+              <dl className="mt-3 space-y-2.5">
+                {festival.eventInfo.map((item) => (
+                  <div key={item.id} className="flex gap-3">
+                    <dt className="type-caption w-16 shrink-0 text-muted-foreground">
+                      {item.label}
+                    </dt>
+                    <dd className="type-body-sm min-w-0 flex-1 whitespace-pre-line text-foreground">
+                      {item.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {festival.program ? (
+          <Card data-detail-region="program" className="gap-0 py-4">
+            <CardContent>
+              <FestivalIntroduction
+                title="프로그램"
+                introduction={festival.program}
               />
-            </CardContent>
-          </Card>
-        ) : null}
-        {festival.nearbyCourses.length > 0 ? (
-          <Card data-detail-region="nearby" className="gap-0 py-4">
-            <CardContent>
-              <NearbyCourseList courses={festival.nearbyCourses} />
             </CardContent>
           </Card>
         ) : null}
       </div>
       <div data-detail-region="actions">
-        <FestivalDetailActions />
+        <FestivalDetailActions
+          homepage={festival.homepage}
+          mapUrl={festival.mapUrl}
+        />
       </div>
     </main>
   );

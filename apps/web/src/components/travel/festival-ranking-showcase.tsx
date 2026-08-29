@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
 import { FestivalRemoteImage } from "@/components/travel/festival-remote-image";
+import { buildFestivalDetailHref } from "@/features/festivals/festival-detail-model";
 import {
   Carousel,
   type CarouselApi,
@@ -23,6 +25,7 @@ type FestivalRankingActiveCardProps = {
 };
 
 type FestivalRankingMotionState = {
+  activeInteractive: boolean;
   activeOpacity: number;
   activeScale: number;
   compactOpacity: number;
@@ -44,6 +47,8 @@ function getFestivalRankingMotionState(
   const activeProgress = 1 - Math.abs(boundedDistance);
 
   return {
+    // 겹쳐 놓은 두 레이어 중 더 많이 보이는 쪽만 클릭을 받는다.
+    activeInteractive: activeProgress > 0.5,
     activeOpacity: activeProgress,
     activeScale: reducedMotion ? 1 : 0.86 + activeProgress * 0.14,
     compactOpacity: 1 - activeProgress,
@@ -78,8 +83,14 @@ function applyFestivalRankingMotion(
     '[data-ranking-layer="compact"]',
   );
 
+  // 보이는 모습은 캐러셀 스크롤 위치가, 클릭 가능 여부는 React 상태가 정하면
+  // 전환 중에 둘이 어긋나 화면에 보이는 카드가 클릭을 받지 못한다.
+  // 그래서 pointer-events와 쌓임 순서도 여기서 같은 값으로 함께 맞춘다.
+  slide.style.zIndex = state.activeInteractive ? "10" : "0";
+
   if (activeLayer) {
     activeLayer.style.opacity = String(state.activeOpacity);
+    activeLayer.style.pointerEvents = state.activeInteractive ? "auto" : "none";
     activeLayer.style.scale = "none";
     activeLayer.style.transform = `translateX(-50%) scale(${state.activeScale})`;
     activeLayer.style.translate = "none";
@@ -88,6 +99,7 @@ function applyFestivalRankingMotion(
   if (compactLayer) {
     compactLayer.style.left = `${state.compactPlacement}%`;
     compactLayer.style.opacity = String(state.compactOpacity);
+    compactLayer.style.pointerEvents = state.activeInteractive ? "none" : "auto";
     compactLayer.style.scale = "none";
     compactLayer.style.transform = `translateX(-50%) scale(${state.compactScale})`;
     compactLayer.style.translate = "none";
@@ -150,6 +162,13 @@ function FestivalRankingActiveCard({
             {festival.dateLabel}
           </p>
         </div>
+
+        <Link
+          href={buildFestivalDetailHref(festival.id)}
+          aria-label={`${festival.rank}위 ${festival.title} 상세 보기`}
+          tabIndex={active ? 0 : -1}
+          className="absolute inset-0 z-10 rounded-[1.125rem] outline-none focus-visible:ring-3 focus-visible:ring-white/70"
+        />
       </article>
     </div>
   );
@@ -283,14 +302,16 @@ function FestivalRankingShowcase({
 
     updateSelection();
     api.on("scroll", updateMotion);
-    api.on("settle", updateMotion);
+    // settle에서도 선택 상태를 다시 맞춰, 전환이 끝난 뒤에는
+    // 화면에 보이는 카드와 aria/포커스 대상이 항상 같은 카드가 되게 한다.
+    api.on("settle", updateSelection);
     api.on("select", updateSelection);
     api.on("reInit", updateSelection);
     reducedMotionQuery.addEventListener("change", updateMotion);
 
     return () => {
       api.off("scroll", updateMotion);
-      api.off("settle", updateMotion);
+      api.off("settle", updateSelection);
       api.off("select", updateSelection);
       api.off("reInit", updateSelection);
       reducedMotionQuery.removeEventListener("change", updateMotion);

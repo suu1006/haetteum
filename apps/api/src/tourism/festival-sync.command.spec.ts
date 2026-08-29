@@ -18,6 +18,7 @@ describe("festival sync command", () => {
           fetchedCount: 38,
           insertedCount: 38,
           updatedCount: 0,
+          deactivatedCount: 2,
           failedCount: 0 as const,
         };
       },
@@ -39,6 +40,7 @@ describe("festival sync command", () => {
       fetchedCount: 38,
       insertedCount: 38,
       updatedCount: 0,
+      deactivatedCount: 2,
       failedCount: 0,
       runId: "run-1",
     });

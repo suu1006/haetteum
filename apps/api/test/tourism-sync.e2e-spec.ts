@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake port methods preserve the async provider interface */
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -24,6 +23,8 @@ import {
 } from "../src/tourism/tourism.constants.js";
 import { TourismModule } from "../src/tourism/tourism.module.js";
 import { TourismSyncService } from "../src/tourism/tourism-sync.service.js";
+
+import { applyMigrations } from "./apply-migrations.js";
 
 type PageResult<T> = TourApiPage<T> | Error;
 
@@ -121,11 +122,23 @@ class DatabaseTourApiFixture implements TourApiPort {
     return { contentid: contentId };
   }
 
+  async getFestivalIntro(contentId: string) {
+    return { contentid: contentId };
+  }
+
   async getPlaceRepeatInfo() {
     return [];
   }
 
   async getPlaceImages() {
+    return [];
+  }
+
+  async searchPlaceByKeyword() {
+    return null;
+  }
+
+  async searchPlaceCandidates() {
     return [];
   }
 
@@ -195,18 +208,7 @@ describe("TourismSyncService PostgreSQL integration (e2e)", () => {
     try {
       await client.query(`CREATE SCHEMA "${schemaName}"`);
       await client.query(`SET search_path TO "${schemaName}"`);
-      for (const migrationPath of [
-        "../prisma/migrations/20260821000000_add_tourism_place_foundation/migration.sql",
-        "../prisma/migrations/20260822000000_add_tourism_database_comments/migration.sql",
-        "../prisma/migrations/20260824135934_scope_tourism_district_provider_code/migration.sql",
-        "../prisma/migrations/20260826150000_add_place_details/migration.sql",
-      ]) {
-        const migration = await readFile(
-          new URL(migrationPath, import.meta.url),
-          "utf8",
-        );
-        await client.query(migration);
-      }
+      await applyMigrations(client);
     } finally {
       client.release();
     }

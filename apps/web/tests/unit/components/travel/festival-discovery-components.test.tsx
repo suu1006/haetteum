@@ -10,11 +10,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AiCourseBanner } from "@/components/travel/ai-course-banner";
-import { FestivalCardRail } from "@/components/travel/festival-card-rail";
 import { FestivalFeatureBanner } from "@/components/travel/festival-feature-banner";
 import { FestivalFilterGroup } from "@/components/travel/festival-filter-group";
 import { FestivalDiscoveryListItem } from "@/components/travel/festival-discovery-list-item";
-import { FestivalRankingCard } from "@/components/travel/festival-ranking-card";
 import { FestivalRankingShowcase } from "@/components/travel/festival-ranking-showcase";
 import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
@@ -57,37 +55,6 @@ describe("FestivalFilterGroup", () => {
       "href",
       expect.stringContaining("q=%EA%BD%83"),
     );
-  });
-});
-
-describe("FestivalRankingCard", () => {
-  it("renders rank, status and metadata in a named festival article", () => {
-    const festival = mainDiscoveryMock.festivals.find(
-      (item) => item.id === "jeju-summer-light-garden",
-    );
-    if (!festival) {
-      throw new Error("Expected the Jeju summer light garden fixture.");
-    }
-
-    render(
-      <FestivalRankingCard
-        festival={festival}
-        href="/festivals/jeju-summer-light-garden"
-      />,
-    );
-
-    expect(
-      screen.getByRole("article", { name: "1위 제주 여름빛 정원축제" }),
-    ).toBeVisible();
-    expect(screen.getByText("진행 중")).toBeVisible();
-    expect(screen.getByText("가족")).toBeVisible();
-    expect(screen.getByText("야간")).toBeVisible();
-    expect(
-      screen.getByRole("img", { name: "제주 들판에 핀 여름꽃" }),
-    ).toHaveAttribute("loading", "eager");
-    expect(
-      screen.getByRole("link", { name: /1위 제주 여름빛 정원축제/ }),
-    ).toHaveAttribute("href", "/festivals/jeju-summer-light-garden");
   });
 });
 
@@ -236,6 +203,39 @@ describe("FestivalRankingShowcase", () => {
     }
   });
 
+  it("keeps the visible ranking card clickable while the carousel is mid-transition", () => {
+    vi.useFakeTimers();
+
+    const { container } = render(
+      <FestivalRankingShowcase
+        festivals={mainDiscoveryMock.festivalDiscovery.ranking}
+      />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(3_000);
+    });
+
+    // 화면에 보이는 카드가 곧 링크를 받는 카드여야 한다.
+    // 예전에는 보이는 모습만 스크롤 위치를 따라가고 pointer-events는
+    // React 상태를 따라가서, 전환 중에 보이는 카드가 클릭을 삼켰다.
+    for (const slide of container.querySelectorAll<HTMLElement>(
+      "[role='listitem']",
+    )) {
+      const activeLayer = slide.querySelector<HTMLElement>(
+        "[data-ranking-layer='active']",
+      );
+      const compactLayer = slide.querySelector<HTMLElement>(
+        "[data-ranking-layer='compact']",
+      );
+      const visible = Number(activeLayer?.style.opacity) > 0.5;
+
+      expect(activeLayer?.style.pointerEvents).toBe(visible ? "auto" : "none");
+      expect(compactLayer?.style.pointerEvents).toBe(visible ? "none" : "auto");
+      expect(slide.style.zIndex).toBe(visible ? "10" : "0");
+    }
+  });
+
   it("restarts the three-second countdown after a manual selection", () => {
     vi.useFakeTimers();
 
@@ -278,26 +278,6 @@ describe("FestivalFeatureBanner", () => {
       screen.getByRole("heading", { name: "제주 가을 산책 주간" }),
     ).toBeVisible();
     expect(screen.getByText("2026. 9. 19. – 10. 11.")).toBeVisible();
-  });
-});
-
-describe("FestivalCardRail", () => {
-  it("reveals additional festivals once and reports completion", async () => {
-    const user = userEvent.setup();
-    const festivals = mainDiscoveryMock.festivals.filter(
-      (festival) => festival.region === "jeju",
-    );
-
-    render(<FestivalCardRail festivals={festivals} />);
-
-    expect(screen.getAllByRole("article", { name: /위 / })).toHaveLength(4);
-
-    await user.click(screen.getByRole("button", { name: "더 많은 축제 보기" }));
-
-    expect(screen.getAllByRole("article", { name: /위 / })).toHaveLength(6);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "추가 축제를 모두 펼쳤어요",
-    );
   });
 });
 

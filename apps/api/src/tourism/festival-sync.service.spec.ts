@@ -56,8 +56,14 @@ class FakeFestivalRepository {
   readonly storedIds = new Set<string>();
   readonly pages: string[][] = [];
   readonly failures: Array<{ summary: string; counters: unknown }> = [];
+  readonly deactivateCalls: Array<{
+    rangeStart: Date;
+    rangeEnd: Date;
+    seenExternalIds: readonly string[];
+  }> = [];
   completeCalls = 0;
   upsertError: Error | undefined;
+  deactivatedCount = 0;
 
   async createSyncRun(rangeStart: Date) {
     expect(rangeStart).toEqual(new Date("2026-01-01T00:00:00.000Z"));
@@ -79,12 +85,27 @@ class FakeFestivalRepository {
     return { insertedCount, updatedCount };
   }
 
+  async deactivateMissing(input: {
+    rangeStart: Date;
+    rangeEnd: Date;
+    seenExternalIds: ReadonlySet<string>;
+    lastSyncedAt: Date;
+  }) {
+    this.deactivateCalls.push({
+      rangeStart: input.rangeStart,
+      rangeEnd: input.rangeEnd,
+      seenExternalIds: [...input.seenExternalIds],
+    });
+    return this.deactivatedCount;
+  }
+
   async completeSyncRun(
     runId: string,
     counters: {
       fetchedCount: number;
       insertedCount: number;
       updatedCount: number;
+      deactivatedCount: number;
     },
   ) {
     this.completeCalls += 1;
@@ -123,6 +144,7 @@ describe("FestivalSyncService", () => {
       fetchedCount: 2,
       insertedCount: 2,
       updatedCount: 0,
+      deactivatedCount: 0,
       failedCount: 0,
     });
     expect(provider.calls).toEqual([
@@ -159,6 +181,34 @@ describe("FestivalSyncService", () => {
     );
     expect(repository.completeCalls).toBe(0);
     expect(repository.failures).toHaveLength(1);
+  });
+
+  it("hides festivals TourAPI no longer returns in the synced range", async () => {
+    const { provider, repository, service } = setup();
+    repository.deactivatedCount = 1;
+    provider.pages.set(1, page([festival("festival-1")]));
+
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      fetchedCount: 1,
+      deactivatedCount: 1,
+    });
+    expect(repository.deactivateCalls).toEqual([
+      {
+        rangeStart: new Date("2026-01-01T00:00:00.000Z"),
+        rangeEnd: new Date("2027-12-31T00:00:00.000Z"),
+        seenExternalIds: ["festival-1"],
+      },
+    ]);
+  });
+
+  it("never hides festivals when the sync run fails", async () => {
+    const { provider, repository, service } = setup();
+    provider.pages.set(1, page([], 1, 100, 0));
+
+    await expect(service.fullSync(RANGE)).rejects.toThrow(
+      "Festival synchronization failed",
+    );
+    expect(repository.deactivateCalls).toHaveLength(0);
   });
 
   it("rejects a zero-result full sync", async () => {

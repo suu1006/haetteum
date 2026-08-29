@@ -545,6 +545,9 @@ model Festival {
   /// 축제 안내 전화번호
   telephone String? @db.VarChar(100)
 
+  /// provider가 콘텐츠를 계속 제공하는지 여부(비표출 전환 시 false)
+  isVisible Boolean @default(true) @map("is_visible")
+
   /// 대표 원본 이미지 URL
   primaryImageUrl     String?   @map("primary_image_url") @db.Text
   /// 대표 썸네일 이미지 URL
@@ -566,6 +569,7 @@ model Festival {
   @@index([eventStartDate, eventEndDate])
   @@index([providerRegionCode, eventStartDate])
   @@index([providerModifiedAt])
+  @@index([isVisible, eventStartDate])
   @@map("festivals")
 }
 

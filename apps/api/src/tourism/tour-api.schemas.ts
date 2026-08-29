@@ -60,6 +60,39 @@ export const tourApiPlaceIntroSchema = z.object({
   chkpet: optionalProviderText,
 });
 
+export const tourApiFestivalIntroSchema = z.object({
+  contentid: z.string(),
+  contenttypeid: optionalProviderText,
+  eventplace: optionalProviderText,
+  playtime: optionalProviderText,
+  usetimefestival: optionalProviderText,
+  program: optionalProviderText,
+  sponsor1: optionalProviderText,
+  sponsor1tel: optionalProviderText,
+  sponsor2: optionalProviderText,
+  sponsor2tel: optionalProviderText,
+});
+
+export const tourApiCourseIntroSchema = z.object({
+  contentid: z.string(),
+  contenttypeid: optionalProviderText,
+  distance: optionalProviderText,
+  taketime: optionalProviderText,
+  schedule: optionalProviderText,
+  theme: optionalProviderText,
+});
+
+export const tourApiCourseStopSchema = z.object({
+  contentid: z.string(),
+  contenttypeid: optionalProviderText,
+  subnum: optionalProviderText,
+  subcontentid: z.string(),
+  subname: z.string(),
+  subdetailoverview: optionalProviderText,
+  subdetailimg: optionalProviderText,
+  subdetailalt: optionalProviderText,
+});
+
 export const tourApiPlaceInfoSchema = z.object({
   contentid: z.string(),
   contenttypeid: optionalProviderText,

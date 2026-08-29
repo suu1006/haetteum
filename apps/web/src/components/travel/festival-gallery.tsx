@@ -34,7 +34,7 @@ function FestivalGallery({ gallery }: FestivalGalleryProps) {
       >
         {gallery.map((image) => (
           <li key={image.src} className="w-full shrink-0 snap-center">
-            <div className="relative aspect-[12/5] overflow-hidden bg-muted">
+            <div className="relative aspect-[16/9] overflow-hidden bg-muted">
               <Image
                 src={image.src}
                 alt={image.alt}

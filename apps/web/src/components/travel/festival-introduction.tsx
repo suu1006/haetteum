@@ -1,15 +1,20 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 type FestivalIntroductionProps = {
+  title?: string;
   introduction: string;
 };
 
-function FestivalIntroduction({ introduction }: FestivalIntroductionProps) {
+function FestivalIntroduction({
+  title = "축제 소개",
+  introduction,
+}: FestivalIntroductionProps) {
+  const headingId = useId();
   const introductionRef = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -21,9 +26,9 @@ function FestivalIntroduction({ introduction }: FestivalIntroductionProps) {
   }, [expanded, introduction]);
 
   return (
-    <section aria-labelledby="festival-introduction-title">
-      <h2 id="festival-introduction-title" className="type-title-md text-foreground">
-        축제 소개
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId} className="type-title-md text-foreground">
+        {title}
       </h2>
       <p
         ref={introductionRef}
@@ -38,7 +43,7 @@ function FestivalIntroduction({ introduction }: FestivalIntroductionProps) {
           type="button"
           variant="ghost"
           className="mt-2 h-11 px-2 text-primary"
-          aria-label={expanded ? "축제 소개 접기" : "축제 소개 더보기"}
+          aria-label={expanded ? `${title} 접기` : `${title} 더보기`}
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? "접기" : "더보기"}

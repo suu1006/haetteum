@@ -31,6 +31,7 @@ function festival(externalId: string): NormalizedFestival {
     imageCopyrightType: null,
     providerCreatedAt: null,
     providerModifiedAt: new Date("2026-08-24T00:00:00.000Z"),
+    isVisible: true,
     lastSyncedAt: syncedAt,
   };
 }
@@ -57,6 +58,29 @@ class FakePrisma {
       const data = args.create as NormalizedFestival;
       this.festivals.set(data.externalId, data);
       return data;
+    },
+    updateMany: async (args: {
+      where: {
+        source: string;
+        isVisible: boolean;
+        eventStartDate: { gte: Date };
+        eventEndDate: { lte: Date };
+        externalId?: { notIn: string[] };
+      };
+      data: { isVisible: boolean; lastSyncedAt: Date };
+    }) => {
+      const matched = [...this.festivals.values()].filter(
+        (item) =>
+          item.source === args.where.source &&
+          item.isVisible === args.where.isVisible &&
+          item.eventStartDate >= args.where.eventStartDate.gte &&
+          item.eventEndDate <= args.where.eventEndDate.lte &&
+          !(args.where.externalId?.notIn ?? []).includes(item.externalId),
+      );
+      for (const item of matched) {
+        this.festivals.set(item.externalId, { ...item, ...args.data });
+      }
+      return { count: matched.length };
     },
   };
 
@@ -133,6 +157,33 @@ describe("FestivalRepository", () => {
     expect(prisma.festivals.size).toBe(0);
   });
 
+  it("hides only in-range festivals that the sync run did not see", async () => {
+    const { prisma, repository } = setup();
+    prisma.festivals.set("kept", festival("kept"));
+    prisma.festivals.set("withdrawn", festival("withdrawn"));
+    prisma.festivals.set("out-of-range", {
+      ...festival("out-of-range"),
+      eventStartDate: new Date("2025-08-01T00:00:00.000Z"),
+      eventEndDate: new Date("2025-08-31T00:00:00.000Z"),
+    });
+    const lastSyncedAt = new Date("2026-08-29T00:00:00.000Z");
+
+    const count = await repository.deactivateMissing({
+      rangeStart: new Date("2026-01-01T00:00:00.000Z"),
+      rangeEnd: new Date("2027-12-31T00:00:00.000Z"),
+      seenExternalIds: new Set(["kept"]),
+      lastSyncedAt,
+    });
+
+    expect(count).toBe(1);
+    expect(prisma.festivals.get("kept")?.isVisible).toBe(true);
+    expect(prisma.festivals.get("out-of-range")?.isVisible).toBe(true);
+    expect(prisma.festivals.get("withdrawn")).toMatchObject({
+      isVisible: false,
+      lastSyncedAt,
+    });
+  });
+
   it("records successful and failed terminal run states with exact counters", async () => {
     const { prisma, repository } = setup();
     const run = await repository.createSyncRun(
@@ -143,6 +194,7 @@ describe("FestivalRepository", () => {
       fetchedCount: 2,
       insertedCount: 1,
       updatedCount: 1,
+      deactivatedCount: 3,
     });
 
     expect(success).toMatchObject({
@@ -151,6 +203,7 @@ describe("FestivalRepository", () => {
       fetchedCount: 2,
       insertedCount: 1,
       updatedCount: 1,
+      deactivatedCount: 3,
       failedCount: 0,
     });
     expect(prisma.runs.get(run.id)).toMatchObject({
@@ -158,6 +211,7 @@ describe("FestivalRepository", () => {
       fetchedCount: 2,
       insertedCount: 1,
       updatedCount: 1,
+      deactivatedCount: 3,
       failedCount: 0,
       errorSummary: null,
     });
@@ -167,7 +221,12 @@ describe("FestivalRepository", () => {
     );
     await repository.failSyncRun(
       failedRun.id,
-      { fetchedCount: 1, insertedCount: 1, updatedCount: 0 },
+      {
+        fetchedCount: 1,
+        insertedCount: 1,
+        updatedCount: 0,
+        deactivatedCount: 0,
+      },
       "Festival synchronization failed (22)",
     );
     expect(prisma.runs.get(failedRun.id)).toMatchObject({
@@ -175,6 +234,7 @@ describe("FestivalRepository", () => {
       fetchedCount: 1,
       insertedCount: 1,
       updatedCount: 0,
+      deactivatedCount: 0,
       failedCount: 1,
       errorSummary: "Festival synchronization failed (22)",
     });

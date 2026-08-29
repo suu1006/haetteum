@@ -3,6 +3,7 @@ import type { PrismaService } from "../prisma/prisma.service.js";
 import type {
   TourApiChangedPlace,
   TourApiDistrict,
+  TourApiFestivalIntro,
   TourApiPage,
   TourApiPlace,
   TourApiPlaceDetail,
@@ -205,6 +206,11 @@ class FakeTourApi implements TourApiPort {
     return this.intro;
   }
 
+  async getFestivalIntro(contentId: string): Promise<TourApiFestivalIntro> {
+    this.detailCalls.push(`festivalIntro:${contentId}`);
+    return { contentid: contentId };
+  }
+
   async getPlaceRepeatInfo(
     contentId: string,
   ): Promise<readonly TourApiPlaceInfo[]> {
@@ -217,6 +223,14 @@ class FakeTourApi implements TourApiPort {
   ): Promise<readonly TourApiPlaceImage[]> {
     this.detailCalls.push(`images:${contentId}`);
     return this.images;
+  }
+
+  async searchPlaceByKeyword(): Promise<TourApiPlace | null> {
+    return null;
+  }
+
+  async searchPlaceCandidates(): Promise<readonly TourApiPlace[]> {
+    return [];
   }
 
   private async resolve<T>(result: PageResult<T>): Promise<TourApiPage<T>> {

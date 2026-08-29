@@ -62,11 +62,76 @@ function setup(ongoing: FestivalRow[] = [], upcoming: FestivalRow[] = []) {
     async <T>(operation: (client: typeof prisma) => Promise<T>) =>
       operation(prisma),
   );
-  const service = new FestivalsService({
-    ...prisma,
-    $transaction: transaction,
-  } as never);
+  const service = new FestivalsService(
+    {
+      ...prisma,
+      $transaction: transaction,
+    } as never,
+    stubTourApi(),
+  );
   return { count, findMany, service, transaction };
+}
+
+function stubTourApi(
+  overrides: Partial<{
+    getPlaceCommonDetail: (
+      contentId: string,
+    ) => Promise<{ overview?: string; homepage?: string }>;
+    getFestivalIntro: (contentId: string) => Promise<{
+      eventplace?: string;
+      playtime?: string;
+      usetimefestival?: string;
+      program?: string;
+      sponsor1?: string;
+      sponsor1tel?: string;
+      sponsor2?: string;
+      sponsor2tel?: string;
+    }>;
+    getPlaceImages: (
+      contentId: string,
+    ) => Promise<ReadonlyArray<{ originimgurl: string; imgname?: string }>>;
+  }> = {},
+) {
+  return {
+    getPlaceCommonDetail:
+      overrides.getPlaceCommonDetail ??
+      (() => Promise.reject(new Error("EMPTY_RESPONSE"))),
+    getFestivalIntro:
+      overrides.getFestivalIntro ??
+      (() => Promise.reject(new Error("EMPTY_RESPONSE"))),
+    getPlaceImages: overrides.getPlaceImages ?? (() => Promise.resolve([])),
+  } as never;
+}
+
+type DetailRow = FestivalRow & {
+  telephone: string | null;
+  longitude: { toNumber(): number } | null;
+  latitude: { toNumber(): number } | null;
+};
+
+function setupDetail(festival: DetailRow | null, tourApi = stubTourApi()) {
+  const findFirst = jest
+    .fn<
+      (args: {
+        where: { id: string; isVisible: boolean };
+      }) => Promise<DetailRow | null>
+    >()
+    .mockResolvedValue(festival);
+  const service = new FestivalsService(
+    { festival: { findFirst } } as never,
+    tourApi,
+  );
+  return { findFirst, service };
+}
+
+function detailRow(overrides: Partial<DetailRow> = {}): DetailRow {
+  return {
+    ...row("3351268"),
+    telephone: " 02-3291-5506 ",
+    longitude: { toNumber: () => 127.0753 },
+    latitude: { toNumber: () => 37.5666 },
+    ...overrides,
+  };
 }
 
 describe("FestivalsService", () => {
@@ -122,6 +187,7 @@ describe("FestivalsService", () => {
     const asOfDate = new Date("2026-08-25T00:00:00.000Z");
     expect(findMany).toHaveBeenNthCalledWith(1, {
       where: {
+        isVisible: true,
         eventStartDate: { lte: asOfDate },
         eventEndDate: { gte: asOfDate },
       },
@@ -129,7 +195,7 @@ describe("FestivalsService", () => {
       take: 3,
     });
     expect(findMany).toHaveBeenNthCalledWith(2, {
-      where: { eventStartDate: { gt: asOfDate } },
+      where: { isVisible: true, eventStartDate: { gt: asOfDate } },
       orderBy: [{ eventStartDate: "asc" }, { externalId: "asc" }],
       take: 3,
     });
@@ -138,11 +204,12 @@ describe("FestivalsService", () => {
     }
   });
 
-  it("maps every browse region to exact provider codes without address matching", async () => {
+  it("applies the browse region only to the list page and leaves the ranking global", async () => {
+    const asOfDate = new Date("2026-08-25T00:00:00.000Z");
     const cases: Array<
-      [FestivalDiscoveryQuery["region"], Record<string, unknown> | undefined]
+      [FestivalDiscoveryQuery["region"], Record<string, unknown>]
     > = [
-      ["all", undefined],
+      ["all", {}],
       ["jeju", { providerRegionCode: "50" }],
       ["seoul", { providerRegionCode: "11" }],
       ["busan", { providerRegionCode: "26" }],
@@ -160,16 +227,27 @@ describe("FestivalsService", () => {
     for (const [region, expectedRegionWhere] of cases) {
       const { findMany, service } = setup();
       await service.list({ region, page: 1, pageSize: 20 }, now);
-      const firstWhere = findMany.mock.calls[0]?.[0].where;
-      expect(firstWhere).toEqual({
-        ...(expectedRegionWhere ?? {}),
-        eventStartDate: { lte: new Date("2026-08-25T00:00:00.000Z") },
-        eventEndDate: { gte: new Date("2026-08-25T00:00:00.000Z") },
+      // 순위 쿼리(첫 두 번의 findMany)는 지역 조건 없이 전체 축제를 조회한다.
+      // TourAPI가 회수한 축제(isVisible=false)는 모든 조회에서 제외한다.
+      expect(findMany.mock.calls[0]?.[0].where).toEqual({
+        isVisible: true,
+        eventStartDate: { lte: asOfDate },
+        eventEndDate: { gte: asOfDate },
+      });
+      expect(findMany.mock.calls[1]?.[0].where).toEqual({
+        isVisible: true,
+        eventStartDate: { gt: asOfDate },
+      });
+      // 지역 조건은 목록 페이지 쿼리(마지막 findMany)에만 적용된다.
+      expect(findMany.mock.calls.at(-1)?.[0].where).toEqual({
+        ...expectedRegionWhere,
+        isVisible: true,
+        eventStartDate: { gt: asOfDate },
       });
     }
   });
 
-  it("keeps ranking global to the selected region while slicing the requested list page", async () => {
+  it("keeps the ranking at the top three regardless of the requested list page", async () => {
     const ongoing = [row("1"), row("2"), row("3"), row("4")];
     const { findMany, service } = setup(ongoing, []);
 
@@ -188,5 +266,115 @@ describe("FestivalsService", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 2, take: 2 }),
     );
+  });
+});
+
+describe("FestivalsService#detail", () => {
+  const detailNow = new Date("2026-08-24T15:01:00.000Z");
+
+  it("looks up only festivals TourAPI still publishes", async () => {
+    const { findFirst, service } = setupDetail(detailRow());
+
+    await service.detail("11111111-1111-4111-8111-111111111111");
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "11111111-1111-4111-8111-111111111111",
+        isVisible: true,
+      },
+    });
+  });
+
+  it("throws NotFound when the festival does not exist", async () => {
+    const { service } = setupDetail(null);
+    await expect(
+      service.detail("00000000-0000-4000-8000-000000000000", detailNow),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("enriches with TourAPI overview and https provider images", async () => {
+    const tourApi = stubTourApi({
+      getPlaceCommonDetail: () =>
+        Promise.resolve({
+          overview: "  도심형 여름 축제  ",
+          homepage: '<a href="https://www.ddmac.or.kr/" target="_blank">홈</a>',
+        }),
+      getFestivalIntro: () =>
+        Promise.resolve({
+          eventplace: " 장안1수변공원 ",
+          playtime: "17:00~22:00",
+          usetimefestival: "입장료 무료 (주류, 식음료 유료)",
+          program:
+            "1. 메인프로그램: 메인 스테이지\n2. 부대프로그램: 비어 테라스",
+          sponsor1: "동대문구",
+          sponsor1tel: "02-3291-5506",
+          sponsor2: "동대문문화재단",
+          sponsor2tel: "",
+        }),
+      getPlaceImages: () =>
+        Promise.resolve([
+          {
+            originimgurl: "https://tong.visitkorea.or.kr/a.jpg",
+            imgname: "정문",
+          },
+          { originimgurl: "https://tong.visitkorea.or.kr/b.jpg" },
+          { originimgurl: "https://example.com/evil.jpg", imgname: "차단" },
+        ]),
+    });
+    const { service } = setupDetail(detailRow(), tourApi);
+
+    const result = await service.detail(detailRow().id, detailNow);
+
+    expect(result).toMatchObject({
+      status: "ONGOING",
+      telephone: "02-3291-5506",
+      longitude: 127.0753,
+      homepage: "https://www.ddmac.or.kr/",
+      overview: "도심형 여름 축제",
+      eventPlace: "장안1수변공원",
+      eventTime: "17:00~22:00",
+      feeInfo: "입장료 무료 (주류, 식음료 유료)",
+      program: "1. 메인프로그램: 메인 스테이지\n2. 부대프로그램: 비어 테라스",
+      organizer: "동대문구",
+      organizerTel: "02-3291-5506",
+      hostAgency: "동대문문화재단",
+      hostAgencyTel: null,
+      images: [
+        { url: "https://tong.visitkorea.or.kr/a.jpg", alt: "정문" },
+        {
+          url: "https://tong.visitkorea.or.kr/b.jpg",
+          alt: "축제 3351268 사진",
+        },
+      ],
+    });
+  });
+
+  it("still returns the festival when TourAPI enrichment fails", async () => {
+    const { service } = setupDetail(detailRow());
+    const result = await service.detail(detailRow().id, detailNow);
+    expect(result).toMatchObject({
+      overview: null,
+      homepage: null,
+      eventPlace: null,
+      eventTime: null,
+      feeInfo: null,
+      program: null,
+      organizer: null,
+      organizerTel: null,
+      hostAgency: null,
+      hostAgencyTel: null,
+      images: [],
+    });
+  });
+
+  it("marks a past festival as ENDED", async () => {
+    const { service } = setupDetail(
+      detailRow({
+        eventStartDate: new Date("2026-07-01T00:00:00.000Z"),
+        eventEndDate: new Date("2026-07-10T00:00:00.000Z"),
+      }),
+    );
+    const result = await service.detail(detailRow().id, detailNow);
+    expect(result.status).toBe("ENDED");
   });
 });

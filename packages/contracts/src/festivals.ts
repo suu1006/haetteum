@@ -18,6 +18,19 @@ export const FestivalDiscoveryQuerySchema = z.object({
 
 export const FestivalStatusSchema = z.enum(["ONGOING", "UPCOMING"]);
 
+export const FestivalDetailStatusSchema = z.enum([
+  "ONGOING",
+  "UPCOMING",
+  "ENDED",
+]);
+
+const ProviderImageUrlSchema = z.url().refine((value) => {
+  const url = new URL(value);
+  return (
+    url.protocol === "https:" && url.hostname === "tong.visitkorea.or.kr"
+  );
+});
+
 export const FestivalCategoryLabelSchema = z.enum([
   "문화관광축제",
   "문화예술축제",
@@ -37,16 +50,7 @@ export const FestivalDiscoveryItemSchema = z.object({
   eventEndDate: z.iso.date(),
   address: z.string().min(1).nullable(),
   categoryLabel: FestivalCategoryLabelSchema,
-  primaryImageUrl: z
-    .url()
-    .refine((value) => {
-      const url = new URL(value);
-      return (
-        url.protocol === "https:" &&
-        url.hostname === "tong.visitkorea.or.kr"
-      );
-    })
-    .nullable(),
+  primaryImageUrl: ProviderImageUrlSchema.nullable(),
 });
 
 export const FestivalDiscoveryRankingItemSchema =
@@ -64,11 +68,47 @@ export const FestivalDiscoveryResponseSchema = z.object({
   totalCount: z.number().int().nonnegative(),
 });
 
+export const FestivalDetailImageSchema = z.object({
+  url: ProviderImageUrlSchema,
+  alt: z.string().min(1),
+});
+
+export const FestivalDetailResponseSchema = z.object({
+  id: z.string().uuid(),
+  externalId: z.string().min(1),
+  title: z.string().min(1),
+  status: FestivalDetailStatusSchema,
+  eventStartDate: z.iso.date(),
+  eventEndDate: z.iso.date(),
+  address: z.string().min(1).nullable(),
+  categoryLabel: FestivalCategoryLabelSchema,
+  telephone: z.string().min(1).nullable(),
+  longitude: z.number().nullable(),
+  latitude: z.number().nullable(),
+  primaryImageUrl: ProviderImageUrlSchema.nullable(),
+  homepage: z.url().nullable(),
+  overview: z.string().min(1).nullable(),
+  eventPlace: z.string().min(1).nullable(),
+  eventTime: z.string().min(1).nullable(),
+  feeInfo: z.string().min(1).nullable(),
+  program: z.string().min(1).nullable(),
+  organizer: z.string().min(1).nullable(),
+  organizerTel: z.string().min(1).nullable(),
+  hostAgency: z.string().min(1).nullable(),
+  hostAgencyTel: z.string().min(1).nullable(),
+  images: z.array(FestivalDetailImageSchema),
+});
+
 export type FestivalBrowseRegion = z.infer<typeof FestivalBrowseRegionSchema>;
 export type FestivalDiscoveryQuery = z.infer<
   typeof FestivalDiscoveryQuerySchema
 >;
 export type FestivalStatus = z.infer<typeof FestivalStatusSchema>;
+export type FestivalDetailStatus = z.infer<typeof FestivalDetailStatusSchema>;
+export type FestivalDetailImage = z.infer<typeof FestivalDetailImageSchema>;
+export type FestivalDetailResponse = z.infer<
+  typeof FestivalDetailResponseSchema
+>;
 export type FestivalCategoryLabel = z.infer<
   typeof FestivalCategoryLabelSchema
 >;

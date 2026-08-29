@@ -137,10 +137,11 @@ describe("API HTTP boundary (e2e)", () => {
     );
 
     expect(discovery.region).toBe("gyeongju");
-    expect(discovery.ranking[0]).toMatchObject({
+    // 지역 필터는 목록(items)에만 적용된다.
+    const listed = discovery.items.find((item) => item.id === festival.id);
+    expect(listed).toMatchObject({
       id: festival.id,
       externalId,
-      rank: 1,
       title: "E2E 경주 실데이터 축제",
       status: "ONGOING",
       eventStartDate: yesterday.toISOString().slice(0, 10),
@@ -149,7 +150,11 @@ describe("API HTTP boundary (e2e)", () => {
       categoryLabel: "전통역사축제",
       primaryImageUrl: null,
     });
-    expect(discovery.items.some((item) => item.id === festival.id)).toBe(true);
+    // 상단 순위(1~3위)는 지역 필터와 무관하게 전체 축제를 기준으로 노출한다.
+    expect(discovery.ranking.length).toBeGreaterThan(0);
+    expect(discovery.ranking.map((item) => item.rank)).toEqual(
+      discovery.ranking.map((_, index) => index + 1),
+    );
     expect(tourApiFetch).not.toHaveBeenCalled();
 
     const invalid = await request(getHttpServer(app))

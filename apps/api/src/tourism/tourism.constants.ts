@@ -13,3 +13,12 @@ export const TOURISM_REGION_CODES = ["11", "41", "51", "26", "50"] as const;
  * 예: "코엑스"는 전국 검색에서 코엑스몰 입점 매장이 앞을 채운다.
  */
 export const TOURISM_SEARCH_AREA_CODES = ["1", "31", "32", "6", "39"] as const;
+
+/**
+ * 축제 전체 동기화가 훑는 고정 기간(TourAPI searchFestival2 eventStartDate/eventEndDate).
+ * 수동 명령과 일 배치가 같은 범위를 봐야 비표출 전환(deactivateMissing) 기준이 흔들리지 않는다.
+ */
+export const FESTIVAL_SYNC_RANGE = {
+  eventStartDate: "20260101",
+  eventEndDate: "20271231",
+} as const;

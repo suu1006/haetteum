@@ -1,8 +1,11 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
+import { z } from "zod";
 
 import {
+  FestivalDetailResponseSchema,
   FestivalDiscoveryQuerySchema,
   FestivalDiscoveryResponseSchema,
+  type FestivalDetailResponse,
   type FestivalDiscoveryQuery,
   type FestivalDiscoveryResponse,
 } from "@haetteum/contracts";
@@ -21,6 +24,16 @@ export class FestivalsController {
   ): Promise<FestivalDiscoveryResponse> {
     return FestivalDiscoveryResponseSchema.parse(
       await this.festivals.list(query),
+    );
+  }
+
+  @Get(":festivalId")
+  async detail(
+    @Param("festivalId", new ZodValidationPipe(z.string().uuid()))
+    festivalId: string,
+  ): Promise<FestivalDetailResponse> {
+    return FestivalDetailResponseSchema.parse(
+      await this.festivals.detail(festivalId),
     );
   }
 }

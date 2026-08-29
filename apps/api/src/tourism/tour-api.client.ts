@@ -6,6 +6,9 @@ import type { ApiEnvironment } from "../config/environment.js";
 import {
   tourApiChangedPlaceSchema,
   tourApiDistrictSchema,
+  tourApiCourseIntroSchema,
+  tourApiCourseStopSchema,
+  tourApiFestivalIntroSchema,
   tourApiFestivalSchema,
   tourApiHeaderSchema,
   tourApiPlaceImageSchema,
@@ -16,9 +19,13 @@ import {
   tourApiPlaceSchema,
 } from "./tour-api.schemas.js";
 import type {
+  CourseApiPort,
   TourApiChangedPlace,
+  TourApiCourseIntro,
+  TourApiCourseStop,
   TourApiDistrict,
   TourApiFestival,
+  TourApiFestivalIntro,
   TourApiFetch,
   FestivalApiPort,
   TourApiPage,
@@ -55,7 +62,9 @@ export class TourApiError extends Error {
 }
 
 @Injectable()
-export class TourApiClient implements TourApiPort, FestivalApiPort {
+export class TourApiClient
+  implements TourApiPort, FestivalApiPort, CourseApiPort
+{
   constructor(
     private readonly config: ConfigService<ApiEnvironment, true>,
     @Inject(TOUR_API_FETCH) private readonly fetch: TourApiFetch,
@@ -110,6 +119,61 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
         arrange: "C",
       },
     });
+  }
+
+  getCoursePage(input: { pageNo: number }): Promise<TourApiPage<TourApiPlace>> {
+    return this.request({
+      operation: "areaBasedList2",
+      pageNo: input.pageNo,
+      itemSchema: tourApiPlaceSchema,
+      parameters: {
+        contentTypeId: "25",
+        arrange: "C",
+      },
+    });
+  }
+
+  async getCourseCommonDetail(contentId: string): Promise<TourApiPlaceDetail> {
+    const page = await this.request({
+      operation: "detailCommon2",
+      pageNo: 1,
+      numOfRows: 1,
+      itemSchema: tourApiPlaceDetailSchema,
+      parameters: { contentId },
+    });
+    const detail = page.items[0];
+    if (detail == null) {
+      throw new TourApiError("detailCommon2", "EMPTY_RESPONSE");
+    }
+    return detail;
+  }
+
+  async getCourseIntro(contentId: string): Promise<TourApiCourseIntro> {
+    const page = await this.request({
+      operation: "detailIntro2",
+      pageNo: 1,
+      numOfRows: 1,
+      itemSchema: tourApiCourseIntroSchema,
+      parameters: { contentId, contentTypeId: "25" },
+    });
+    const intro = page.items[0];
+    if (intro == null) {
+      throw new TourApiError("detailIntro2", "EMPTY_RESPONSE");
+    }
+    return intro;
+  }
+
+  async getCourseStops(
+    contentId: string,
+  ): Promise<readonly TourApiCourseStop[]> {
+    const page = await this.request({
+      operation: "detailInfo2",
+      pageNo: 1,
+      numOfRows: 50,
+      itemSchema: tourApiCourseStopSchema,
+      parameters: { contentId, contentTypeId: "25" },
+    });
+    return page.items;
   }
 
   getChangedPlacePage(input: {
@@ -182,6 +246,21 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
     return intro;
   }
 
+  async getFestivalIntro(contentId: string): Promise<TourApiFestivalIntro> {
+    const page = await this.request({
+      operation: "detailIntro2",
+      pageNo: 1,
+      numOfRows: 1,
+      itemSchema: tourApiFestivalIntroSchema,
+      parameters: { contentId, contentTypeId: "15" },
+    });
+    const intro = page.items[0];
+    if (intro == null) {
+      throw new TourApiError("detailIntro2", "EMPTY_RESPONSE");
+    }
+    return intro;
+  }
+
   async getPlaceRepeatInfo(
     contentId: string,
   ): Promise<readonly TourApiPlaceInfo[]> {
@@ -204,6 +283,54 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
       parameters: {
         contentId,
         imageYN: "Y",
+      },
+    });
+    return page.items;
+  }
+
+  async searchPlaceByKeyword(input: {
+    keyword: string;
+    areaCode?: string;
+  }): Promise<TourApiPlace | null> {
+    const candidates = await this.searchPlaceCandidates(input);
+    return pickImageBearingPlace(candidates) ?? candidates[0] ?? null;
+  }
+
+  /**
+   * searchKeyword2 원본 결과를 그대로 돌려준다(이미지 보유 데이터 우선 정렬).
+   * 지역 조건이 있는데 결과가 없으면 전국 조건으로 1회 재시도한다.
+   * 이름 연관성 판단은 호출자(랭킹 매칭 로직)가 담당한다.
+   */
+  async searchPlaceCandidates(input: {
+    keyword: string;
+    areaCode?: string;
+  }): Promise<readonly TourApiPlace[]> {
+    const keyword = input.keyword.trim();
+
+    if (keyword === "") return [];
+
+    const withArea = await this.runKeywordSearch(keyword, input.areaCode);
+
+    if (withArea.length > 0 || input.areaCode === undefined) {
+      return withArea;
+    }
+
+    return this.runKeywordSearch(keyword, undefined);
+  }
+
+  private async runKeywordSearch(
+    keyword: string,
+    areaCode: string | undefined,
+  ): Promise<readonly TourApiPlace[]> {
+    const page = await this.request({
+      operation: "searchKeyword2",
+      pageNo: 1,
+      numOfRows: 20,
+      itemSchema: tourApiPlaceSchema,
+      parameters: {
+        keyword,
+        arrange: "O",
+        ...(areaCode === undefined ? {} : { areaCode }),
       },
     });
     return page.items;
@@ -349,6 +476,17 @@ export class TourApiClient implements TourApiPort, FestivalApiPort {
         error.httpStatus <= 599)
     );
   }
+}
+
+function pickImageBearingPlace(
+  places: readonly TourApiPlace[],
+): TourApiPlace | null {
+  return (
+    places.find(
+      (place) =>
+        (place.firstimage ?? "") !== "" || (place.firstimage2 ?? "") !== "",
+    ) ?? null
+  );
 }
 
 function normalizeServiceKey(serviceKey: string): string {

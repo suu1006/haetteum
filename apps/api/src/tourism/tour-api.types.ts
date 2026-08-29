@@ -63,6 +63,26 @@ export type TourApiPlaceIntro = {
   chkpet?: string;
 };
 
+export type TourApiCourseIntro = {
+  contentid: string;
+  contenttypeid?: string;
+  distance?: string;
+  taketime?: string;
+  schedule?: string;
+  theme?: string;
+};
+
+export type TourApiCourseStop = {
+  contentid: string;
+  contenttypeid?: string;
+  subnum?: string;
+  subcontentid: string;
+  subname: string;
+  subdetailoverview?: string;
+  subdetailimg?: string;
+  subdetailalt?: string;
+};
+
 export type TourApiPlaceInfo = {
   contentid: string;
   contenttypeid?: string;
@@ -79,6 +99,19 @@ export type TourApiPlaceImage = {
   smallimageurl?: string;
   serialnum: string;
   cpyrhtDivCd?: string;
+};
+
+export type TourApiFestivalIntro = {
+  contentid: string;
+  contenttypeid?: string;
+  eventplace?: string;
+  playtime?: string;
+  usetimefestival?: string;
+  program?: string;
+  sponsor1?: string;
+  sponsor1tel?: string;
+  sponsor2?: string;
+  sponsor2tel?: string;
 };
 
 export type TourApiFestival = {
@@ -114,6 +147,13 @@ export interface FestivalApiPort {
   }): Promise<TourApiPage<TourApiFestival>>;
 }
 
+export interface CourseApiPort {
+  getCoursePage(input: { pageNo: number }): Promise<TourApiPage<TourApiPlace>>;
+  getCourseCommonDetail(contentId: string): Promise<TourApiPlaceDetail>;
+  getCourseIntro(contentId: string): Promise<TourApiCourseIntro>;
+  getCourseStops(contentId: string): Promise<readonly TourApiCourseStop[]>;
+}
+
 export interface TourApiPort {
   getDistrictPage(input: {
     regionCode: string;
@@ -136,8 +176,17 @@ export interface TourApiPort {
   }): Promise<TourApiPage<TourApiChangedPlace>>;
   getPlaceCommonDetail(contentId: string): Promise<TourApiPlaceDetail>;
   getPlaceIntro(contentId: string): Promise<TourApiPlaceIntro>;
+  getFestivalIntro(contentId: string): Promise<TourApiFestivalIntro>;
   getPlaceRepeatInfo(contentId: string): Promise<readonly TourApiPlaceInfo[]>;
   getPlaceImages(contentId: string): Promise<readonly TourApiPlaceImage[]>;
+  searchPlaceByKeyword(input: {
+    keyword: string;
+    areaCode?: string;
+  }): Promise<TourApiPlace | null>;
+  searchPlaceCandidates(input: {
+    keyword: string;
+    areaCode?: string;
+  }): Promise<readonly TourApiPlace[]>;
 }
 
 export type TourApiFetch = (

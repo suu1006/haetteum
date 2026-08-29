@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake provider preserves the async interface */
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -8,6 +7,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
 import { AppModule } from "../src/app.module.js";
+import { FestivalsService } from "../src/festivals/festivals.service.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 import { FestivalSyncService } from "../src/tourism/festival-sync.service.js";
@@ -17,6 +17,8 @@ import type {
   TourApiPage,
 } from "../src/tourism/tour-api.types.js";
 import { FESTIVAL_API_PORT } from "../src/tourism/tourism.constants.js";
+
+import { applyMigrations } from "./apply-migrations.js";
 
 const RANGE = {
   eventStartDate: "20260101",
@@ -53,6 +55,8 @@ function page(
 class DatabaseFestivalApi implements FestivalApiPort {
   error: Error | undefined;
   duplicatePage = false;
+  /** TourAPI가 콘텐츠를 회수해 더 이상 내려주지 않는 상황을 재현한다. */
+  readonly withdrawnIds = new Set<string>();
 
   async getFestivalPage(input: {
     eventStartDate: string;
@@ -71,10 +75,12 @@ class DatabaseFestivalApi implements FestivalApiPort {
         2,
       );
     }
-    if (input.pageNo === 1) {
-      return page([festival("festival-1", "첫 번째 축제")], 1, 2);
-    }
-    return page([festival("festival-2", "두 번째 축제")], 2, 2);
+    const published = [
+      festival("festival-1", "첫 번째 축제"),
+      festival("festival-2", "두 번째 축제"),
+    ].filter((item) => !this.withdrawnIds.has(item.contentid));
+    const item = published[input.pageNo - 1];
+    return page(item ? [item] : [], input.pageNo, published.length);
   }
 }
 
@@ -96,16 +102,7 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
     try {
       await client.query(`CREATE SCHEMA "${schemaName}"`);
       await client.query(`SET search_path TO "${schemaName}"`);
-      for (const migrationPath of [
-        "../prisma/migrations/20260821000000_add_tourism_place_foundation/migration.sql",
-        "../prisma/migrations/20260822000000_add_tourism_database_comments/migration.sql",
-        "../prisma/migrations/20260824135934_scope_tourism_district_provider_code/migration.sql",
-        "../prisma/migrations/20260825000000_add_festivals/migration.sql",
-      ]) {
-        await client.query(
-          await readFile(new URL(migrationPath, import.meta.url), "utf8"),
-        );
-      }
+      await applyMigrations(client);
     } finally {
       client.release();
     }
@@ -189,6 +186,57 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       }),
     ).toBe(2);
     expect(await prisma.place.count()).toBe(0);
+  });
+
+  it("hides festivals TourAPI withdrew and keeps them out of discovery", async () => {
+    if (!prisma) throw new Error("Prisma test client is missing");
+
+    await service.fullSync(RANGE);
+    provider.withdrawnIds.add("festival-2");
+
+    const summary = await service.fullSync(RANGE);
+
+    expect(summary).toMatchObject({
+      status: "SUCCEEDED",
+      fetchedCount: 1,
+      insertedCount: 0,
+      updatedCount: 1,
+      deactivatedCount: 1,
+    });
+    // 회수된 축제는 삭제하지 않고 비표출로 남겨 재등록 시 되살릴 수 있게 한다.
+    expect(await prisma.festival.count()).toBe(2);
+    expect(
+      await prisma.festival.findFirstOrThrow({
+        where: { externalId: "festival-2" },
+      }),
+    ).toMatchObject({ isVisible: false });
+
+    const festivals = app?.get(FestivalsService);
+    if (!festivals) throw new Error("FestivalsService is missing");
+    const withdrawn = await prisma.festival.findFirstOrThrow({
+      where: { externalId: "festival-2" },
+    });
+    const discovery = await festivals.list({
+      region: "all",
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(discovery.items.map((item) => item.externalId)).toEqual([
+      "festival-1",
+    ]);
+    await expect(festivals.detail(withdrawn.id)).rejects.toThrow(
+      "축제를 찾을 수 없습니다.",
+    );
+
+    // TourAPI가 콘텐츠를 되살리면 다음 동기화에서 다시 노출된다.
+    provider.withdrawnIds.delete("festival-2");
+    await service.fullSync(RANGE);
+    expect(
+      await prisma.festival.findFirstOrThrow({
+        where: { externalId: "festival-2" },
+      }),
+    ).toMatchObject({ isVisible: true });
   });
 
   it("records a sanitized FAILED run when persistence cannot start", async () => {

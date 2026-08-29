@@ -46,7 +46,7 @@ export async function loadFestivalDiscovery(
         ...mapFestival(festival),
         rank: festival.rank,
       })),
-      festivals: payload.items.map(mapFestival),
+      festivals: [...payload.items].sort(byEventDateAscending).map(mapFestival),
       loadState: "ready",
     };
   } catch {
@@ -58,6 +58,70 @@ export function festivalBrowseRegion(
   region: FestivalDiscoveryData["regions"][number]["id"],
 ): FestivalBrowseRegion {
   return region === "gyeonggi" ? "all" : region;
+}
+
+export type MonthlyFestivalsLoadState =
+  | { status: "ready"; items: readonly FestivalDiscoveryListItem[] }
+  | { status: "error" };
+
+const MONTHLY_FESTIVAL_LIMIT = 4;
+
+export async function loadMonthlyFestivals(
+  region: FestivalBrowseRegion,
+  fetchImpl: typeof fetch = fetch,
+  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  now: Date = new Date(),
+): Promise<MonthlyFestivalsLoadState> {
+  if (!baseUrl.trim()) return { status: "error" };
+
+  try {
+    const url = new URL(`${baseUrl.replace(/\/+$/, "")}/festivals/discovery`);
+    url.searchParams.set("region", region);
+    url.searchParams.set("page", "1");
+    url.searchParams.set("pageSize", "40");
+    const response = await fetchImpl(url.href, { cache: "no-store" });
+    if (!response.ok) return { status: "error" };
+
+    const payload = FestivalDiscoveryResponseSchema.parse(
+      await response.json(),
+    );
+    const month = seoulYearMonth(now);
+    const items = [...payload.items]
+      .filter(
+        (festival) =>
+          festival.eventStartDate.slice(0, 7) <= month &&
+          festival.eventEndDate.slice(0, 7) >= month,
+      )
+      .sort(byEventDateAscending)
+      .slice(0, MONTHLY_FESTIVAL_LIMIT)
+      .map(mapFestival)
+      .filter(
+        (festival): festival is FestivalDiscoveryListItem =>
+          !("rank" in festival),
+      );
+    return { status: "ready", items };
+  } catch {
+    return { status: "error" };
+  }
+}
+
+function seoulYearMonth(now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+  }).format(now);
+}
+
+function byEventDateAscending(
+  a: ApiFestivalDiscoveryItem,
+  b: ApiFestivalDiscoveryItem,
+): number {
+  return (
+    a.eventStartDate.localeCompare(b.eventStartDate) ||
+    a.eventEndDate.localeCompare(b.eventEndDate) ||
+    a.externalId.localeCompare(b.externalId)
+  );
 }
 
 function mapFestival(

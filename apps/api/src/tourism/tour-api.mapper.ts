@@ -2,6 +2,8 @@ import { Prisma } from "../generated/prisma/client.js";
 
 import type {
   TourApiChangedPlace,
+  TourApiCourseIntro,
+  TourApiCourseStop,
   TourApiDistrict,
   TourApiFestival,
   TourApiPlace,
@@ -38,6 +40,10 @@ export type NormalizedPlace = {
   providerModifiedAt: Date;
   isVisible: boolean;
   lastSyncedAt: Date;
+};
+
+export type NormalizedSearchedPlace = Omit<NormalizedPlace, "contentTypeId"> & {
+  contentTypeId: number;
 };
 
 export type NormalizedChangedPlace = {
@@ -113,6 +119,7 @@ export type NormalizedFestival = {
   imageCopyrightType: string | null;
   providerCreatedAt: Date | null;
   providerModifiedAt: Date;
+  isVisible: boolean;
   lastSyncedAt: Date;
 };
 
@@ -185,6 +192,19 @@ function mapLevel(value: string | undefined): number | null {
   return parsed;
 }
 
+function contentTypeId(value: string): number {
+  const text = optionalText(value);
+  if (text == null || !/^\d+$/.test(text)) {
+    throw new Error("Invalid TourAPI content type");
+  }
+
+  const parsed = Number(text);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error("Invalid TourAPI content type");
+  }
+  return parsed;
+}
+
 function validatedLastSyncedAt(value: Date): Date {
   if (Number.isNaN(value.getTime())) {
     throw new Error("Invalid last synced timestamp");
@@ -209,6 +229,19 @@ export function mapPlace(
     throw new Error("Invalid TourAPI content type");
   }
 
+  return { ...mapSearchedPlace(item, lastSyncedAt), contentTypeId: 12 };
+}
+
+/**
+ * 키워드 검색으로 찾은 콘텐츠를 관광지 레코드로 정규화한다.
+ * 지역 기반 동기화(`mapPlace`)와 달리 관광지(12) 외 콘텐츠 타입도 허용한다 —
+ * 데이터랩 랭킹에는 문화시설·레포츠처럼 동기화 범위 밖 콘텐츠가 섞여 있고,
+ * 이들도 상세 화면을 열 수 있어야 하기 때문이다.
+ */
+export function mapSearchedPlace(
+  item: TourApiPlace,
+  lastSyncedAt: Date,
+): NormalizedSearchedPlace {
   requiredText(item.lDongRegnCd, "region code");
 
   const createdTime = optionalText(item.createdtime);
@@ -216,7 +249,7 @@ export function mapPlace(
   return {
     source: "TOUR_API",
     externalId: requiredText(item.contentid, "content ID"),
-    contentTypeId: 12,
+    contentTypeId: contentTypeId(item.contenttypeid),
     title: requiredText(item.title, "title"),
     address1: optionalText(item.addr1),
     address2: optionalText(item.addr2),
@@ -303,6 +336,7 @@ export function mapFestival(
     providerCreatedAt:
       createdTime == null ? null : providerTimestamp(createdTime),
     providerModifiedAt: providerTimestamp(item.modifiedtime.trim()),
+    isVisible: true,
     lastSyncedAt: validatedLastSyncedAt(lastSyncedAt),
   };
 }
@@ -412,5 +446,96 @@ export function mapPlaceDetailBundle(input: {
     },
     images,
     information,
+  };
+}
+
+export type NormalizedCourseStop = {
+  sequence: number;
+  externalPlaceId: string;
+  title: string;
+  overview: string | null;
+  imageUrl: string | null;
+};
+
+export type NormalizedCourse = {
+  source: "TOUR_API";
+  externalId: string;
+  title: string;
+  overview: string | null;
+  takeTime: string | null;
+  distance: string | null;
+  schedule: string | null;
+  theme: string | null;
+  primaryImageUrl: string | null;
+  longitude: Prisma.Decimal | null;
+  latitude: Prisma.Decimal | null;
+  providerModifiedAt: Date;
+  lastSyncedAt: Date;
+  stops: readonly NormalizedCourseStop[];
+};
+
+/**
+ * 여행코스(contentTypeId=25)를 코스 레코드와 경유지 목록으로 정규화한다.
+ *
+ * TourAPI 여행코스는 관광지와 달리 `lDongRegnCd`·`areacode`가 비어 있어
+ * 지역으로 좁힐 수 없다. 대신 경유지의 `subcontentid`를 우리 관광지
+ * `external_id`와 맞춰 "이 장소가 포함된 코스"를 역으로 찾는다.
+ *
+ * 일부 코스는 같은 `subcontentid`를 연속한 `subnum`에 중복해서 내려주므로
+ * 콘텐츠 식별자 기준으로 첫 등장만 남기고 순번을 1부터 다시 매긴다.
+ */
+export function mapCourseBundle(input: {
+  item: TourApiPlace;
+  common: TourApiPlaceDetail;
+  intro: TourApiCourseIntro;
+  stops: readonly TourApiCourseStop[];
+  lastSyncedAt: Date;
+}): NormalizedCourse {
+  if (input.item.contenttypeid.trim() !== "25") {
+    throw new Error("Invalid TourAPI course content type");
+  }
+
+  const externalId = requiredText(input.item.contentid, "content ID");
+  assertContentId(externalId, input.common.contentid, "course common detail");
+  assertContentId(externalId, input.intro.contentid, "course intro detail");
+  for (const stop of input.stops) {
+    assertContentId(externalId, stop.contentid, "course stop detail");
+  }
+
+  const seen = new Set<string>();
+  const stops: NormalizedCourseStop[] = [];
+  for (const stop of input.stops) {
+    const externalPlaceId = optionalText(stop.subcontentid);
+    const title = optionalText(stop.subname);
+    if (externalPlaceId == null || title == null) continue;
+    if (seen.has(externalPlaceId)) continue;
+    seen.add(externalPlaceId);
+    stops.push({
+      sequence: stops.length + 1,
+      externalPlaceId,
+      title,
+      overview: optionalText(stop.subdetailoverview),
+      imageUrl: providerImageUrl(stop.subdetailimg),
+    });
+  }
+
+  return {
+    source: "TOUR_API",
+    externalId,
+    title: requiredText(input.item.title, "title"),
+    overview: optionalText(input.common.overview),
+    takeTime: optionalText(input.intro.taketime),
+    distance: optionalText(input.intro.distance),
+    schedule: optionalText(input.intro.schedule),
+    theme: optionalText(input.intro.theme),
+    primaryImageUrl:
+      providerImageUrl(input.item.firstimage) ??
+      stops.find((stop) => stop.imageUrl !== null)?.imageUrl ??
+      null,
+    longitude: coordinate(input.item.mapx),
+    latitude: coordinate(input.item.mapy),
+    providerModifiedAt: providerTimestamp(input.item.modifiedtime.trim()),
+    lastSyncedAt: validatedLastSyncedAt(input.lastSyncedAt),
+    stops,
   };
 }

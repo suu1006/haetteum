@@ -86,8 +86,12 @@ function createProvider(detailContentId: string): {
         });
       },
       getPlaceIntro: (contentId) => Promise.resolve({ contentid: contentId }),
+      getFestivalIntro: (contentId) =>
+        Promise.resolve({ contentid: contentId }),
       getPlaceRepeatInfo: () => Promise.resolve([]),
       getPlaceImages: () => Promise.resolve([]),
+      searchPlaceByKeyword: () => Promise.resolve(null),
+      searchPlaceCandidates: () => Promise.resolve([]),
     },
   };
 }

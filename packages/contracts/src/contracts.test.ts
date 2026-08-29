@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AuthUserSchema,
   CreateReviewRequestSchema,
+  FestivalDetailResponseSchema,
   FestivalDiscoveryItemSchema,
   FestivalDiscoveryQuerySchema,
   FestivalDiscoveryResponseSchema,
@@ -377,6 +378,50 @@ describe("festival discovery contracts", () => {
         page: 1,
         pageSize: 20,
         totalCount: 1,
+      }),
+    ).toThrow();
+  });
+
+  it("accepts a festival detail response and enforces provider media/status", () => {
+    const detail = {
+      id: "84549352-0c20-4e11-af50-2d4f278f41ef",
+      externalId: "141268",
+      title: "서천 홍원항 자연산 전어 꽃게 축제",
+      status: "ENDED",
+      eventStartDate: "2026-08-22",
+      eventEndDate: "2026-09-06",
+      address: "충청남도 서천군 서면 홍원길",
+      categoryLabel: "지역특산물축제",
+      telephone: "041-000-0000",
+      longitude: 126.5,
+      latitude: 36.1,
+      primaryImageUrl: "https://tong.visitkorea.or.kr/cms/resource/1/a.jpg",
+      homepage: "https://festival.example.or.kr",
+      overview: "가을 제철 수산물을 즐기는 지역 축제입니다.",
+      eventPlace: "홍원항 특설무대",
+      eventTime: "10:00~18:00",
+      feeInfo: "입장료 무료",
+      program: "1. 개막식\n2. 전어 맨손잡기 체험",
+      organizer: "서천군",
+      organizerTel: "041-000-0000",
+      hostAgency: "서천군축제위원회",
+      hostAgencyTel: null,
+      images: [
+        {
+          url: "https://tong.visitkorea.or.kr/cms/resource/2/b.jpg",
+          alt: "축제 현장",
+        },
+      ],
+    } as const;
+
+    expect(FestivalDetailResponseSchema.parse(detail)).toEqual(detail);
+    expect(() =>
+      FestivalDetailResponseSchema.parse({ ...detail, status: "SOON" }),
+    ).toThrow();
+    expect(() =>
+      FestivalDetailResponseSchema.parse({
+        ...detail,
+        images: [{ url: "https://example.com/x.jpg", alt: "bad host" }],
       }),
     ).toThrow();
   });

@@ -9,6 +9,7 @@ export type FestivalSyncCounters = {
   fetchedCount: number;
   insertedCount: number;
   updatedCount: number;
+  deactivatedCount: number;
 };
 
 export type FestivalPageDelta = Pick<
@@ -82,6 +83,33 @@ export class FestivalRepository {
     });
   }
 
+  /**
+   * TourAPI가 더 이상 내려주지 않는 축제를 비표출로 전환한다.
+   * TourAPI는 콘텐츠를 회수(showflag=0)해도 삭제 목록을 축제 검색에 남기지 않으므로,
+   * 전체 동기화 범위 안에서 이번 실행에 등장하지 않은 콘텐츠를 회수된 것으로 본다.
+   * 상세 조회(detailCommon2/detailIntro2)가 빈 응답만 돌려주는 유령 축제를 걸러내는 장치다.
+   */
+  async deactivateMissing(input: {
+    rangeStart: Date;
+    rangeEnd: Date;
+    seenExternalIds: ReadonlySet<string>;
+    lastSyncedAt: Date;
+  }): Promise<number> {
+    const result = await this.prisma.festival.updateMany({
+      where: {
+        source: TOUR_API_SOURCE,
+        isVisible: true,
+        eventStartDate: { gte: input.rangeStart },
+        eventEndDate: { lte: input.rangeEnd },
+        ...(input.seenExternalIds.size > 0
+          ? { externalId: { notIn: [...input.seenExternalIds] } }
+          : {}),
+      },
+      data: { isVisible: false, lastSyncedAt: input.lastSyncedAt },
+    });
+    return result.count;
+  }
+
   async completeSyncRun(
     runId: string,
     counters: FestivalSyncCounters,
@@ -92,7 +120,6 @@ export class FestivalRepository {
         status: "SUCCEEDED",
         finishedAt: new Date(),
         ...counters,
-        deactivatedCount: 0,
         failedCount: 0,
         errorSummary: null,
       },
@@ -117,7 +144,6 @@ export class FestivalRepository {
         status: "FAILED",
         finishedAt: new Date(),
         ...counters,
-        deactivatedCount: 0,
         failedCount: 1,
         errorSummary,
       },

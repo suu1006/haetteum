@@ -1,11 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import { CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
-import type { FestivalItem } from "@/features/discovery/discovery-model";
+import { FestivalRemoteImage } from "@/components/travel/festival-remote-image";
+import type { FestivalDiscoveryListItem } from "@/features/discovery/discovery-model";
 
 type FestivalListItemProps = {
-  festival: FestivalItem;
+  festival: FestivalDiscoveryListItem;
   href: string;
 };
 
@@ -19,10 +19,9 @@ function FestivalListItem({ festival, href }: FestivalListItemProps) {
       >
         <div className="flex gap-3 rounded-lg bg-card p-2 transition-transform active:translate-y-px">
           <div className="relative aspect-square w-20 shrink-0 overflow-hidden rounded-md bg-primary-subtle">
-            <Image
+            <FestivalRemoteImage
               src={festival.image.src}
               alt={festival.image.alt}
-              fill
               sizes="80px"
               className="object-cover"
             />
