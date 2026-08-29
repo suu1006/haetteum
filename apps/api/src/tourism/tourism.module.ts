@@ -6,6 +6,7 @@ import { FestivalSyncService } from "./festival-sync.service.js";
 import { RankingPlaceLinkService } from "./ranking-place-link.service.js";
 import { TourApiClient } from "./tour-api.client.js";
 import {
+  COURSE_API_PORT,
   FESTIVAL_API_PORT,
   TOUR_API_FETCH,
   TOUR_API_PORT,
@@ -25,6 +26,7 @@ import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
     TourApiClient,
     { provide: TOUR_API_PORT, useExisting: TourApiClient },
     { provide: FESTIVAL_API_PORT, useExisting: TourApiClient },
+    { provide: COURSE_API_PORT, useExisting: TourApiClient },
     { provide: TOUR_API_FETCH, useValue: globalThis.fetch.bind(globalThis) },
     {
       provide: TOUR_API_SLEEP,
@@ -37,6 +39,8 @@ import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
     TourismSyncService,
     RankingPlaceLinkService,
     TOUR_API_PORT,
+    COURSE_API_PORT,
+    TOUR_API_SLEEP,
   ],
 })
 export class TourismModule {}

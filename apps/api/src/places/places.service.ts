@@ -11,19 +11,21 @@ import type {
 
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { TtlCache } from "../common/cache/ttl-cache.js";
 import {
   KAKAO_LOCAL_PORT,
   type KakaoCategoryCode,
   type KakaoLocalPlace,
   type KakaoLocalPort,
 } from "./kakao-local.client.js";
+import { NEARBY_CACHE_TTL_MS } from "./places.constants.js";
 
 function optionalText(value: string | null): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
 }
 
-function address(
+export function address(
   address1: string | null,
   address2: string | null,
 ): string | null {
@@ -35,6 +37,12 @@ function address(
 
 @Injectable()
 export class PlacesService {
+  /// 성공 응답만 재사용한다 — 일시적 장애(provider_unavailable)까지 캐시하면
+  /// 카카오가 복구된 뒤에도 최대 TTL만큼 계속 실패로 보일 수 있다.
+  private readonly nearbyCache = new TtlCache<NearbyPlacesResponse>(
+    NEARBY_CACHE_TTL_MS,
+  );
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(KAKAO_LOCAL_PORT) private readonly kakao: KakaoLocalPort,
@@ -165,6 +173,10 @@ export class PlacesService {
     if (!this.kakao.isConfigured()) {
       return { status: "unavailable", reason: "provider_not_configured" };
     }
+    const cacheKey = `${placeId}:${input.category}:${input.limit}`;
+    const cached = this.nearbyCache.get(cacheKey);
+    if (cached) return cached;
+
     const codes: readonly KakaoCategoryCode[] =
       input.category === "attraction"
         ? ["AT4", "CT1"]
@@ -213,11 +225,13 @@ export class PlacesService {
         distanceMeters: item.distanceMeters,
         placeUrl: item.placeUrl,
       }));
-    return {
+    const response: NearbyPlacesResponse = {
       status: "ready",
       category: input.category,
       partial: results.some((result) => result.status === "rejected"),
       items,
     };
+    this.nearbyCache.set(cacheKey, response);
+    return response;
   }
 }

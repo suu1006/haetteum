@@ -156,6 +156,7 @@ model Place {
   detailInfos PlaceDetailInfo[]
   reviews Review[]
   reels PlaceReel[]
+  courseStops TourCourseStop[]
 
   @@unique([source, externalId])
   @@index([regionId, isVisible])
@@ -424,6 +425,79 @@ model PlaceReel {
   @@unique([placeId, provider, providerVideoId])
   @@index([placeId, displayOrder])
   @@map("place_reels")
+}
+
+/// TourAPI에서 동기화한 여행코스(contentTypeId=25)
+model TourCourse {
+  /// Haetteum 내부 여행코스 식별자
+  id                  String   @id @default(uuid()) @db.Uuid
+  /// 여행코스 원본 provider 식별자
+  source              String   @db.VarChar(32)
+  /// provider가 부여한 여행코스 식별자
+  externalId          String   @map("external_id") @db.VarChar(64)
+  /// 여행코스명
+  title               String   @db.VarChar(500)
+  /// 여행코스 소개 설명
+  overview            String?  @db.Text
+  /// 코스 총 소요시간 안내 문구
+  takeTime            String?  @map("take_time") @db.VarChar(200)
+  /// 코스 총 이동거리 안내 문구
+  distance            String?  @db.VarChar(200)
+  /// 코스 일정 구분
+  schedule            String?  @db.VarChar(200)
+  /// 코스 테마
+  theme               String?  @db.VarChar(200)
+  /// 대표 이미지 URL이며 코스 자체 이미지가 없으면 NULL
+  primaryImageUrl     String?  @map("primary_image_url") @db.Text
+  /// WGS84 경도
+  longitude           Decimal? @db.Decimal(10, 7)
+  /// WGS84 위도
+  latitude            Decimal? @db.Decimal(10, 7)
+  /// provider 콘텐츠 최종 수정 시각
+  providerModifiedAt  DateTime @map("provider_modified_at") @db.Timestamptz(3)
+  /// 내부 DB에 마지막으로 정상 반영한 시각
+  lastSyncedAt        DateTime @map("last_synced_at") @db.Timestamptz(3)
+  /// 내부 레코드 생성 시각
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  stops TourCourseStop[]
+
+  @@unique([source, externalId])
+  @@map("tour_courses")
+}
+
+/// 여행코스를 구성하는 경유지
+model TourCourseStop {
+  /// Haetteum 내부 경유지 식별자
+  id              String   @id @default(uuid()) @db.Uuid
+  /// 소속 여행코스 식별자
+  courseId        String   @map("course_id") @db.Uuid
+  /// 코스 내 방문 순서이며 1부터 시작한다
+  sequence        Int
+  /// provider가 부여한 경유지 콘텐츠 식별자
+  externalPlaceId String   @map("external_place_id") @db.VarChar(64)
+  /// 내부 관광지와 연결되면 그 식별자이며 아니면 NULL
+  placeId         String?  @map("place_id") @db.Uuid
+  /// 경유지명
+  title           String   @db.VarChar(500)
+  /// 경유지 소개 설명
+  overview        String?  @db.Text
+  /// 경유지 대표 이미지 URL
+  imageUrl        String?  @map("image_url") @db.Text
+  /// 내부 레코드 생성 시각
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// 내부 레코드 최종 수정 시각
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  course TourCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  place  Place?     @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  @@unique([courseId, sequence])
+  @@index([placeId])
+  @@index([externalPlaceId])
+  @@map("tour_course_stops")
 }
 
 /// TourAPI에서 동기화한 축제 기본 정보

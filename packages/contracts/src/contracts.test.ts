@@ -6,6 +6,7 @@ import {
   FestivalDiscoveryItemSchema,
   FestivalDiscoveryQuerySchema,
   FestivalDiscoveryResponseSchema,
+  GeneratedCourseResponseSchema,
   HealthResponseSchema,
   HotPlaceRankingResponseSchema,
   ListHotPlaceRankingsQuerySchema,
@@ -13,6 +14,8 @@ import {
   MyReviewsResponseSchema,
   NearbyPlacesQuerySchema,
   NearbyPlacesResponseSchema,
+  PlaceCourseItemSchema,
+  PlaceCoursesResponseSchema,
   PlaceDetailResponseSchema,
   PlaceListItemSchema,
   PlaceRankingResponseSchema,
@@ -234,6 +237,55 @@ describe("places contracts", () => {
         reason: "unknown",
       }),
     ).toThrow();
+  });
+}
+  it("validates a generated course's anchor and Kakao stops, and rejects a bad placeUrl", () => {
+    const ready = {
+      status: "ready",
+      partial: false,
+      stops: [
+        {
+          role: "anchor",
+          sequence: 1,
+          placeId: "24684077-a907-45c3-85bf-b509dab12377",
+          title: "에버랜드",
+          categoryLabel: null,
+          address: "경기 용인시",
+          longitude: 127.2,
+          latitude: 37.2,
+          distanceMeters: 0,
+          placeUrl: null,
+        },
+        {
+          role: "attraction",
+          sequence: 2,
+          placeId: null,
+          title: "캐리비안 베이",
+          categoryLabel: "관광,명소 > 워터파크",
+          address: null,
+          longitude: 127.201,
+          latitude: 37.201,
+          distanceMeters: 300,
+          placeUrl: "https://place.map.kakao.com/26338954",
+        },
+      ],
+    } as const;
+
+    expect(GeneratedCourseResponseSchema.parse(ready)).toEqual(ready);
+    expect(() =>
+      GeneratedCourseResponseSchema.parse({
+        ...ready,
+        stops: [
+          { ...ready.stops[1], placeUrl: "https://example.com/place" },
+        ],
+      }),
+    ).toThrow();
+    expect(
+      GeneratedCourseResponseSchema.parse({
+        status: "unavailable",
+        reason: "coordinates_missing",
+      }),
+    ).toEqual({ status: "unavailable", reason: "coordinates_missing" });
   });
 });
 
@@ -594,5 +646,72 @@ describe("reviews contracts", () => {
     expect(MyReviewsResponseSchema.parse({ items: [review] })).toEqual({
       items: [review],
     });
+  });
+});
+
+describe("place course contracts", () => {
+  const placeId = "84549352-0c20-4e11-af50-2d4f278f41ef";
+  const course = {
+    id: "0e4b9e9b-2b8a-4d61-9b6b-2f5c1b0f9d21",
+    title: "선사유적지와 분단의 현장에 발을 딛다.",
+    overview: "경기도 최북단 연천을 걷는 하루 코스.",
+    takeTime: "1일",
+    distance: "65.93km",
+    schedule: "기타",
+    theme: "지자체",
+    imageUrl: "https://tong.visitkorea.or.kr/cms/resource/13/1049613_image2_1.jpg",
+    stops: [
+      {
+        sequence: 1,
+        placeId,
+        title: "재인폭포",
+        overview: "한탄강 서쪽에 자리한 폭포.",
+        imageUrl: null,
+      },
+    ],
+  } as const;
+
+  it("accepts a course whose provider fields are all absent", () => {
+    const sparse = PlaceCourseItemSchema.parse({
+      ...course,
+      overview: null,
+      takeTime: null,
+      distance: null,
+      schedule: null,
+      theme: null,
+      imageUrl: null,
+    });
+
+    expect(sparse.takeTime).toBe(null);
+    expect(sparse.imageUrl).toBe(null);
+  });
+
+  it("keeps a stop we do not carry addressable by title alone", () => {
+    const stop = PlaceCourseItemSchema.parse({
+      ...course,
+      stops: [{ ...course.stops[0], placeId: null }],
+    }).stops[0];
+
+    expect(stop?.placeId).toBe(null);
+    expect(stop?.title).toBe("재인폭포");
+  });
+
+  it("rejects a stop sequence that does not start counting from one", () => {
+    expect(() =>
+      PlaceCourseItemSchema.parse({
+        ...course,
+        stops: [{ ...course.stops[0], sequence: 0 }],
+      }),
+    ).toThrow();
+  });
+
+  it("treats an empty course list as a valid response", () => {
+    expect(
+      PlaceCoursesResponseSchema.parse({
+        placeId,
+        source: "TOUR_API",
+        items: [],
+      }).items,
+    ).toEqual([]);
   });
 });

@@ -33,6 +33,14 @@ export {
   type PopularReelsResponse,
 } from "./place-reels.js";
 export {
+  PlaceCourseItemSchema,
+  PlaceCourseStopSchema,
+  PlaceCoursesResponseSchema,
+  type PlaceCourseItem,
+  type PlaceCourseStop,
+  type PlaceCoursesResponse,
+} from "./place-courses.js";
+export {
   FestivalBrowseRegionSchema,
   FestivalCategoryLabelSchema,
   FestivalDiscoveryItemSchema,
@@ -55,6 +63,9 @@ export {
   type ValidationIssue,
 } from "./problem-details.js";
 export {
+  GeneratedCourseResponseSchema,
+  GeneratedCourseStopRoleSchema,
+  GeneratedCourseStopSchema,
   ListPlacesQuerySchema,
   NearbyPlaceCategorySchema,
   NearbyPlaceItemSchema,
@@ -66,6 +77,9 @@ export {
   PlaceListItemSchema,
   PlaceRegionSchema,
   PlacesPageSchema,
+  type GeneratedCourseResponse,
+  type GeneratedCourseStop,
+  type GeneratedCourseStopRole,
   type ListPlacesQuery,
   type NearbyPlaceCategory,
   type NearbyPlaceItem,

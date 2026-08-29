@@ -25,6 +25,7 @@
     "hotplace:import": "pnpm build && node dist/hot-place-rankings/hot-place-ranking-import.command.js",
     "ranking:backfill-images": "pnpm build && node dist/place-rankings/ranking-image-backfill.command.js",
     "ranking:link-places": "pnpm build && node dist/place-rankings/ranking-place-link.command.js",
+    "course:sync": "pnpm build && node dist/place-courses/course-sync.command.js",
     "reels:refresh": "pnpm build && node dist/place-reels/place-reels-refresh.command.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

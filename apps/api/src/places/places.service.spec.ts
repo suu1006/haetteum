@@ -1,6 +1,7 @@
 import { jest } from "@jest/globals";
 
 import { Prisma } from "../generated/prisma/client.js";
+import type { KakaoLocalPlace } from "./kakao-local.client.js";
 import { PlacesService } from "./places.service.js";
 
 type PlaceListRow = {
@@ -216,5 +217,47 @@ describe("PlacesService", () => {
       status: "unavailable",
       reason: "provider_not_configured",
     });
+  });
+
+  it("caches a ready nearby response so a repeated request skips the Kakao call", async () => {
+    const findFirst = jest.fn<() => Promise<any>>().mockResolvedValue({
+      id: "24684077-a907-45c3-85bf-b509dab12377",
+      longitude: new Prisma.Decimal("127.2025"),
+      latitude: new Prisma.Decimal("37.2939"),
+    });
+    const searchCategory = jest
+      .fn<() => Promise<readonly KakaoLocalPlace[]>>()
+      .mockResolvedValue([
+        {
+          id: "27336221",
+          placeName: "에버랜드 푸드코트",
+          categoryName: "음식점 > 한식",
+          phone: null,
+          addressName: "경기 용인시",
+          roadAddressName: null,
+          longitude: 127.203,
+          latitude: 37.294,
+          placeUrl: "http://place.map.kakao.com/27336221",
+          distanceMeters: 120,
+        },
+      ]);
+    const service = new PlacesService({ place: { findFirst } } as never, {
+      isConfigured: () => true,
+      searchCategory,
+    });
+
+    const input = { category: "restaurant" as const, limit: 10 };
+    const first = await service.nearby(
+      "24684077-a907-45c3-85bf-b509dab12377",
+      input,
+    );
+    const second = await service.nearby(
+      "24684077-a907-45c3-85bf-b509dab12377",
+      input,
+    );
+
+    expect(first).toEqual(second);
+    expect(first).toMatchObject({ status: "ready" });
+    expect(searchCategory).toHaveBeenCalledTimes(1);
   });
 });
