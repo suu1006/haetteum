@@ -21,3 +21,4 @@ yarn-error.log*
 .omx/
 design-qa.md
 .claude/worktrees/
+/artifacts/
