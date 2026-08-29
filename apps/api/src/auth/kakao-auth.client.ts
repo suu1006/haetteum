@@ -34,6 +34,30 @@ export class KakaoAuthError extends Error {
   }
 }
 
+// Kakao returns profile image URLs over http even though the Kakao CDN serves the
+// same asset over https. Upgrade the scheme so downstream https-only consumers
+// (next/image remotePatterns, isAllowedKakaoProfileImageUrl) accept it.
+function normalizeKakaoProfileImageUrl(
+  rawUrl: string | undefined,
+): string | null {
+  if (!rawUrl) return null;
+
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  const isKakaoCdn =
+    url.hostname === "kakaocdn.net" || url.hostname.endsWith(".kakaocdn.net");
+  if (isKakaoCdn && url.protocol === "http:") {
+    url.protocol = "https:";
+  }
+
+  return url.toString();
+}
+
 @Injectable()
 export class KakaoAuthClient {
   constructor(
@@ -79,7 +103,9 @@ export class KakaoAuthClient {
     return {
       providerUserId: String(user.id),
       displayName,
-      profileImageUrl: profile?.profile_image_url ?? null,
+      profileImageUrl: normalizeKakaoProfileImageUrl(
+        profile?.profile_image_url,
+      ),
     };
   }
 

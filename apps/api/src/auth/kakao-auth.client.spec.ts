@@ -137,6 +137,51 @@ describe("KakaoAuthClient", () => {
     expect(init?.signal).toBeDefined();
   });
 
+  it("upgrades an http Kakao CDN profile image URL to https", async () => {
+    const fetch = jest.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({
+        ...kakaoUser,
+        kakao_account: {
+          ...kakaoUser.kakao_account,
+          profile: {
+            ...kakaoUser.kakao_account.profile,
+            profile_image_url:
+              "http://k.kakaocdn.net/dn/haGqj/abc/img_640x640.jpg",
+          },
+        },
+      }),
+    );
+    const client = createClient(fetch);
+
+    await expect(client.getUser("provider-access-token")).resolves.toEqual({
+      providerUserId: "123456789",
+      displayName: "해뜸 여행자",
+      profileImageUrl: "https://k.kakaocdn.net/dn/haGqj/abc/img_640x640.jpg",
+    });
+  });
+
+  it("leaves a non-Kakao-CDN http profile image URL untouched", async () => {
+    const fetch = jest.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({
+        ...kakaoUser,
+        kakao_account: {
+          ...kakaoUser.kakao_account,
+          profile: {
+            ...kakaoUser.kakao_account.profile,
+            profile_image_url: "http://cdn.example.test/profile.jpg",
+          },
+        },
+      }),
+    );
+    const client = createClient(fetch);
+
+    await expect(client.getUser("provider-access-token")).resolves.toEqual({
+      providerUserId: "123456789",
+      displayName: "해뜸 여행자",
+      profileImageUrl: "http://cdn.example.test/profile.jpg",
+    });
+  });
+
   it("defaults an absent profile nickname and image", async () => {
     const fetch = jest.fn<typeof globalThis.fetch>().mockResolvedValue(
       jsonResponse({
