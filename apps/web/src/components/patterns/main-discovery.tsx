@@ -4,6 +4,7 @@ import { DiscoveryAppHeader } from "@/components/patterns/discovery-app-header";
 import { DiscoverySearchPanel } from "@/components/patterns/discovery-search-panel";
 import { FestivalDiscovery } from "@/components/patterns/festival-discovery";
 import { FestivalSection } from "@/components/patterns/festival-section";
+import { HotPlaceSection } from "@/components/patterns/hot-place-section";
 import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { RankedPlaceSection } from "@/components/patterns/ranked-place-section";
 import { AiCourseBanner } from "@/components/travel/ai-course-banner";
@@ -16,7 +17,9 @@ import type {
   DiscoveryView,
   MainDiscoveryData,
 } from "@/features/discovery/discovery-model";
+import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+import type { MonthlyFestivalsLoadState } from "@/features/festivals/festival-discovery-api";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
 
@@ -25,6 +28,8 @@ export type MainDiscoveryProps = {
   query: DiscoveryQuery;
   view: DiscoveryView;
   ranking?: PlaceRankingLoadState | null;
+  hotRanking?: HotPlaceRankingLoadState | null;
+  monthlyFestivals?: MonthlyFestivalsLoadState | null;
   popularReels?: PopularReelsLoadState | null;
 };
 
@@ -39,8 +44,12 @@ function MainDiscovery({
   query,
   view,
   ranking = { status: "error" },
+  hotRanking = { status: "error" },
+  monthlyFestivals = { status: "error" },
   popularReels = null,
 }: MainDiscoveryProps) {
+  const festivalItems =
+    monthlyFestivals?.status === "ready" ? monthlyFestivals.items : [];
   return (
     <div
       className={`mx-auto min-h-screen w-full max-w-[30rem] pb-[var(--main-navigation-reserve)] ${
@@ -58,6 +67,12 @@ function MainDiscovery({
         {view.showRankedPlaces ? (
           <RankedPlaceSection
             ranking={ranking}
+            query={query}
+          />
+        ) : null}
+        {view.showRankedPlaces ? (
+          <HotPlaceSection
+            ranking={hotRanking}
             query={query}
           />
         ) : null}
@@ -87,10 +102,7 @@ function MainDiscovery({
           </div>
         ) : null}
         {view.showFestivals ? (
-          <FestivalSection
-            festivals={view.festivals.slice(0, 1)}
-            query={query}
-          />
+          <FestivalSection festivals={festivalItems} />
         ) : null}
         {view.showFestivalDiscovery ? (
           <FestivalDiscovery

@@ -17,6 +17,7 @@ describe("parseDiscoveryQuery", () => {
       region: "gyeonggi",
       tab: "recommended",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
   });
@@ -27,6 +28,7 @@ describe("parseDiscoveryQuery", () => {
       region: "gyeonggi",
       tab: "recommended",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
   });
@@ -34,6 +36,15 @@ describe("parseDiscoveryQuery", () => {
   it("accepts approved ranking audiences and defaults unknown values to all", () => {
     expect(parseDiscoveryQuery({ audience: "30s" }).audience).toBe("30s");
     expect(parseDiscoveryQuery({ audience: "teens" }).audience).toBe("all");
+  });
+
+  it("parses the hot-place audience independently from the ranking audience", () => {
+    const query = parseDiscoveryQuery({ audience: "30s", hotAudience: "50s" });
+    expect(query.audience).toBe("30s");
+    expect(query.hotAudience).toBe("50s");
+    expect(parseDiscoveryQuery({ hotAudience: "teens" }).hotAudience).toBe(
+      "all",
+    );
   });
 
   it("treats the disabled theme-travel tab as the recommendation tab", () => {
@@ -118,26 +129,13 @@ describe("selectDiscoveryView", () => {
     ]);
   });
 
-  it("provides enough ranked Jeju festivals for preview and expansion", () => {
-    const jejuFestivals = mainDiscoveryMock.festivals.filter(
-      (festival) => festival.region === "jeju",
-    );
-
-    expect(jejuFestivals).toHaveLength(6);
-    expect(jejuFestivals.map((festival) => festival.rank)).toEqual([
-      1, 2, 3, 4, 5, 6,
-    ]);
-    expect(mainDiscoveryMock.festivalFeature.title).toBe(
-      "제주 가을 산책 주간",
-    );
-  });
-
   it("filters the place ranking with a trimmed Korean query", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, {
       q: "  성산  ",
       region: "jeju",
       tab: "places",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -153,6 +151,7 @@ describe("selectDiscoveryView", () => {
       region: "jeju",
       tab: "places",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -175,6 +174,7 @@ describe("selectDiscoveryView", () => {
       region: "gyeonggi",
       tab: "recommended",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -183,9 +183,6 @@ describe("selectDiscoveryView", () => {
     expect(view.showAiCourse).toBe(true);
     expect(view.showFestivals).toBe(true);
     expect(view.showFestivalDiscovery).toBe(false);
-    expect(view.festivals.map((festival) => festival.title)).toEqual([
-      "이천쌀문화축제",
-    ]);
   });
 
   it("keeps the disabled theme travel surface hidden", () => {
@@ -194,6 +191,7 @@ describe("selectDiscoveryView", () => {
       region: "gyeonggi",
       tab: "ai-course",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -211,6 +209,7 @@ describe("selectDiscoveryView", () => {
       region: "jeju",
       tab: "festivals",
       audience: "all",
+      hotAudience: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -221,25 +220,6 @@ describe("selectDiscoveryView", () => {
     expect(view.showFestivalDiscovery).toBe(true);
   });
 
-  it("combines region, search, and active festival filters", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
-      q: "제주",
-      region: "jeju",
-      tab: "festivals",
-      audience: "all",
-      festivalFilters: {
-        ongoing: true,
-        thisWeek: false,
-        free: true,
-        family: true,
-      },
-    });
-
-    expect(view.festivals.map((festival) => festival.title)).toEqual([
-      "제주 여름빛 정원축제",
-      "애월 푸른바다 마켓",
-    ]);
-  });
 });
 
 it("builds a complete filter URL without dropping the active query", () => {
@@ -250,6 +230,7 @@ it("builds a complete filter URL without dropping the active query", () => {
         region: "jeju",
         tab: "recommended",
         audience: "40s",
+        hotAudience: "all",
         festivalFilters: defaultFestivalFilters,
       },
       { tab: "festivals", audience: "50s" },
@@ -260,12 +241,34 @@ it("builds a complete filter URL without dropping the active query", () => {
   );
 });
 
+it("adds the hot-place audience only when it differs from the default", () => {
+  const base = {
+    q: "",
+    region: "gyeonggi" as const,
+    tab: "recommended" as const,
+    audience: "all" as const,
+    hotAudience: "all" as const,
+    festivalFilters: defaultFestivalFilters,
+  };
+
+  expect(buildDiscoveryHref(base, { hotAudience: "40s" })).toBe(
+    "/?region=gyeonggi&tab=recommended&hotAudience=40s",
+  );
+  expect(
+    buildDiscoveryHref({ ...base, audience: "20s" }, { hotAudience: "40s" }),
+  ).toBe("/?region=gyeonggi&tab=recommended&audience=20s&hotAudience=40s");
+  expect(buildDiscoveryHref(base, { audience: "30s" })).toBe(
+    "/?region=gyeonggi&tab=recommended&audience=30s",
+  );
+});
+
 it("toggles one festival filter without dropping the discovery query", () => {
   const query = {
     q: "꽃",
     region: "jeju",
     tab: "festivals",
     audience: "30s",
+    hotAudience: "all",
     festivalFilters: defaultFestivalFilters,
   } as const;
 

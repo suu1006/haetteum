@@ -5,12 +5,16 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { PlaceRankingResponse } from "@haetteum/contracts";
+import type {
+  HotPlaceRankingResponse,
+  PlaceRankingResponse,
+} from "@haetteum/contracts";
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 
 import { DiscoverySearchPanel } from "@/components/patterns/discovery-search-panel";
 import { FestivalSection } from "@/components/patterns/festival-section";
+import { HotPlaceSection } from "@/components/patterns/hot-place-section";
 import { MainDiscovery } from "@/components/patterns/main-discovery";
 import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { RankedPlaceSection } from "@/components/patterns/ranked-place-section";
@@ -20,7 +24,9 @@ import {
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+import type { MonthlyFestivalsLoadState } from "@/features/festivals/festival-discovery-api";
 
 const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 
@@ -44,12 +50,58 @@ const rankingResponse = {
       index === 0 ? "84549352-0c20-4e11-af50-2d4f278f41ef" : null,
     primaryImageUrl: null,
     imageCopyrightType: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
   })),
 } satisfies PlaceRankingResponse;
 
 const readyRanking: PlaceRankingLoadState = {
   status: "ready",
   data: rankingResponse,
+};
+
+const hotRankingResponse = {
+  source: "KTO_DATALAB",
+  scope: "national",
+  baseYearMonth: "202607",
+  periodStart: "2026-07-01",
+  periodEnd: "2026-07-31",
+  audience: "all",
+  items: Array.from({ length: 10 }, (_, index) => ({
+    rank: index + 1,
+    sourcePlaceId: `${String(index + 1).padStart(2, "0")}${"b".repeat(30)}`,
+    title: index === 0 ? "장릉" : `핫플레이스 ${index + 1}`,
+    category: "관광명소",
+    provinceName: "강원특별자치도",
+    districtName: "영월군",
+    growthPercent: 400 - index * 10,
+    placeId: index === 0 ? "84549352-0c20-4e11-af50-2d4f278f41ef" : null,
+    primaryImageUrl: null,
+    imageCopyrightType: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
+  })),
+} satisfies HotPlaceRankingResponse;
+
+const readyHotRanking: HotPlaceRankingLoadState = {
+  status: "ready",
+  data: hotRankingResponse,
+};
+
+const readyMonthlyFestivals: MonthlyFestivalsLoadState = {
+  status: "ready",
+  items: [
+    {
+      id: "9f0c1e2a-1111-4aaa-8bbb-000000000001",
+      title: "이천 도자기 축제",
+      status: "ongoing",
+      statusLabel: "진행 중",
+      dateLabel: "2026. 8. 1. – 8. 31.",
+      location: "경기 이천시",
+      categoryLabel: "지역특산물축제",
+      image: { src: null, alt: "이천 도자기 축제 대표 이미지" },
+    },
+  ],
 };
 
 describe("MainDiscovery", () => {
@@ -62,6 +114,8 @@ describe("MainDiscovery", () => {
         query={defaultDiscoveryQuery}
         view={view}
         ranking={readyRanking}
+        hotRanking={readyHotRanking}
+        monthlyFestivals={readyMonthlyFestivals}
       />,
     );
 
@@ -90,7 +144,7 @@ describe("MainDiscovery", () => {
       screen.queryByRole("img", { name: /풍경|해안|여행지/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "이번 주 인기 축제" }),
+      screen.getByRole("heading", { name: "이번 달 인기 축제" }),
     ).toBeVisible();
     expect(
       within(screen.getByRole("list", { name: "축제 일정" })).getAllByRole(
@@ -98,8 +152,11 @@ describe("MainDiscovery", () => {
       ),
     ).toHaveLength(1);
     expect(
-      screen.getByRole("link", { name: "이천쌀문화축제" }),
-    ).toHaveAttribute("href", "/festivals/icheon-rice-cultural-festival");
+      screen.getByRole("link", { name: "이천 도자기 축제" }),
+    ).toHaveAttribute(
+      "href",
+      "/festivals/9f0c1e2a-1111-4aaa-8bbb-000000000001",
+    );
     expect(screen.getByRole("navigation", { name: "주요 메뉴" })).toBeVisible();
     expect(screen.getByRole("link", { name: "탐색" })).toHaveAttribute(
       "href",
@@ -124,6 +181,7 @@ describe("MainDiscovery", () => {
         query={defaultDiscoveryQuery}
         view={view}
         ranking={readyRanking}
+        hotRanking={readyHotRanking}
       />,
     );
 
@@ -137,7 +195,7 @@ describe("MainDiscovery", () => {
         (node) =>
           node.getAttribute("data-section") ?? node.getAttribute("data-region"),
       ),
-    ).toEqual(["places", "banner", "festivals"]);
+    ).toEqual(["places", "hot-places", "banner", "festivals"]);
   });
 
   it("falls back to recommendations when the disabled theme URL is requested", () => {
@@ -170,6 +228,7 @@ describe("MainDiscovery", () => {
         query={defaultDiscoveryQuery}
         view={view}
         ranking={readyRanking}
+        hotRanking={readyHotRanking}
       />,
     );
     const results = await axe.run(container, {
@@ -288,7 +347,7 @@ describe("MainDiscovery", () => {
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "이번 주 인기 축제" }),
+      screen.queryByRole("heading", { name: "이번 달 인기 축제" }),
     ).not.toBeInTheDocument();
   });
 
@@ -660,42 +719,95 @@ describe("RankedPlaceSection", () => {
   });
 });
 
-describe("FestivalSection", () => {
-  it("renders festivals in a labelled list", () => {
-    const festivals = mainDiscoveryMock.festivals.filter(
-      (festival) => festival.region === "jeju",
+describe("HotPlaceSection", () => {
+  it("renders ten nationwide hot-place cards with the base month and age filters", () => {
+    render(
+      <HotPlaceSection
+        ranking={readyHotRanking}
+        query={defaultDiscoveryQuery}
+      />,
     );
 
-    render(<FestivalSection festivals={festivals} />);
+    expect(
+      screen.getByRole("heading", { name: "세대별 핫플레이스" }),
+    ).toBeVisible();
+    expect(screen.getByText("전국 · 2026.07")).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "핫플레이스 세대 필터" }),
+      )
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["전체", "20대", "30대", "40대", "50대", "60대 이상"]);
+    const list = screen.getByRole("list", { name: "세대별 핫플레이스" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(10);
+    expect(screen.getByText("방문 급상승 400.0%")).toBeVisible();
+    expect(screen.getByRole("link", { name: /1위 장릉/ })).toHaveAttribute(
+      "href",
+      "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction",
+    );
+  });
+
+  it("marks the selected hot-place audience and links with hotAudience", () => {
+    const query = { ...defaultDiscoveryQuery, hotAudience: "50s" as const };
+    render(<HotPlaceSection ranking={readyHotRanking} query={query} />);
+
+    const link = within(
+      screen.getByRole("navigation", { name: "핫플레이스 세대 필터" }),
+    ).getByRole("link", { name: "50대" });
+    expect(link).toHaveAttribute("aria-current", "true");
+    expect(link).toHaveAttribute(
+      "href",
+      "/?region=gyeonggi&tab=recommended&hotAudience=50s",
+    );
+  });
+
+  it("shows a retryable error state for an incomplete hot-place response", () => {
+    render(
+      <HotPlaceSection
+        ranking={{
+          status: "ready",
+          data: {
+            ...hotRankingResponse,
+            items: hotRankingResponse.items.slice(0, 9),
+          },
+        }}
+        query={defaultDiscoveryQuery}
+      />,
+    );
+
+    expect(screen.getByText("핫플레이스 정보를 불러오지 못했어요.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도하기" })).toBeVisible();
+    expect(
+      screen.queryByRole("list", { name: "세대별 핫플레이스" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("FestivalSection", () => {
+  it("renders the monthly festivals in a labelled list", () => {
+    render(<FestivalSection festivals={readyMonthlyFestivals.items} />);
 
     const list = screen.getByRole("list", { name: "축제 일정" });
     const listItems = within(list).getAllByRole("listitem");
 
-    expect(screen.getByRole("heading", { name: "이번 주 인기 축제" })).toBeVisible();
-    expect(listItems).toHaveLength(6);
+    expect(
+      screen.getByRole("heading", { name: "이번 달 인기 축제" }),
+    ).toBeVisible();
+    expect(listItems).toHaveLength(1);
     expect(listItems[0]).not.toHaveAccessibleName();
     expect(list).toContainElement(
-      screen.getByRole("article", { name: "제주 여름빛 정원축제" }),
+      screen.getByRole("article", { name: "이천 도자기 축제" }),
     );
   });
 
-  it("offers a query reset link when no festivals match", () => {
-    render(
-      <FestivalSection
-        festivals={[]}
-        query={{
-          ...defaultDiscoveryQuery,
-          q: "꽃",
-          region: "gangwon",
-        }}
-      />,
-    );
+  it("shows an empty-state notice when there are no monthly festivals", () => {
+    render(<FestivalSection festivals={[]} />);
 
-    expect(screen.getByText("조건에 맞는 축제를 찾지 못했어요.")).toBeVisible();
-    expect(screen.getByRole("link", { name: "검색어 지우기" })).toHaveAttribute(
-      "href",
-      "/?region=gangwon&tab=recommended#festivals",
-    );
+    expect(
+      screen.getByText("이번 달에 열리는 축제 정보가 없어요."),
+    ).toBeVisible();
+    expect(screen.queryByRole("list", { name: "축제 일정" })).toBeNull();
   });
 });
 

@@ -4,12 +4,14 @@ import {
   parseDiscoveryQuery,
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
+import { loadHotPlaceRankings } from "@/features/discovery/hot-place-ranking-api";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 import { loadPlaceRankings } from "@/features/discovery/place-ranking-api";
 import { loadPopularReels } from "@/features/discovery/place-reels-api";
 import {
   festivalBrowseRegion,
   loadFestivalDiscovery,
+  loadMonthlyFestivals,
 } from "@/features/festivals/festival-discovery-api";
 
 type DiscoveryContentProps = {
@@ -28,10 +30,15 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
         }
       : mainDiscoveryMock;
   const view = selectDiscoveryView(data, query);
-  const [ranking, popularReels] = await Promise.all([
-    view.showRankedPlaces ? loadPlaceRankings(query.audience) : null,
-    view.showPopularPlaces ? loadPopularReels(query.audience) : null,
-  ]);
+  const [ranking, hotRanking, monthlyFestivals, popularReels] =
+    await Promise.all([
+      view.showRankedPlaces ? loadPlaceRankings(query.audience) : null,
+      view.showRankedPlaces ? loadHotPlaceRankings(query.hotAudience) : null,
+      view.showRankedPlaces
+        ? loadMonthlyFestivals(festivalBrowseRegion(query.region))
+        : null,
+      view.showPopularPlaces ? loadPopularReels(query.audience) : null,
+    ]);
 
   return (
     <MainDiscovery
@@ -39,6 +46,8 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
       query={query}
       view={view}
       ranking={ranking}
+      hotRanking={hotRanking}
+      monthlyFestivals={monthlyFestivals}
       popularReels={popularReels}
     />
   );

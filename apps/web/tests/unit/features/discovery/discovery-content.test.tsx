@@ -1,8 +1,17 @@
-import { render, screen } from "@testing-library/react";
-import type { PlaceRankingResponse } from "@haetteum/contracts";
+import { render, screen, within } from "@testing-library/react";
+import type {
+  HotPlaceRankingResponse,
+  PlaceRankingResponse,
+} from "@haetteum/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DiscoveryContent } from "@/features/discovery/discovery-content";
+
+const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMocks,
+}));
 
 const previousApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -21,11 +30,62 @@ const placeRankingResponse = {
     placeId: null,
     primaryImageUrl: null,
     imageCopyrightType: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
   })),
 } satisfies PlaceRankingResponse;
 
+const hotPlaceRankingResponse = {
+  source: "KTO_DATALAB",
+  scope: "national",
+  baseYearMonth: "202607",
+  periodStart: "2026-07-01",
+  periodEnd: "2026-07-31",
+  audience: "all",
+  items: Array.from({ length: 10 }, (_, index) => ({
+    rank: index + 1,
+    sourcePlaceId: `${String(index + 1).padStart(2, "0")}${"b".repeat(30)}`,
+    title: index === 0 ? "장릉" : `핫플레이스 ${index + 1}`,
+    category: "관광명소",
+    provinceName: "강원특별자치도",
+    districtName: "영월군",
+    growthPercent: 400 - index * 10,
+    placeId: null,
+    primaryImageUrl: null,
+    imageCopyrightType: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
+  })),
+} satisfies HotPlaceRankingResponse;
+
+function rankingFetchMock(
+  overrides: {
+    place?: PlaceRankingResponse;
+    hot?: HotPlaceRankingResponse;
+  } = {},
+) {
+  return vi.fn<typeof fetch>().mockImplementation((input) => {
+    const url = String(input);
+    if (url.includes("/hot-place-rankings")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(overrides.hot ?? hotPlaceRankingResponse),
+          { status: 200 },
+        ),
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify(overrides.place ?? placeRankingResponse),
+        { status: 200 },
+      ),
+    );
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  routerMocks.refresh.mockReset();
   if (previousApiBaseUrl === undefined) {
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
   } else {
@@ -34,11 +94,9 @@ afterEach(() => {
 });
 
 describe("DiscoveryContent", () => {
-  it("loads the default all-audience ranking for the recommended page", async () => {
+  it("loads the default all-audience rankings for the recommended page", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify(placeRankingResponse), { status: 200 }),
-    );
+    const fetchMock = rankingFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     render(await DiscoveryContent({ searchParams: Promise.resolve({}) }));
@@ -46,21 +104,26 @@ describe("DiscoveryContent", () => {
     expect(
       screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
     ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "세대별 핫플레이스" }),
+    ).toBeVisible();
     expect(screen.getByRole("article", { name: "1위 에버랜드" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "1위 장릉" })).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
       { cache: "no-store" },
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
+      { cache: "no-store" },
+    );
   });
 
-  it("loads the selected audience ranking from URL search params", async () => {
+  it("loads the selected place-ranking audience from URL search params", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({ ...placeRankingResponse, audience: "30s" }),
-        { status: 200 },
-      ),
-    );
+    const fetchMock = rankingFetchMock({
+      place: { ...placeRankingResponse, audience: "30s" },
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(
@@ -69,12 +132,49 @@ describe("DiscoveryContent", () => {
       }),
     );
 
-    expect(screen.getByRole("link", { name: "30대" })).toHaveAttribute(
-      "aria-current",
-      "true",
-    );
+    const audienceNav = screen.getByRole("navigation", { name: "세대 필터" });
+    expect(
+      within(audienceNav).getByRole("link", { name: "30대" }),
+    ).toHaveAttribute("aria-current", "true");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=30s&limit=10",
+      { cache: "no-store" },
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
+      { cache: "no-store" },
+    );
+  });
+
+  it("loads the selected hot-place audience independently from URL search params", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+    const fetchMock = rankingFetchMock({
+      hot: { ...hotPlaceRankingResponse, audience: "40s" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      await DiscoveryContent({
+        searchParams: Promise.resolve({ hotAudience: "40s" }),
+      }),
+    );
+
+    const hotNav = screen.getByRole("navigation", {
+      name: "핫플레이스 세대 필터",
+    });
+    expect(
+      within(hotNav).getByRole("link", { name: "40대" }),
+    ).toHaveAttribute("aria-current", "true");
+    const audienceNav = screen.getByRole("navigation", { name: "세대 필터" });
+    expect(
+      within(audienceNav).getByRole("link", { name: "전체" }),
+    ).toHaveAttribute("aria-current", "true");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/hot-place-rankings?audience=40s&limit=10",
+      { cache: "no-store" },
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
       { cache: "no-store" },
     );
   });

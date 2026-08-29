@@ -1,5 +1,4 @@
 import type { MainDiscoveryData } from "@/features/discovery/discovery-model";
-import { festivalDetails } from "@/features/festivals/festival-detail.mock";
 import { themeTravelMock } from "@/features/themes/theme-travel.mock";
 
 export const mainDiscoveryMock = {
@@ -216,8 +215,7 @@ export const mainDiscoveryMock = {
       },
     },
   ],
-  festivals: festivalDetails,
-   popularPlaces: {
+  popularPlaces: {
     videos: [
       {
         id: "seongsan-sunrise-preview",

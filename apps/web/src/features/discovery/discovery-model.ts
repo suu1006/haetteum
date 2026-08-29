@@ -58,6 +58,7 @@ export type DiscoveryQuery = {
   region: FestivalBrowseRegionId;
   tab: DiscoveryTabId;
   audience: DiscoveryAudience;
+  hotAudience: DiscoveryAudience;
   festivalFilters: FestivalFilters;
 };
 
@@ -73,6 +74,7 @@ export const defaultDiscoveryQuery: DiscoveryQuery = {
   region: "gyeonggi",
   tab: "recommended",
   audience: "all",
+  hotAudience: "all",
   festivalFilters: defaultFestivalFilters,
 };
 
@@ -189,12 +191,10 @@ export type MainDiscoveryData = {
   festivalDiscovery: FestivalDiscoveryData;
   regions: ReadonlyArray<{ id: RegionId; label: string }>;
   places: readonly PlaceRankingItem[];
-  festivals: readonly FestivalItem[];
   popularPlaces: PopularPlacesData;
 };
 export type DiscoveryView = {
   places: readonly PlaceRankingItem[];
-  festivals: readonly FestivalItem[];
   popularVideos: readonly PopularVideoItem[];
   travelThemes: readonly TravelThemeItem[];
   videoCourses: readonly VideoCourseItem[];
@@ -216,6 +216,7 @@ export function parseDiscoveryQuery(
   const tab = firstValue(searchParams.tab);
   const region = firstValue(searchParams.region);
   const audience = firstValue(searchParams.audience);
+  const hotAudience = firstValue(searchParams.hotAudience);
   // 테마 여행은 데이터 연동 전까지 직접 URL 접근도 추천 탭으로 처리한다.
   const parsedTab =
     tab !== "ai-course" && discoveryTabIds.includes(tab as DiscoveryTabId)
@@ -239,6 +240,11 @@ export function parseDiscoveryQuery(
     )
       ? (audience as DiscoveryAudience)
       : defaultDiscoveryQuery.audience,
+    hotAudience: placeRankingAudienceIds.includes(
+      hotAudience as DiscoveryAudience,
+    )
+      ? (hotAudience as DiscoveryAudience)
+      : defaultDiscoveryQuery.hotAudience,
     festivalFilters: {
       ongoing: firstValue(searchParams.festivalStatus) === "ongoing",
       thisWeek: firstValue(searchParams.festivalPeriod) === "week",
@@ -260,6 +266,9 @@ export function buildDiscoveryHref(
   params.set("tab", next.tab);
   if (next.audience !== defaultDiscoveryQuery.audience) {
     params.set("audience", next.audience);
+  }
+  if (next.hotAudience && next.hotAudience !== defaultDiscoveryQuery.hotAudience) {
+    params.set("hotAudience", next.hotAudience);
   }
   if (next.festivalFilters.ongoing) {
     params.set("festivalStatus", "ongoing");
@@ -323,23 +332,11 @@ export function selectDiscoveryView(
   query: DiscoveryQuery,
 ): DiscoveryView {
   const normalizedQuery = query.q.trim().toLocaleLowerCase("ko-KR");
-  const festivalFilters = query.festivalFilters ?? defaultFestivalFilters;
   const places = data.places.filter(
     (place) =>
       place.region === query.region &&
       (!normalizedQuery ||
         matchesQuery([place.title, place.location], normalizedQuery)),
-  );
-  const festivals = data.festivals.filter(
-    (festival) =>
-      festival.region === query.region &&
-      (!normalizedQuery ||
-        matchesQuery([festival.title, festival.location], normalizedQuery)) &&
-      (!festivalFilters.ongoing || festival.status === "ongoing") &&
-      (!festivalFilters.thisWeek || festival.isThisWeek) &&
-      (!festivalFilters.free || festival.isFree) &&
-      (!festivalFilters.family ||
-        festival.audiences.includes("family")),
   );
   const popularVideos = data.popularPlaces.videos.filter(
     (video) =>
@@ -359,7 +356,6 @@ export function selectDiscoveryView(
 
   return {
     places,
-    festivals,
     popularVideos,
     travelThemes: data.popularPlaces.themes,
     videoCourses,
