@@ -2,6 +2,7 @@ import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import { jest } from "@jest/globals";
 
 import type {
+  GeneratedCourseResponse,
   ListPlacesQuery,
   NearbyPlacesResponse,
   PlaceDetailResponse,
@@ -24,7 +25,7 @@ describe("PlacesController", () => {
         .fn<(query: ListPlacesQuery) => Promise<PlacesPage>>()
         .mockResolvedValue(page),
     };
-    const controller = new PlacesController(places as never);
+    const controller = new PlacesController(places as never, {} as never);
     const query = { region: "jeju" as const, page: 1, pageSize: 20, q: "" };
 
     await expect(controller.list(query)).resolves.toBe(page);
@@ -72,12 +73,32 @@ describe("PlacesController", () => {
         .fn<() => Promise<NearbyPlacesResponse>>()
         .mockResolvedValue(nearby),
     };
-    const controller = new PlacesController(places as never);
+    const controller = new PlacesController(places as never, {} as never);
     const id = "24684077-a907-45c3-85bf-b509dab12377";
 
     await expect(controller.detail(id)).resolves.toBe(detail);
     await expect(
       controller.nearby(id, { category: "attraction", limit: 10 }),
     ).resolves.toBe(nearby);
+  });
+
+  it("passes one place ID to the course builder and returns its direct response", async () => {
+    const course: GeneratedCourseResponse = {
+      status: "unavailable",
+      reason: "coordinates_missing",
+    };
+    const courseBuilder = {
+      buildForPlace: jest
+        .fn<() => Promise<GeneratedCourseResponse>>()
+        .mockResolvedValue(course),
+    };
+    const controller = new PlacesController(
+      {} as never,
+      courseBuilder as never,
+    );
+    const id = "24684077-a907-45c3-85bf-b509dab12377";
+
+    await expect(controller.course(id)).resolves.toBe(course);
+    expect(courseBuilder.buildForPlace).toHaveBeenCalledWith(id);
   });
 });

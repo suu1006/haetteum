@@ -130,6 +130,44 @@ export const NearbyPlacesResponseSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+export const GeneratedCourseStopRoleSchema = z.enum([
+  "anchor",
+  "attraction",
+  "cafe",
+  "restaurant",
+]);
+
+/// 관광지 → 명소 → 카페 → 밥집 순으로 즉석 조립한 동선 한 개.
+/// anchor는 지금 보는 관광지(내부 placeId)이고, 나머지는 카카오 로컬 POI다.
+export const GeneratedCourseStopSchema = z.object({
+  role: GeneratedCourseStopRoleSchema,
+  sequence: z.number().int().positive(),
+  placeId: z.string().uuid().nullable(),
+  title: z.string().min(1),
+  categoryLabel: z.string().nullable(),
+  address: z.string().nullable(),
+  longitude: z.number(),
+  latitude: z.number(),
+  distanceMeters: z.number().int().nonnegative().nullable(),
+  placeUrl: KakaoPlaceUrlSchema.nullable(),
+});
+
+export const GeneratedCourseResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ready"),
+    partial: z.boolean(),
+    stops: z.array(GeneratedCourseStopSchema),
+  }),
+  z.object({
+    status: z.literal("unavailable"),
+    reason: z.enum([
+      "coordinates_missing",
+      "provider_not_configured",
+      "provider_unavailable",
+    ]),
+  }),
+]);
+
 export type PlaceRegion = z.infer<typeof PlaceRegionSchema>;
 export type ListPlacesQuery = z.infer<typeof ListPlacesQuerySchema>;
 export type PlaceListItem = z.infer<typeof PlaceListItemSchema>;
@@ -143,3 +181,10 @@ export type NearbyPlaceCategory = z.infer<typeof NearbyPlaceCategorySchema>;
 export type NearbyPlacesQuery = z.infer<typeof NearbyPlacesQuerySchema>;
 export type NearbyPlaceItem = z.infer<typeof NearbyPlaceItemSchema>;
 export type NearbyPlacesResponse = z.infer<typeof NearbyPlacesResponseSchema>;
+export type GeneratedCourseStopRole = z.infer<
+  typeof GeneratedCourseStopRoleSchema
+>;
+export type GeneratedCourseStop = z.infer<typeof GeneratedCourseStopSchema>;
+export type GeneratedCourseResponse = z.infer<
+  typeof GeneratedCourseResponseSchema
+>;
