@@ -20,7 +20,7 @@
 ## Brand
 
 - Personality: 여행의 설렘은 느껴지되 정보 탐색을 방해하지 않는, 밝고 친절하며 정돈된 모바일 서비스
-- Trust signals: 명확한 후기 출처, 일관된 평점 표시, 예측 가능한 선택 상태, 읽기 쉬운 일정과 이동 경로
+- Trust signals: 신뢰할 수 있는 자체 이용자 후기, 일관된 평점 표시, 예측 가능한 선택 상태, 읽기 쉬운 일정과 이동 경로
 - Avoid:
   - 기본 shadcn 컴포넌트를 그대로 조합한 SaaS 또는 관리자 화면 인상
   - 보라색을 의미 없이 넓은 면적의 장식에 반복 사용하는 방식
@@ -50,7 +50,7 @@
 - Primary personas: 모바일에서 여행지를 탐색하고 후기와 이동 동선을 비교해 일정을 만드는 국내 여행 사용자
 - User jobs:
   - 추천 여행지와 축제를 빠르게 훑는다.
-  - 여러 출처의 후기와 평점을 한곳에서 비교한다.
+  - 자체 이용자가 작성한 후기와 평점을 확인한다.
   - 여행 경로와 시간순 일정을 이해하고 수정한다.
   - 현재 위치와 다음 방문 지점을 혼동 없이 구분한다.
 - Key contexts of use:
@@ -64,7 +64,7 @@
 - Core routes/screens:
   - 웰컴: 서비스 가치와 핵심 기능 진입
   - 메인: 지역 탐색, 관광지 순위, 축제, AI 코스 진입
-  - 장소 상세 `/places/[placeId]`: 통합 평점, 출처 필터, 후기 피드. 소개,
+  - 장소 상세 `/places/[placeId]`: 평점 요약, 자체 이용자 후기 피드. 소개,
     코스 추천과 정보 탭은 준비 중 상태
   - 관광지 릴스 `/reels/[videoId]`: 선택 영상부터 시작하는 세로형 전체 화면
     미리보기, 반응과 공유
@@ -180,7 +180,7 @@ features / app routes
 --image-scrim            → black / 34%
 ```
 
-외부 후기 출처 색상은 `--provider-kakao`, `--provider-google`, `--provider-naver`로 격리하고, 일반 상태나 버튼 색으로 재사용하지 않는다.
+후기는 카카오맵/구글/네이버 등 외부 플랫폼과 연동하지 않고 자체 이용자 후기만 사용하기로 결정했으므로(2026-08-29), `--provider-kakao`, `--provider-google`, `--provider-naver` 외부 후기 출처 색상 토큰은 더 이상 추가하지 않는다.
 
 이미지 위 텍스트와 제한된 scrim은 `--image-foreground`,
 `--image-foreground-muted`, `--image-scrim`으로만 표현한다. 이 토큰은 히어로와
@@ -207,7 +207,7 @@ features / app routes
 | `body-lg` | 16 / 24 | 400 | 주요 본문과 큰 컨트롤 |
 | `body-md` | 14 / 21 | 400 | 일반 설명과 카드 본문 |
 | `label` | 14 / 20 | 600 | 버튼, 탭, 필터 |
-| `caption` | 12 / 18 | 400 | 날짜, 거리, 후기 출처 |
+| `caption` | 12 / 18 | 400 | 날짜, 거리, 작성자 |
 
 숫자와 영문에 별도 폰트를 섞지 않는다. 본문은 자간을 임의로 좁히지 않고, 큰 제목에만 제한적으로 음수 tracking을 적용한다.
 
@@ -334,17 +334,19 @@ theme-feature-card
 theme-course-card
 rating-summary
 review-card
-provider-badge
-review-provider-mark
 place-detail-header
 place-detail-tabs
 place-review-overview
-review-source-filter
 place-detail-preparation
 place-detail-actions
 itinerary-item
 nearby-place-select-card
 ```
+
+`provider-badge`, `review-provider-mark`, `review-source-filter`는 외부 플랫폼
+후기 연동을 가정한 초기 mock 탐색 단계의 산물이다. 후기는 자체 이용자 후기만
+사용하기로 결정했으므로(2026-08-29) 세 컴포넌트는 실사용 목록에서 제외하고
+새 화면에서 재사용하지 않는다.
 
 ### Travel components to add later, on demand
 
@@ -486,8 +488,14 @@ category filter, 정렬, `NearbyPlaceSelectCard` 목록과 fixed 선택 CTA를 �
 route다. 현재 구현은 후기 탭만 완성하고 소개, 코스 추천과 정보 탭은 선택한 탭을
 유지하는 준비 중 화면을 제공한다.
 
+아래 구성은 외부 플랫폼 후기 연동을 가정했던 초기 mock 탐색 단계의 기록이다.
+후기는 자체 이용자 후기만 사용하기로 결정했으므로(2026-08-29) 실 데이터를 쓰는
+`LivePlaceDetailScreen`/`LivePlaceReviewList`(`apps/web/src/components/patterns`,
+`apps/web/src/components/travel/live-place-review-list.tsx`)는 `ReviewSourceFilter`와
+provider 배지 없이 자체 후기 피드만 렌더링한다.
+
 ```text
-PlaceDetailScreen
+PlaceDetailScreen (mock)
 ├─ PlaceDetailHeader
 ├─ PlaceDetailTabs
 ├─ reviews → PlaceReviewOverview / ReviewSourceFilter / ReviewCard feed
@@ -712,3 +720,6 @@ MainDiscovery
 - [x] 하단 내비게이션 메뉴명은 `홈`, `탐색`, `내 일정`, `내 후기`, `마이페이지`로 확정 / 사용자 승인 / 2026-08-21
 - [ ] `탐색`, `내 일정`, `내 후기`, `마이페이지`의 실제 route와 화면 범위 확정 / 사용자 / 후속 화면 구현에 영향
 - [x] `/design-system` 확인 route는 개발 환경에서만 노출 / 사용자 승인 / Phase 1 적용
+- [x] 장소 상세 후기 탭은 카카오맵/구글/네이버 등 외부 플랫폼 리뷰를 연동하지
+      않고 자체 이용자 후기만 사용 / 사용자 승인 / 2026-08-29 (카카오·네이버는
+      공식 리뷰 API 부재·크롤링 금지, 구글 Places API는 유료라서 배제)
