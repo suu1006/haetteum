@@ -25,7 +25,6 @@ import {
   TravelThemeItem,
   TravelThemeMoreItem,
 } from "@/components/travel/travel-theme-item";
-import { VideoCourseCard } from "@/components/travel/video-course-card";
 
 const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 
@@ -381,13 +380,15 @@ describe("FestivalFeatureBanner", () => {
 });
 
 describe("AiCourseBanner", () => {
-  it("reveals the mock AI recommendation result", async () => {
+  it("calls onRecommend when the button is clicked", async () => {
     const user = userEvent.setup();
+    const onRecommend = vi.fn();
 
     render(
       <AiCourseBanner
         imageAlt="여행 코스를 안내하는 해뜸 도우미"
         imageSrc="/images/discovery/reference-main/ai-course-robot.png"
+        onRecommend={onRecommend}
       />,
     );
 
@@ -401,9 +402,7 @@ describe("AiCourseBanner", () => {
     ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "코스 추천받기" }));
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "경기 하루 코스 추천을 준비했어요.",
-    );
+    expect(onRecommend).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("img", { name: "여행 코스를 안내하는 해뜸 도우미" }),
     ).toHaveAttribute(
@@ -412,8 +411,24 @@ describe("AiCourseBanner", () => {
     );
   });
 
+  it("shows the loading label and disables the button while loading", () => {
+    render(
+      <AiCourseBanner
+        imageAlt="여행 코스를 안내하는 해뜸 도우미"
+        imageSrc="/images/discovery/ai-course-guide.png"
+        onRecommend={() => {}}
+        loading
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "코스를 찾는 중…" }),
+    ).toBeDisabled();
+  });
+
   it("uses injected festival copy without changing its interaction", async () => {
     const user = userEvent.setup();
+    const onRecommend = vi.fn();
 
     render(
       <AiCourseBanner
@@ -423,16 +438,14 @@ describe("AiCourseBanner", () => {
         title="선택한 축제로 하루 코스를 만들어 보세요"
         description="축제 일정과 주변 여행지를 자연스럽게 이어 드려요."
         buttonLabel="축제 코스 추천받기"
-        successMessage="제주 축제 하루 코스 추천을 준비했어요."
+        onRecommend={onRecommend}
       />,
     );
 
     await user.click(
       screen.getByRole("button", { name: "축제 코스 추천받기" }),
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "제주 축제 하루 코스 추천을 준비했어요.",
-    );
+    expect(onRecommend).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -509,34 +522,6 @@ describe("popular-place travel cards", () => {
     expect(
       screen.queryByRole("link", { name: "핫플" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("renders a named video course with summary and location", () => {
-    render(
-      <VideoCourseCard course={mainDiscoveryMock.popularPlaces.courses[0]} />,
-    );
-
-    const card = screen.getByRole("article", {
-      name: "제주 해안 힐링 코스",
-    });
-    expect(card).toHaveTextContent("바다와 카페를 천천히 즐겨요");
-    expect(card).toHaveTextContent("제주시");
-    expect(card).toHaveTextContent("0:32");
-
-    const image = screen.getByRole("img", { name: "협재 해변의 맑은 바다" });
-    expect(image).toHaveAttribute(
-      "sizes",
-      "(max-width: 479px) 46vw, 216px",
-    );
-    expect(image.parentElement).toHaveClass("aspect-[5/4]");
-    expect(screen.getByText("바다와 카페를 천천히 즐겨요")).toHaveClass(
-      "line-clamp-1",
-    );
-    expect(screen.getByText("제주시").closest("p")).toHaveClass("truncate");
-    expect(
-      screen.getByRole("heading", { name: "제주 해안 힐링 코스" })
-        .parentElement,
-    ).toHaveClass("bg-image-scrim");
   });
 
   it("renders a non-interactive theme more item", () => {

@@ -7,10 +7,10 @@ import { FestivalSection } from "@/components/patterns/festival-section";
 import { HotPlaceSection } from "@/components/patterns/hot-place-section";
 import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { RankedPlaceSection } from "@/components/patterns/ranked-place-section";
-import { AiCourseBanner } from "@/components/travel/ai-course-banner";
 import {
   BottomNavigation,
 } from "@/components/travel/bottom-navigation";
+import { RandomCourseBanner } from "@/components/travel/random-course-banner";
 import { createMainNavigationItems } from "@/components/travel/main-navigation-items";
 import type {
   DiscoveryQuery,
@@ -80,7 +80,6 @@ function MainDiscovery({
           <PopularPlacesTab
             videos={view.popularVideos}
             themes={view.travelThemes}
-            courses={view.videoCourses}
             query={query}
             popularReels={popularReels}
           />
@@ -95,9 +94,11 @@ function MainDiscovery({
             data-region="banner"
             className="px-4 pt-6"
           >
-            <AiCourseBanner
+            <RandomCourseBanner
               imageAlt={data.aiCourse.alt}
               imageSrc={data.aiCourse.src}
+              ranking={ranking}
+              hotRanking={hotRanking}
             />
           </div>
         ) : null}

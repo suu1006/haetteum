@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { SparklesIcon } from "lucide-react";
 
@@ -13,7 +12,10 @@ type AiCourseBannerProps = {
   title?: string;
   description?: string;
   buttonLabel?: string;
-  successMessage?: string;
+  loadingLabel?: string;
+  onRecommend: () => void;
+  loading?: boolean;
+  disabled?: boolean;
 };
 
 function AiCourseBanner({
@@ -23,10 +25,11 @@ function AiCourseBanner({
   title = "AI가 추천하는 맞춤 여행 코스",
   description = "당신의 취향에 맞는 완벽한 여행 계획",
   buttonLabel = "코스 추천받기",
-  successMessage = "경기 하루 코스 추천을 준비했어요.",
+  loadingLabel = "코스를 찾는 중…",
+  onRecommend,
+  loading = false,
+  disabled = false,
 }: AiCourseBannerProps) {
-  const [recommended, setRecommended] = useState(false);
-
   return (
     <section className="relative min-h-32 overflow-hidden rounded-lg bg-primary-subtle">
       <div className="absolute inset-y-0 right-0 w-[38%]">
@@ -52,14 +55,13 @@ function AiCourseBanner({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={() => setRecommended(true)}>
-            {buttonLabel}
+          <Button
+            type="button"
+            onClick={onRecommend}
+            disabled={disabled || loading}
+          >
+            {loading ? loadingLabel : buttonLabel}
           </Button>
-          {recommended ? (
-            <p role="status" className="type-caption text-primary">
-              {successMessage}
-            </p>
-          ) : null}
         </div>
       </div>
     </section>

@@ -284,6 +284,7 @@ describe("FestivalFeatureBanner", () => {
 describe("AiCourseBanner festival copy", () => {
   it("uses injected festival copy without changing its interaction", async () => {
     const user = userEvent.setup();
+    const onRecommend = vi.fn();
 
     render(
       <AiCourseBanner
@@ -293,15 +294,13 @@ describe("AiCourseBanner festival copy", () => {
         title="축제로 하루 코스를 만들어 보세요"
         description="축제 일정과 주변 여행지를 자연스럽게 이어 드려요."
         buttonLabel="축제 코스 추천받기"
-        successMessage="제주 축제 하루 코스 추천을 준비했어요."
+        onRecommend={onRecommend}
       />,
     );
 
     await user.click(
       screen.getByRole("button", { name: "축제 코스 추천받기" }),
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "제주 축제 하루 코스 추천을 준비했어요.",
-    );
+    expect(onRecommend).toHaveBeenCalledTimes(1);
   });
 });

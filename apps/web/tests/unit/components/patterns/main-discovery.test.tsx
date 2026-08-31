@@ -9,7 +9,9 @@ import type {
   HotPlaceRankingResponse,
   PlaceRankingResponse,
 } from "@haetteum/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import axe from "axe-core";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DiscoverySearchPanel } from "@/components/patterns/discovery-search-panel";
@@ -33,6 +35,15 @@ const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 const rankingResponse = {
   source: "KTO_DATALAB",
@@ -108,7 +119,7 @@ describe("MainDiscovery", () => {
   it("renders the five approved main-page regions in order", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
 
-    render(
+    renderWithQueryClient(
       <MainDiscovery
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
@@ -175,7 +186,7 @@ describe("MainDiscovery", () => {
   it("places the AI banner between ranked places and festivals inside the list region", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
 
-    render(
+    renderWithQueryClient(
       <MainDiscovery
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
@@ -204,7 +215,7 @@ describe("MainDiscovery", () => {
       region: "gyeonggi",
     });
     const view = selectDiscoveryView(mainDiscoveryMock, query);
-    render(
+    renderWithQueryClient(
       <MainDiscovery data={mainDiscoveryMock} query={query} view={view} />,
     );
 
@@ -222,7 +233,7 @@ describe("MainDiscovery", () => {
   it("has no detectable accessibility violations on the assembled discovery surface", async () => {
     const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
 
-    const { container } = render(
+    const { container } = renderWithQueryClient(
       <MainDiscovery
         data={mainDiscoveryMock}
         query={defaultDiscoveryQuery}
@@ -340,9 +351,6 @@ describe("MainDiscovery", () => {
 
     expect(screen.getByRole("heading", { name: "릴스형 인기 관광지" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "여행 테마" })).toBeVisible();
-    expect(
-      screen.getByRole("heading", { name: "지금 뜨는 영상 코스" }),
-    ).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
@@ -817,7 +825,6 @@ describe("PopularPlacesTab", () => {
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
         themes={mainDiscoveryMock.popularPlaces.themes}
-        courses={mainDiscoveryMock.popularPlaces.courses}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );
@@ -826,7 +833,7 @@ describe("PopularPlacesTab", () => {
       screen.getAllByTestId("popular-place-section").map((node) =>
         node.getAttribute("data-section"),
       ),
-    ).toEqual(["popular-videos", "travel-themes", "video-courses"]);
+    ).toEqual(["travel-themes", "popular-videos"]);
     expect(
       screen.getByRole("heading", { name: "릴스형 인기 관광지" }),
     ).toBeVisible();
@@ -834,19 +841,9 @@ describe("PopularPlacesTab", () => {
       "sr-only",
     );
     expect(
-      screen.getByRole("heading", { name: "지금 뜨는 영상 코스" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("link", { name: "영상으로 둘러보기" }),
-    ).toHaveAttribute("href", "/reels/seongsan-sunrise-preview");
-    expect(screen.getAllByText("더보기")).toHaveLength(2);
-    const videoCourseList = screen.getByRole("list", {
-      name: "지금 뜨는 영상 코스 목록",
-    });
-    expect(videoCourseList).toHaveClass("grid", "grid-cols-2");
-    expect(within(videoCourseList).getAllByRole("listitem")).toHaveLength(
-      mainDiscoveryMock.popularPlaces.courses.length,
-    );
+      screen.queryByRole("link", { name: "영상으로 둘러보기" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("더보기")).toHaveLength(1);
     expect(
       screen.queryByRole("article", { name: "짧게 보고 바로 저장" }),
     ).not.toBeInTheDocument();
@@ -863,7 +860,6 @@ describe("PopularPlacesTab", () => {
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
         themes={mainDiscoveryMock.popularPlaces.themes}
-        courses={mainDiscoveryMock.popularPlaces.courses}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );
@@ -875,34 +871,11 @@ describe("PopularPlacesTab", () => {
     }
   });
 
-  it("shows video courses in a two-column grid", () => {
-    render(
-      <PopularPlacesTab
-        videos={mainDiscoveryMock.popularPlaces.videos}
-        themes={mainDiscoveryMock.popularPlaces.themes}
-        courses={mainDiscoveryMock.popularPlaces.courses}
-        query={{ ...defaultDiscoveryQuery, tab: "places" }}
-      />,
-    );
-
-    const videoCourseList = screen.getByRole("list", {
-      name: "지금 뜨는 영상 코스 목록",
-    });
-    const items = within(videoCourseList).getAllByRole("listitem");
-
-    expect(videoCourseList).toHaveClass("grid", "grid-cols-2");
-    expect(items).toHaveLength(4);
-    expect(
-      screen.queryByRole("region", { name: "지금 뜨는 영상 코스 목록" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("offers a reset action while keeping travel themes visible", () => {
     render(
       <PopularPlacesTab
         videos={[]}
         themes={mainDiscoveryMock.popularPlaces.themes}
-        courses={[]}
         query={{
           ...defaultDiscoveryQuery,
           q: "해당없음",
@@ -929,7 +902,6 @@ describe("PopularPlacesTab", () => {
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
         themes={mainDiscoveryMock.popularPlaces.themes}
-        courses={mainDiscoveryMock.popularPlaces.courses}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );

@@ -175,11 +175,17 @@ Kakao 로그인, 서버 세션, 현재 사용자 조회, 현재 세션 로그아
 http://localhost:4000/api/v1/auth/kakao/callback
 ```
 
-`apps/web/.env.local`에는 API 공개 base URL만 둡니다.
+`apps/web/.env.local`에는 API 공개 base URL과 Kakao 지도 JS 키를 둡니다.
 
 ```text
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api/v1
+NEXT_PUBLIC_KAKAO_JS_KEY=
 ```
+
+`NEXT_PUBLIC_KAKAO_JS_KEY`는 관광지 상세 화면의 "가까운 코스로 둘러보기" 지도에
+사용됩니다. Kakao Developers 앱의 **JavaScript 키**이며(REST API 키와 다름,
+클라이언트에 노출되어도 되는 키), 값이 비어 있으면 지도만 조용히 숨겨지고
+나머지 기능은 정상 동작합니다.
 
 회원 탈퇴, Kakao unlink, 모든 기기 로그아웃, 개인정보처리방침·운영 정책 문서화는
 아직 구현 범위 밖입니다.

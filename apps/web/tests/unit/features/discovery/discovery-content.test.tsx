@@ -3,9 +3,20 @@ import type {
   HotPlaceRankingResponse,
   PlaceRankingResponse,
 } from "@haetteum/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DiscoveryContent } from "@/features/discovery/discovery-content";
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 
@@ -99,7 +110,9 @@ describe("DiscoveryContent", () => {
     const fetchMock = rankingFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(await DiscoveryContent({ searchParams: Promise.resolve({}) }));
+    renderWithQueryClient(
+      await DiscoveryContent({ searchParams: Promise.resolve({}) }),
+    );
 
     expect(
       screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
@@ -126,7 +139,7 @@ describe("DiscoveryContent", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithQueryClient(
       await DiscoveryContent({
         searchParams: Promise.resolve({ audience: "30s" }),
       }),
@@ -153,7 +166,7 @@ describe("DiscoveryContent", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithQueryClient(
       await DiscoveryContent({
         searchParams: Promise.resolve({ hotAudience: "40s" }),
       }),

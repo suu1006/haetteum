@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, MapPinIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 export type ReelViewerItem = {
   videoId: string;
@@ -26,6 +26,18 @@ function prefersReducedMotion() {
   );
 }
 
+function subscribeNever() {
+  return () => {};
+}
+
+function useMounted(): boolean {
+  return useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+}
+
 function postCommand(
   frame: HTMLIFrameElement | null,
   func: "playVideo" | "pauseVideo" | "mute" | "unMute",
@@ -36,7 +48,20 @@ function postCommand(
   );
 }
 
-function embedSrc(embedUrl: string): string {
+const YOUTUBE_STATE_ENDED = 0;
+
+function restartVideo(frame: HTMLIFrameElement | null) {
+  frame?.contentWindow?.postMessage(
+    JSON.stringify({ event: "command", func: "seekTo", args: [0, true] }),
+    "*",
+  );
+  frame?.contentWindow?.postMessage(
+    JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+    "*",
+  );
+}
+
+function embedSrc(embedUrl: string, origin: string): string {
   const url = new URL(embedUrl);
   url.searchParams.set("enablejsapi", "1");
   url.searchParams.set("playsinline", "1");
@@ -44,9 +69,11 @@ function embedSrc(embedUrl: string): string {
   url.searchParams.set("modestbranding", "1");
   url.searchParams.set("loop", "1");
   url.searchParams.set("mute", "1");
-  if (typeof window !== "undefined") {
-    url.searchParams.set("origin", window.location.origin);
-  }
+  url.searchParams.set("autoplay", "1");
+  url.searchParams.set("controls", "0");
+  url.searchParams.set("disablekb", "1");
+  url.searchParams.set("iv_load_policy", "3");
+  url.searchParams.set("origin", origin);
   return url.href;
 }
 
@@ -57,6 +84,7 @@ function YouTubeReelsViewer({ items, returnHref }: YouTubeReelsViewerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(prefersReducedMotion);
+  const mounted = useMounted();
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -99,6 +127,24 @@ function YouTubeReelsViewer({ items, returnHref }: YouTubeReelsViewerProps) {
     });
   }, [activeIndex, muted, reduceMotion]);
 
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      const activeFrame = frameRefs.current[activeIndex];
+      if (!activeFrame || event.source !== activeFrame.contentWindow) return;
+      let data: { event?: string; info?: number };
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (data.event === "onStateChange" && data.info === YOUTUBE_STATE_ENDED) {
+        restartVideo(activeFrame);
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [activeIndex]);
+
   const navigateBack = () => {
     if (window.history.length > 1) router.back();
     else router.push(returnHref);
@@ -134,7 +180,7 @@ function YouTubeReelsViewer({ items, returnHref }: YouTubeReelsViewerProps) {
             ref={(node) => {
               frameRefs.current[index] = node;
             }}
-            src={embedSrc(reel.embedUrl)}
+            src={mounted ? embedSrc(reel.embedUrl, window.location.origin) : undefined}
             title={reel.title}
             allow="autoplay; encrypted-media; picture-in-picture"
             allowFullScreen

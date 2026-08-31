@@ -91,7 +91,7 @@ describe("PlaceReelsService", () => {
       ).resolves.toEqual({ source: "YOUTUBE", audience: "all", items: [] });
     });
 
-    it("flattens reels of the top ranked places and caps at the limit", async () => {
+    it("takes only the top reel per place and caps at the limit", async () => {
       const service = new PlaceReelsService({
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
@@ -105,10 +105,10 @@ describe("PlaceReelsService", () => {
                 id: "33333333-3333-4333-8333-333333333333",
                 title: "성산일출봉",
                 region: { name: "제주특별자치도" },
-                reels: [
-                  reelRow,
-                  { ...reelRow, providerVideoId: "abcdef12345" },
-                ],
+                // service only requests take:1, so a place never actually
+                // yields more than one row here — a single-element array
+                // is what the mocked prisma call returns.
+                reels: [reelRow],
               },
             },
             {
@@ -129,13 +129,52 @@ describe("PlaceReelsService", () => {
       expect(result.items).toHaveLength(2);
       expect(result.items.map((item) => item.videoId)).toEqual([
         "dQw4w9WgXcQ",
-        "abcdef12345",
+        "zzzzzzzzzzz",
+      ]);
+      expect(result.items.map((item) => item.placeId)).toEqual([
+        "33333333-3333-4333-8333-333333333333",
+        "44444444-4444-4444-8444-444444444444",
       ]);
       expect(result.items[0]).toMatchObject({
         placeId: "33333333-3333-4333-8333-333333333333",
         placeTitle: "성산일출봉",
         region: "제주특별자치도",
       });
+    });
+
+    it("skips a ranked place that has no reels instead of leaving a gap", async () => {
+      const service = new PlaceReelsService({
+        placeRanking: {
+          findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
+            periodStart: new Date("2025-08-01T00:00:00.000Z"),
+            periodEnd: new Date("2026-07-31T00:00:00.000Z"),
+          }),
+          findMany: jest.fn<() => Promise<unknown>>().mockResolvedValue([
+            {
+              placeId: "33333333-3333-4333-8333-333333333333",
+              place: {
+                id: "33333333-3333-4333-8333-333333333333",
+                title: "성산일출봉",
+                region: { name: "제주특별자치도" },
+                reels: [],
+              },
+            },
+            {
+              placeId: "44444444-4444-4444-8444-444444444444",
+              place: {
+                id: "44444444-4444-4444-8444-444444444444",
+                title: "협재해수욕장",
+                region: { name: "제주특별자치도" },
+                reels: [{ ...reelRow, providerVideoId: "zzzzzzzzzzz" }],
+              },
+            },
+          ]),
+        },
+      } as never);
+
+      const result = await service.listPopular({ audience: "all", limit: 2 });
+
+      expect(result.items.map((item) => item.videoId)).toEqual(["zzzzzzzzzzz"]);
     });
   });
 });

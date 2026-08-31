@@ -102,6 +102,7 @@ export class PlaceReelsService {
             reels: {
               where: { provider: YOUTUBE_SOURCE },
               orderBy: { displayOrder: "asc" },
+              take: 1,
               select: reelSelect,
             },
           },
@@ -113,15 +114,14 @@ export class PlaceReelsService {
     for (const row of ranked) {
       const place = row.place;
       if (place == null) continue;
-      for (const reel of place.reels) {
-        if (items.length >= query.limit) break;
-        items.push({
-          ...mapReel(reel),
-          placeId: place.id,
-          placeTitle: place.title,
-          region: place.region.name,
-        });
-      }
+      const reel = place.reels[0];
+      if (reel === undefined) continue;
+      items.push({
+        ...mapReel(reel),
+        placeId: place.id,
+        placeTitle: place.title,
+        region: place.region.name,
+      });
       if (items.length >= query.limit) break;
     }
 
