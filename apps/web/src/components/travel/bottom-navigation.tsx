@@ -19,7 +19,7 @@ type BottomNavigationItem = {
 
 type BottomNavigationProps = {
   items: readonly BottomNavigationItem[];
-  variant?: "default" | "festival" | "profile";
+  variant?: "default" | "festival";
 };
 
 const navigationIcons: Record<BottomNavigationItem["id"], IconType> = {
@@ -43,7 +43,6 @@ function BottomNavigation({
         className={cn(
           "mx-auto grid max-w-screen-sm grid-cols-5 gap-1 px-3 py-1.5",
           variant === "festival" && "py-2",
-          variant === "profile" && "py-1",
         )}
       >
         {items.map((item) => {
@@ -65,7 +64,6 @@ function BottomNavigation({
                     itemClassName,
                     variant === "festival" &&
                       "text-[0.68rem] [&_svg]:size-6 aria-[current=page]:after:mt-0.5 aria-[current=page]:after:size-1 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-primary",
-                    variant === "profile" && "py-1",
                     "hover:bg-primary-subtle hover:text-primary",
                   )}
                 >
@@ -77,7 +75,6 @@ function BottomNavigation({
                   className={cn(
                     itemClassName,
                     variant === "festival" && "text-[0.68rem] [&_svg]:size-6",
-                    variant === "profile" && "py-1",
                     "opacity-70",
                   )}
                 >
