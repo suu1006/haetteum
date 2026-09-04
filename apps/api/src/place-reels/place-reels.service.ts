@@ -8,7 +8,8 @@ import type {
   PopularReelsResponse,
 } from "@haetteum/contracts";
 
-import type { PlaceRankingAudience } from "@haetteum/contracts";
+import type { PlaceRankingAudience, PopularReelRegion } from "@haetteum/contracts";
+import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
   DATALAB_SOURCE,
@@ -25,6 +26,15 @@ const AUDIENCE_TO_DB = {
   "50s": "FIFTIES",
   "60s-plus": "SIXTIES_PLUS",
 } as const satisfies Record<PlaceRankingAudience, string>;
+
+const REGION_WHERE = {
+  all: {},
+  seoul: { region: { is: { slug: "seoul" } } },
+  gyeonggi: { region: { is: { slug: "gyeonggi" } } },
+  gangwon: { region: { is: { slug: "gangwon" } } },
+  busan: { region: { is: { slug: "busan" } } },
+  jeju: { region: { is: { slug: "jeju" } } },
+} as const satisfies Record<PopularReelRegion, Prisma.PlaceWhereInput>;
 
 type ReelRow = {
   providerVideoId: string;
@@ -78,7 +88,13 @@ export class PlaceReelsService {
     });
 
     if (snapshot === null) {
-      return { source: "YOUTUBE", audience: query.audience, items: [] };
+      return {
+        source: "YOUTUBE",
+        audience: query.audience,
+        region: query.region,
+        items: [],
+        nextCursor: null,
+      };
     }
 
     const ranked = await this.prisma.placeRanking.findMany({
@@ -89,9 +105,10 @@ export class PlaceReelsService {
         periodStart: snapshot.periodStart,
         periodEnd: snapshot.periodEnd,
         placeId: { not: null },
+        place: { is: REGION_WHERE[query.region] },
       },
       orderBy: { rank: "asc" },
-      take: query.limit,
+      take: MAX_RANKED_PLACES,
       select: {
         placeId: true,
         place: {
@@ -102,7 +119,7 @@ export class PlaceReelsService {
             reels: {
               where: { provider: YOUTUBE_SOURCE },
               orderBy: { displayOrder: "asc" },
-              take: 1,
+              take: MAX_REELS_PER_PLACE,
               select: reelSelect,
             },
           },
@@ -110,24 +127,40 @@ export class PlaceReelsService {
       },
     });
 
-    const items: PopularReelItem[] = [];
+    // Every place's own reels are already collected, so paginate over the
+    // full flattened feed in memory rather than re-querying per page — the
+    // ranked-place pool is capped at MAX_RANKED_PLACES, so this stays small.
+    const allItems: PopularReelItem[] = [];
     for (const row of ranked) {
       const place = row.place;
       if (place == null) continue;
-      const reel = place.reels[0];
-      if (reel === undefined) continue;
-      items.push({
-        ...mapReel(reel),
-        placeId: place.id,
-        placeTitle: place.title,
-        region: place.region.name,
-      });
-      if (items.length >= query.limit) break;
+      for (const reel of place.reels) {
+        allItems.push({
+          ...mapReel(reel),
+          placeId: place.id,
+          placeTitle: place.title,
+          region: place.region.name,
+        });
+      }
     }
 
-    return { source: "YOUTUBE", audience: query.audience, items };
+    const offset = query.cursor ?? 0;
+    const items = allItems.slice(offset, offset + query.limit);
+    const nextOffset = offset + items.length;
+    const nextCursor = nextOffset < allItems.length ? nextOffset : null;
+
+    return {
+      source: "YOUTUBE",
+      audience: query.audience,
+      region: query.region,
+      items,
+      nextCursor,
+    };
   }
 }
+
+const MAX_RANKED_PLACES = 30;
+const MAX_REELS_PER_PLACE = 10;
 
 const reelSelect = {
   providerVideoId: true,

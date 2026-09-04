@@ -617,16 +617,24 @@ describe("place reels contracts", () => {
   it("defaults the popular reels query and validates the aggregate response", () => {
     expect(ListPopularReelsQuerySchema.parse({})).toEqual({
       audience: "all",
+      region: "all",
       limit: 12,
     });
     expect(() =>
       ListPopularReelsQuerySchema.parse({ limit: 31 }),
     ).toThrow();
+    expect(() =>
+      ListPopularReelsQuerySchema.parse({ region: "gyeongju" }),
+    ).toThrow();
+    expect(ListPopularReelsQuerySchema.parse({ region: "jeju" }).region).toBe(
+      "jeju",
+    );
 
     expect(
       PopularReelsResponseSchema.parse({
         source: "YOUTUBE",
         audience: "all",
+        region: "all",
         items: [
           {
             ...reel,
@@ -635,6 +643,7 @@ describe("place reels contracts", () => {
             region: "제주특별자치도",
           },
         ],
+        nextCursor: null,
       }).items[0]?.placeTitle,
     ).toBe("성산일출봉");
   });

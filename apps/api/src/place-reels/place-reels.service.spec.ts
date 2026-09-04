@@ -87,11 +87,17 @@ describe("PlaceReelsService", () => {
       } as never);
 
       await expect(
-        service.listPopular({ audience: "all", limit: 12 }),
-      ).resolves.toEqual({ source: "YOUTUBE", audience: "all", items: [] });
+        service.listPopular({ audience: "all", region: "all", limit: 12 }),
+      ).resolves.toEqual({
+        source: "YOUTUBE",
+        audience: "all",
+        region: "all",
+        items: [],
+        nextCursor: null,
+      });
     });
 
-    it("takes only the top reel per place and caps at the limit", async () => {
+    it("flattens every place's reels in rank then display order", async () => {
       const service = new PlaceReelsService({
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
@@ -105,10 +111,10 @@ describe("PlaceReelsService", () => {
                 id: "33333333-3333-4333-8333-333333333333",
                 title: "성산일출봉",
                 region: { name: "제주특별자치도" },
-                // service only requests take:1, so a place never actually
-                // yields more than one row here — a single-element array
-                // is what the mocked prisma call returns.
-                reels: [reelRow],
+                reels: [
+                  reelRow,
+                  { ...reelRow, providerVideoId: "aaaaaaaaaaa" },
+                ],
               },
             },
             {
@@ -124,22 +130,68 @@ describe("PlaceReelsService", () => {
         },
       } as never);
 
-      const result = await service.listPopular({ audience: "all", limit: 2 });
+      const result = await service.listPopular({ audience: "all", region: "all", limit: 2 });
 
-      expect(result.items).toHaveLength(2);
       expect(result.items.map((item) => item.videoId)).toEqual([
         "dQw4w9WgXcQ",
-        "zzzzzzzzzzz",
+        "aaaaaaaaaaa",
       ]);
       expect(result.items.map((item) => item.placeId)).toEqual([
         "33333333-3333-4333-8333-333333333333",
-        "44444444-4444-4444-8444-444444444444",
+        "33333333-3333-4333-8333-333333333333",
       ]);
       expect(result.items[0]).toMatchObject({
         placeId: "33333333-3333-4333-8333-333333333333",
         placeTitle: "성산일출봉",
         region: "제주특별자치도",
       });
+      expect(result.nextCursor).toBe(2);
+    });
+
+    it("continues from the cursor and reports no next page once exhausted", async () => {
+      const service = new PlaceReelsService({
+        placeRanking: {
+          findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
+            periodStart: new Date("2025-08-01T00:00:00.000Z"),
+            periodEnd: new Date("2026-07-31T00:00:00.000Z"),
+          }),
+          findMany: jest.fn<() => Promise<unknown>>().mockResolvedValue([
+            {
+              placeId: "33333333-3333-4333-8333-333333333333",
+              place: {
+                id: "33333333-3333-4333-8333-333333333333",
+                title: "성산일출봉",
+                region: { name: "제주특별자치도" },
+                reels: [
+                  reelRow,
+                  { ...reelRow, providerVideoId: "aaaaaaaaaaa" },
+                ],
+              },
+            },
+            {
+              placeId: "44444444-4444-4444-8444-444444444444",
+              place: {
+                id: "44444444-4444-4444-8444-444444444444",
+                title: "협재해수욕장",
+                region: { name: "제주특별자치도" },
+                reels: [{ ...reelRow, providerVideoId: "zzzzzzzzzzz" }],
+              },
+            },
+          ]),
+        },
+      } as never);
+
+      const result = await service.listPopular({
+        audience: "all",
+        region: "all",
+        limit: 2,
+        cursor: 2,
+      });
+
+      expect(result.items.map((item) => item.videoId)).toEqual([
+        "zzzzzzzzzzz",
+      ]);
+      expect(result.nextCursor).toBeNull();
     });
 
     it("skips a ranked place that has no reels instead of leaving a gap", async () => {
@@ -172,9 +224,37 @@ describe("PlaceReelsService", () => {
         },
       } as never);
 
-      const result = await service.listPopular({ audience: "all", limit: 2 });
+      const result = await service.listPopular({ audience: "all", region: "all", limit: 2 });
 
       expect(result.items.map((item) => item.videoId)).toEqual(["zzzzzzzzzzz"]);
+    });
+
+    it("scopes the ranking query to the requested region and echoes it back", async () => {
+      const findMany = jest.fn<() => Promise<unknown>>().mockResolvedValue([]);
+      const service = new PlaceReelsService({
+        placeRanking: {
+          findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
+            periodStart: new Date("2025-08-01T00:00:00.000Z"),
+            periodEnd: new Date("2026-07-31T00:00:00.000Z"),
+          }),
+          findMany,
+        },
+      } as never);
+
+      const result = await service.listPopular({
+        audience: "all",
+        region: "jeju",
+        limit: 12,
+      });
+
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            place: { is: { region: { is: { slug: "jeju" } } } },
+          }),
+        }),
+      );
+      expect(result.region).toBe("jeju");
     });
   });
 });

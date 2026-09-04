@@ -25,11 +25,13 @@ export {
   PlaceReelItemSchema,
   PlaceReelListResponseSchema,
   PopularReelItemSchema,
+  PopularReelRegionSchema,
   PopularReelsResponseSchema,
   type ListPopularReelsQuery,
   type PlaceReelItem,
   type PlaceReelListResponse,
   type PopularReelItem,
+  type PopularReelRegion,
   type PopularReelsResponse,
 } from "./place-reels.js";
 export {

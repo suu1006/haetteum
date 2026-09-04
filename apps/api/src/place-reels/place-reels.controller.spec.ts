@@ -18,7 +18,9 @@ import { PlaceReelsController } from "./place-reels.controller.js";
 const popular: PopularReelsResponse = {
   source: "YOUTUBE",
   audience: "all",
+  region: "all",
   items: [],
+  nextCursor: null,
 };
 
 const forPlace: PlaceReelListResponse = {
@@ -39,10 +41,11 @@ describe("PlaceReelsController", () => {
     const controller = new PlaceReelsController(reels as never);
 
     await expect(
-      controller.popular({ audience: "all", limit: 12 }),
+      controller.popular({ audience: "all", region: "all", limit: 12 }),
     ).resolves.toEqual(popular);
     expect(reels.listPopular).toHaveBeenCalledWith({
       audience: "all",
+      region: "all",
       limit: 12,
     });
   });
