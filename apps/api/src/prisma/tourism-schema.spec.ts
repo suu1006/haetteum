@@ -195,7 +195,7 @@ describe("tourism Prisma generated TypeScript contract", () => {
     expect(approvedDelegateKeys).toContain("review");
     expect(prismaSchema).toContain("model User {");
     expect(prismaSchema).toContain("model Review {");
-    expect(prismaSchema).toContain("reviews Review[]");
+    expect(prismaSchema).toContain("reviews          Review[]");
     expect(reviewOwner.provider).toBe("KAKAO");
     expect(reviewOwner.providerUserId).toBe("review-owner-1234567890");
     expect(Number.isInteger(review.rating)).toBe(true);
@@ -211,7 +211,7 @@ describe("tourism Prisma generated TypeScript contract", () => {
     expect(approvedDelegateKeys).toContain("session");
     expect(prismaSchema).toContain("profileImageUrl String?");
     expect(prismaSchema).toContain("lastLoginAt     DateTime?");
-    expect(prismaSchema).toContain("sessions Session[]");
+    expect(prismaSchema).toContain("sessions     Session[]");
     expect(prismaSchema).toContain("model Session {");
     expect(prismaSchema).toContain("tokenHash  String   @unique");
     expect(kakaoUser.profileImageUrl).toBe("https://example.test/profile.jpg");
