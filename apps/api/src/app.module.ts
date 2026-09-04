@@ -8,6 +8,7 @@ import { HealthModule } from "./health/health.module.js";
 import { HotPlaceRankingsModule } from "./hot-place-rankings/hot-place-rankings.module.js";
 import { PlaceRankingsModule } from "./place-rankings/place-rankings.module.js";
 import { PlaceCoursesModule } from "./place-courses/place-courses.module.js";
+import { PlaceFavoritesModule } from "./place-favorites/place-favorites.module.js";
 import { PlaceReelsModule } from "./place-reels/place-reels.module.js";
 import { PlacesModule } from "./places/places.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
@@ -29,6 +30,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     HotPlaceRankingsModule,
     PlaceRankingsModule,
     PlaceCoursesModule,
+    PlaceFavoritesModule,
     PlaceReelsModule,
     PlacesModule,
     ReviewsModule,

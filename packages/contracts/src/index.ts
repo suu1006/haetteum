@@ -69,6 +69,14 @@ export {
   type ValidationIssue,
 } from "./problem-details.js";
 export {
+  FavoritePlaceItemSchema,
+  FavoritePlaceParamsSchema,
+  MyFavoritesResponseSchema,
+  type FavoritePlaceItem,
+  type FavoritePlaceParams,
+  type MyFavoritesResponse,
+} from "./favorites.js";
+export {
   GeneratedCourseResponseSchema,
   GeneratedCourseStopRoleSchema,
   GeneratedCourseStopSchema,
