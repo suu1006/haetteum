@@ -8,6 +8,8 @@ const fallbackAvatar = "/images/profile/haetteumi-avatar.png";
 
 type MyPageCounts = {
   reviewCount?: number;
+  favoriteCount?: number;
+  tripCount?: number;
 };
 
 export function createMyPageData(
@@ -15,7 +17,14 @@ export function createMyPageData(
   counts: MyPageCounts,
 ): MyPageData {
   const travelRecords: TravelRecordItem[] = [
-    { id: "trips", label: "내 일정", countLabel: "0개", href: "/trips" },
+    {
+      id: "trips",
+      label: "내 일정",
+      ...(counts.tripCount === undefined
+        ? {}
+        : { countLabel: `${counts.tripCount}개` }),
+      href: "/trips",
+    },
   ];
 
   travelRecords.push({
@@ -27,10 +36,16 @@ export function createMyPageData(
     href: "/reviews",
   });
 
-  travelRecords.push(
-    { id: "favorites", label: "찜한 장소", countLabel: "0개" },
-    { id: "visited", label: "방문한 장소", countLabel: "0개" },
-  );
+  travelRecords.push({
+    id: "favorites",
+    label: "찜한 장소",
+    ...(counts.favoriteCount === undefined
+      ? {}
+      : { countLabel: `${counts.favoriteCount}개` }),
+    href: "/reviews?tab=bookmarked",
+  });
+
+  travelRecords.push({ id: "visited", label: "방문한 장소", countLabel: "0개" });
 
   return {
     profile: {

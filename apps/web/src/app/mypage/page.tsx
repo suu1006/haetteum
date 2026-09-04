@@ -6,7 +6,9 @@ import { MyPageScreen } from "@/components/patterns/my-page-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { createMyPageData } from "@/features/profile/my-page-data";
+import { loadMyFavorites } from "@/features/profile/my-favorites-api";
 import { loadMyReviews } from "@/features/reviews/my-reviews-api";
+import { loadMySavedCourses } from "@/features/trips/my-saved-courses-api";
 
 export const metadata: Metadata = {
   title: "마이페이지 | 해뜸",
@@ -17,13 +19,22 @@ export default async function MyPage() {
   await connection();
   const user = await requireCurrentUser("/mypage");
   const cookieHeader = (await headers()).get("cookie");
-  const reviews = await loadMyReviews(cookieHeader);
-  const data = createMyPageData(
-    user,
-    reviews.status === "ready"
+  const [reviews, favorites, savedCourses] = await Promise.all([
+    loadMyReviews(cookieHeader),
+    loadMyFavorites(cookieHeader),
+    loadMySavedCourses(cookieHeader),
+  ]);
+  const data = createMyPageData(user, {
+    ...(reviews.status === "ready"
       ? { reviewCount: reviews.data.written.length }
-      : {},
-  );
+      : {}),
+    ...(favorites.status === "ready"
+      ? { favoriteCount: favorites.data.items.length }
+      : {}),
+    ...(savedCourses.status === "ready"
+      ? { tripCount: savedCourses.data.items.length }
+      : {}),
+  });
 
   return (
     <>

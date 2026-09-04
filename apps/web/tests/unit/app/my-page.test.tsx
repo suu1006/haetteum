@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
   loadMyReviews: vi.fn(),
+  loadMyFavorites: vi.fn(),
+  loadMySavedCourses: vi.fn(),
   requireCurrentUser: vi.fn(),
 }));
 
@@ -17,6 +19,12 @@ vi.mock("@/features/auth/auth-server", () => ({
 }));
 vi.mock("@/features/reviews/my-reviews-api", () => ({
   loadMyReviews: mocks.loadMyReviews,
+}));
+vi.mock("@/features/profile/my-favorites-api", () => ({
+  loadMyFavorites: mocks.loadMyFavorites,
+}));
+vi.mock("@/features/trips/my-saved-courses-api", () => ({
+  loadMySavedCourses: mocks.loadMySavedCourses,
 }));
 vi.mock("@/features/auth/auth-user-hydrator", () => ({
   AuthUserHydrator: ({ user }: { user: { id: string } }) => (
@@ -43,6 +51,14 @@ beforeEach(() => {
     status: "ready",
     data: { written: [{ id: "one" }, { id: "two" }], bookmarked: [] },
   });
+  mocks.loadMyFavorites.mockResolvedValue({
+    status: "ready",
+    data: { items: [{ id: "place-one" }] },
+  });
+  mocks.loadMySavedCourses.mockResolvedValue({
+    status: "ready",
+    data: { items: [] },
+  });
 });
 
 describe("My Page route", () => {
@@ -55,10 +71,20 @@ describe("My Page route", () => {
     expect(screen.getByTestId("hydrated-user")).toHaveTextContent(user.id);
     expect(screen.getByRole("heading", { name: user.displayName })).toBeVisible();
     expect(screen.getByText("카카오로 로그인됨")).toBeVisible();
-    expect(screen.getByRole("list", { name: "나의 여행 기록" })).toHaveTextContent(
-      "내 후기2개",
+    const records = screen.getByRole("list", { name: "나의 여행 기록" });
+    expect(records).toHaveTextContent("내 후기2개");
+    expect(records).toHaveTextContent("찜한 장소1개");
+    expect(within(records).getByRole("link", { name: /찜한 장소/ })).toHaveAttribute(
+      "href",
+      "/reviews?tab=bookmarked",
     );
     expect(mocks.loadMyReviews).toHaveBeenCalledWith(
+      "haetteum_session=opaque-session",
+    );
+    expect(mocks.loadMyFavorites).toHaveBeenCalledWith(
+      "haetteum_session=opaque-session",
+    );
+    expect(mocks.loadMySavedCourses).toHaveBeenCalledWith(
       "haetteum_session=opaque-session",
     );
   });
@@ -86,5 +112,7 @@ describe("My Page route", () => {
       "redirected:/login?returnTo=%2Fmypage",
     );
     expect(mocks.loadMyReviews).not.toHaveBeenCalled();
+    expect(mocks.loadMyFavorites).not.toHaveBeenCalled();
+    expect(mocks.loadMySavedCourses).not.toHaveBeenCalled();
   });
 });

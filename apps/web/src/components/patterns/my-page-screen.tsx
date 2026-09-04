@@ -48,8 +48,8 @@ function MyPageScreen({ data }: MyPageScreenProps) {
         <MyPageMenuList items={data.menuItems} />
       </main>
 
-      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto min-h-[var(--my-page-navigation-height)] w-full max-w-[30rem] bg-card">
-        <BottomNavigation items={myPageNavigationItems} variant="profile" />
+      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card">
+        <BottomNavigation items={myPageNavigationItems} />
       </div>
     </div>
   );

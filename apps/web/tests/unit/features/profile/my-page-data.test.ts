@@ -13,7 +13,11 @@ const user = {
 
 describe("createMyPageData", () => {
   it("maps only the actual Kakao profile and actual or unimplemented counts", () => {
-    const data = createMyPageData(user, { reviewCount: 3 });
+    const data = createMyPageData(user, {
+      reviewCount: 3,
+      favoriteCount: 2,
+      tripCount: 1,
+    });
 
     expect(data.profile).toEqual({
       nickname: "실제 카카오 여행자",
@@ -24,14 +28,31 @@ describe("createMyPageData", () => {
       },
     });
     expect(data.travelRecords).toEqual([
-      { id: "trips", label: "내 일정", countLabel: "0개", href: "/trips" },
+      { id: "trips", label: "내 일정", countLabel: "1개", href: "/trips" },
       { id: "reviews", label: "내 후기", countLabel: "3개", href: "/reviews" },
-      { id: "favorites", label: "찜한 장소", countLabel: "0개" },
+      {
+        id: "favorites",
+        label: "찜한 장소",
+        countLabel: "2개",
+        href: "/reviews?tab=bookmarked",
+      },
       { id: "visited", label: "방문한 장소", countLabel: "0개" },
     ]);
     expect(data.profile).not.toHaveProperty("levelLabel");
     expect(data.profile).not.toHaveProperty("pointsLabel");
     expect(data.profile).not.toHaveProperty("progressPercent");
+  });
+
+  it("keeps the favorites destination but omits its unavailable count", () => {
+    expect(
+      createMyPageData(user, {}).travelRecords.find(
+        ({ id }) => id === "favorites",
+      ),
+    ).toEqual({
+      id: "favorites",
+      label: "찜한 장소",
+      href: "/reviews?tab=bookmarked",
+    });
   });
 
   it("keeps a truthful zero for a ready empty review result", () => {
@@ -50,6 +71,16 @@ describe("createMyPageData", () => {
       id: "reviews",
       label: "내 후기",
       href: "/reviews",
+    });
+  });
+
+  it("keeps the trips destination but omits its unavailable count", () => {
+    expect(
+      createMyPageData(user, {}).travelRecords.find(({ id }) => id === "trips"),
+    ).toEqual({
+      id: "trips",
+      label: "내 일정",
+      href: "/trips",
     });
   });
 
