@@ -88,9 +88,7 @@ function ReviewRatingInput({
                 aria-hidden="true"
                 className={cn(
                   "size-8 transition-colors",
-                  filled
-                    ? "fill-rating text-rating"
-                    : "fill-secondary text-secondary",
+                  filled ? "fill-primary text-primary" : "fill-none text-primary/50",
                 )}
               />
             </button>

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    // 로컬 개발용 후기 사진 업로드(localhost:4000)를 위해 사설 IP 최적화 허용
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -35,6 +37,13 @@ const nextConfig: NextConfig = {
         hostname: "i.ytimg.com",
         port: "",
         pathname: "/**",
+      },
+      {
+        // 로컬 개발용 후기 사진 업로드 (apps/api 디스크 저장, 프로덕션 스토리지 마련 전까지 임시)
+        protocol: "http",
+        hostname: "localhost",
+        port: "4000",
+        pathname: "/uploads/**",
       },
     ],
   },

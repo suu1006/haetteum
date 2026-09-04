@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PlaceListItem } from "@haetteum/contracts";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ReviewNewPage, { metadata } from "@/app/reviews/new/page";
@@ -12,9 +14,19 @@ const apiMocks = vi.hoisted(() => ({
   searchReviewPlaces: vi.fn(),
   updateReview: vi.fn(),
 }));
+const favoriteApiMocks = vi.hoisted(() => ({
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
+  loadMyFavorites: vi.fn(),
+}));
+const authMocks = vi.hoisted(() => ({ requireCurrentUser: vi.fn() }));
+const headersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({ useRouter: () => routerMocks }));
+vi.mock("next/headers", () => ({ headers: headersMock }));
+vi.mock("@/features/auth/auth-server", () => authMocks);
 vi.mock("@/features/profile/my-reviews-api", () => apiMocks);
+vi.mock("@/features/places/favorite-place-api", () => favoriteApiMocks);
 
 const existingPlace = {
   id: "84549352-0c20-4e11-af50-2d4f278f41ef",
@@ -36,21 +48,40 @@ const freshPlace = {
   address: "경기도 수원시 팔달구",
 } as const satisfies PlaceListItem;
 
+function renderWithQueryClient(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   apiMocks.loadMyReviews.mockReset();
   apiMocks.searchReviewPlaces.mockReset();
   apiMocks.createReview.mockReset();
   routerMocks.replace.mockReset();
   routerMocks.refresh.mockReset();
+  authMocks.requireCurrentUser.mockReset();
+  headersMock.mockReset();
+  authMocks.requireCurrentUser.mockResolvedValue({
+    id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
+  });
+  headersMock.mockResolvedValue(
+    new Headers({ Cookie: "haetteum_session=opaque-session" }),
+  );
   apiMocks.searchReviewPlaces.mockResolvedValue({
     status: "ready",
     items: [existingPlace, freshPlace],
   });
+  favoriteApiMocks.loadMyFavorites.mockResolvedValue({ items: [] });
 });
 
-async function searchPlaces(user: ReturnType<typeof userEvent.setup>) {
+async function searchAndOpenResults(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByRole("combobox", { name: "지역" }), "gyeonggi");
-  await user.click(screen.getByRole("button", { name: "검색" }));
+  await user.click(screen.getByRole("button", { name: "관광지 검색" }));
+  await user.type(await screen.findByRole("searchbox", { name: "관광지 검색" }), "화성");
 }
 
 describe("new review page", () => {
@@ -82,11 +113,21 @@ describe("new review page", () => {
       ],
     });
 
-    render(await ReviewNewPage());
-    await searchPlaces(user);
+    renderWithQueryClient(await ReviewNewPage());
+    await searchAndOpenResults(user);
 
-    expect(screen.queryByRole("radio", { name: /에버랜드/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /수원 화성/ })).toBeVisible();
+    expect(authMocks.requireCurrentUser).toHaveBeenCalledWith("/reviews/new");
+    expect(apiMocks.loadMyReviews).toHaveBeenCalledWith(
+      "haetteum_session=opaque-session",
+    );
+    expect(screen.queryByRole("button", { name: /에버랜드/ })).not.toBeInTheDocument();
+    const result = await screen.findByRole("button", { name: /수원 화성/ });
+    expect(result).toBeVisible();
+
+    await user.click(result);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
     expect(
       screen.getByRole("link", { name: "내 후기로 돌아가기" }),
     ).toHaveAttribute("href", "/reviews");
@@ -97,12 +138,23 @@ describe("new review page", () => {
     apiMocks.loadMyReviews.mockResolvedValue({ status: "error" });
     apiMocks.createReview.mockResolvedValue({ status: "duplicate" });
 
-    render(await ReviewNewPage());
-    await searchPlaces(user);
-    await user.click(screen.getByRole("radio", { name: /에버랜드/ }));
+    renderWithQueryClient(await ReviewNewPage());
+    await searchAndOpenResults(user);
+    await user.click(await screen.findByRole("button", { name: /에버랜드/ }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
     await user.click(screen.getByRole("radio", { name: "5점" }));
-    await user.type(screen.getByRole("textbox", { name: "후기 내용" }), "다시 작성");
-    await user.click(screen.getByRole("button", { name: "후기 등록" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "제목을 입력해주세요" }),
+      "다시 작성",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "후기를 작성해주세요" }),
+      "다시 작성해 보는 후기입니다.",
+    );
+    await user.click(screen.getByRole("button", { name: "등록하기" }));
 
     expect(
       await screen.findByText("이미 이 관광지에 작성한 후기가 있어요."),

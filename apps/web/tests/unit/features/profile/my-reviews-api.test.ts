@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createReview,
+  deleteReview,
   loadReview,
   loadMyReviews,
   mapReviewItem,
@@ -21,7 +22,9 @@ const review = {
   placeTitle: "에버랜드",
   location: "경기 용인",
   rating: 5,
+  title: "하루 종일 즐거웠어요",
   content: "퍼레이드와 놀이기구를 하루 종일 즐겼어요.",
+  images: [],
   primaryImageUrl: null,
   createdAt: "2026-08-25T14:00:00.000Z",
   updatedAt: "2026-08-26T01:30:00.000Z",
@@ -30,12 +33,16 @@ const review = {
 const createInput = {
   placeId: review.placeId,
   rating: 5,
+  title: "다시 오고 싶어요",
   content: "다시 방문하고 싶은 곳이에요.",
+  images: [],
 } as const satisfies CreateReviewRequest;
 
 const updateInput = {
   rating: 4,
+  title: "여유로웠던 재방문",
   content: "평일에 다시 방문해 보니 더 여유로웠어요.",
+  images: [],
 } as const satisfies UpdateReviewRequest;
 
 const place = {
@@ -60,7 +67,7 @@ describe("loadMyReviews", () => {
     );
 
     await expect(
-      loadMyReviews(fetchImpl, "http://api.test/api/v1"),
+      loadMyReviews(null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({
       status: "ready",
       items: [
@@ -74,7 +81,6 @@ describe("loadMyReviews", () => {
           content: review.content,
           likeCount: 0,
           commentCount: 0,
-          bookmarked: false,
           image: {
             src: "/images/explore/categories/popular-attraction.png",
             alt: "에버랜드 대표 이미지",
@@ -85,7 +91,7 @@ describe("loadMyReviews", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://api.test/api/v1/reviews/mine",
-      { cache: "no-store" },
+      { cache: "no-store", headers: {} },
     );
   });
 
@@ -109,7 +115,7 @@ describe("loadMyReviews", () => {
     );
 
     await expect(
-      loadMyReviews(fetchImpl, "http://api.test/api/v1"),
+      loadMyReviews(null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
   });
 
@@ -119,7 +125,7 @@ describe("loadMyReviews", () => {
     );
 
     await expect(
-      loadMyReviews(fetchImpl, "http://api.test/api/v1"),
+      loadMyReviews(null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
   });
 
@@ -129,7 +135,7 @@ describe("loadMyReviews", () => {
     );
 
     await expect(
-      loadMyReviews(fetchImpl, "http://api.test/api/v1"),
+      loadMyReviews(null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
   });
 
@@ -139,14 +145,31 @@ describe("loadMyReviews", () => {
       .mockRejectedValue(new Error("socket closed"));
 
     await expect(
-      loadMyReviews(fetchImpl, "http://api.test/api/v1"),
+      loadMyReviews(null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
+  });
+
+  it("forwards the visitor's session cookie to the API", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ items: [] }), { status: 200 }),
+    );
+
+    await loadMyReviews(
+      "session=abc123",
+      fetchImpl,
+      "http://api.test/api/v1",
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://api.test/api/v1/reviews/mine",
+      { cache: "no-store", headers: { Cookie: "session=abc123" } },
+    );
   });
 
   it("returns an error state without calling fetch for a blank API base URL", async () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
-    await expect(loadMyReviews(fetchImpl, "   ")).resolves.toEqual({
+    await expect(loadMyReviews(null, fetchImpl, "   ")).resolves.toEqual({
       status: "error",
     });
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -160,12 +183,12 @@ describe("review detail and mutation adapters", () => {
     );
 
     await expect(
-      loadReview(review.id, fetchImpl, "http://api.test/api/v1"),
+      loadReview(review.id, null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "ready", review });
 
     expect(fetchImpl).toHaveBeenCalledWith(
       `http://api.test/api/v1/reviews/${review.id}`,
-      { cache: "no-store" },
+      { cache: "no-store", headers: {} },
     );
   });
 
@@ -175,7 +198,7 @@ describe("review detail and mutation adapters", () => {
     );
 
     await expect(
-      loadReview(review.id, fetchImpl, "http://api.test/api/v1"),
+      loadReview(review.id, null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "not-found" });
   });
 
@@ -185,7 +208,7 @@ describe("review detail and mutation adapters", () => {
     );
 
     await expect(
-      loadReview(review.id, fetchImpl, "http://api.test/api/v1"),
+      loadReview(review.id, null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
   });
 
@@ -193,7 +216,7 @@ describe("review detail and mutation adapters", () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
     await expect(
-      loadReview("not-a-review-id", fetchImpl, "http://api.test/api/v1"),
+      loadReview("not-a-review-id", null, fetchImpl, "http://api.test/api/v1"),
     ).resolves.toEqual({ status: "error" });
     await expect(
       updateReview(
@@ -218,6 +241,7 @@ describe("review detail and mutation adapters", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith("http://api.test/api/v1/reviews", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(createInput),
     });
@@ -246,6 +270,7 @@ describe("review detail and mutation adapters", () => {
       `http://api.test/api/v1/reviews/${review.id}`,
       {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateInput),
       },
@@ -419,6 +444,65 @@ describe("review detail and mutation adapters", () => {
   });
 });
 
+describe("deleteReview", () => {
+  const deleteErrorMessage =
+    "후기를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.";
+
+  it("sends an exact delete request for a valid review id", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+
+    await expect(
+      deleteReview(review.id, fetchImpl, "http://api.test/api/v1"),
+    ).resolves.toEqual({ status: "success" });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `http://api.test/api/v1/reviews/${review.id}`,
+      { method: "DELETE", credentials: "include" },
+    );
+  });
+
+  it("does not request a delete for a malformed review id", async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    await expect(
+      deleteReview("not-a-review-id", fetchImpl, "http://api.test/api/v1"),
+    ).resolves.toEqual({ status: "error", message: deleteErrorMessage });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("returns an error for a non-success response", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("upstream failure", { status: 500 }),
+    );
+
+    await expect(
+      deleteReview(review.id, fetchImpl, "http://api.test/api/v1"),
+    ).resolves.toEqual({ status: "error", message: deleteErrorMessage });
+  });
+
+  it("returns an error when the fetch rejects", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new Error("socket closed"));
+
+    await expect(
+      deleteReview(review.id, fetchImpl, "http://api.test/api/v1"),
+    ).resolves.toEqual({ status: "error", message: deleteErrorMessage });
+  });
+
+  it("does not call fetch when the API base URL is blank", async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    await expect(deleteReview(review.id, fetchImpl, "   ")).resolves.toEqual({
+      status: "error",
+      message: deleteErrorMessage,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
 describe("searchReviewPlaces", () => {
   it("fetches a decoded regional search URL without caching and validates the page", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
@@ -449,7 +533,7 @@ describe("searchReviewPlaces", () => {
     expect(url.searchParams.get("page")).toBe("1");
     expect(url.searchParams.get("pageSize")).toBe("20");
     expect(url.searchParams.get("q")).toBe("성산");
-    expect(options).toEqual({ cache: "no-store" });
+    expect(options).toEqual({ cache: "no-store", credentials: "include" });
   });
 
   it("returns an error for malformed successful place JSON", async () => {
@@ -465,7 +549,9 @@ describe("searchReviewPlaces", () => {
   it("does not call fetch when the API base URL is blank", async () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
-    await expect(loadReview(review.id, fetchImpl, "   ")).resolves.toEqual({
+    await expect(
+      loadReview(review.id, null, fetchImpl, "   "),
+    ).resolves.toEqual({
       status: "error",
     });
     await expect(createReview(createInput, fetchImpl, "   ")).resolves.toEqual({
@@ -489,7 +575,7 @@ describe("adapter transport errors", () => {
       label: "review detail",
       expected: { status: "error" },
       request: (fetchImpl: typeof fetch) =>
-        loadReview(review.id, fetchImpl, "http://api.test/api/v1"),
+        loadReview(review.id, null, fetchImpl, "http://api.test/api/v1"),
     },
     {
       label: "review creation",

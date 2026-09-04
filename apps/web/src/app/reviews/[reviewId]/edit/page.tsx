@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ReviewEditorScreen } from "@/components/patterns/review-editor-screen";
+import { requireCurrentUser } from "@/features/auth/auth-server";
 import { loadReview } from "@/features/profile/my-reviews-api";
 
 export const metadata: Metadata = {
@@ -16,7 +18,9 @@ type ReviewEditPageProps = {
 
 export default async function ReviewEditPage({ params }: ReviewEditPageProps) {
   const { reviewId } = await params;
-  const result = await loadReview(reviewId);
+  await requireCurrentUser(`/reviews/${reviewId}/edit`);
+  const cookieHeader = (await headers()).get("cookie");
+  const result = await loadReview(reviewId, cookieHeader);
 
   if (result.status === "not-found") notFound();
 

@@ -1,16 +1,18 @@
 import {
-  PlacesPageSchema,
   ProblemDetailsSchema,
   MyReviewsResponseSchema,
   ReviewIdParamsSchema,
   ReviewItemSchema,
   type CreateReviewRequest,
-  type PlaceListItem,
   type PlaceRegion,
   type ReviewItem,
   type UpdateReviewRequest,
 } from "@haetteum/contracts";
 
+import {
+  searchPlaces,
+  type PlaceSearchLoadState,
+} from "@/features/places/place-search-api";
 import type {
   MyReviewItem,
   MyWrittenReviewsLoadState,
@@ -27,16 +29,22 @@ export type ReviewMutationResult =
   | { status: "duplicate" }
   | { status: "error"; message: string };
 
+const reviewDeleteErrorMessage =
+  "후기를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.";
+
+export type ReviewDeleteResult =
+  | { status: "success" }
+  | { status: "error"; message: string };
+
 export type ReviewDetailLoadState =
   | { status: "ready"; review: ReviewItem }
   | { status: "not-found" }
   | { status: "error" };
 
-export type ReviewPlacesLoadState =
-  | { status: "ready"; items: PlaceListItem[] }
-  | { status: "error" };
+export type ReviewPlacesLoadState = PlaceSearchLoadState;
 
 export async function loadMyReviews(
+  cookieHeader: string | null = null,
   fetchImpl: typeof fetch = fetch,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
 ): Promise<MyWrittenReviewsLoadState> {
@@ -44,7 +52,10 @@ export async function loadMyReviews(
   if (url == null) return { status: "error" };
 
   try {
-    const response = await fetchImpl(url, { cache: "no-store" });
+    const response = await fetchImpl(url, {
+      cache: "no-store",
+      headers: cookieHeader ? { Cookie: cookieHeader } : {},
+    });
     if (!response.ok) return { status: "error" };
 
     const parsed = MyReviewsResponseSchema.safeParse(await response.json());
@@ -61,6 +72,7 @@ export async function loadMyReviews(
 
 export async function loadReview(
   reviewId: string,
+  cookieHeader: string | null = null,
   fetchImpl: typeof fetch = fetch,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
 ): Promise<ReviewDetailLoadState> {
@@ -72,7 +84,10 @@ export async function loadReview(
   if (url == null) return { status: "error" };
 
   try {
-    const response = await fetchImpl(url, { cache: "no-store" });
+    const response = await fetchImpl(url, {
+      cache: "no-store",
+      headers: cookieHeader ? { Cookie: cookieHeader } : {},
+    });
     if (response.status === 404) return { status: "not-found" };
     if (!response.ok) return { status: "error" };
 
@@ -112,32 +127,40 @@ export async function updateReview(
   );
 }
 
-export async function searchReviewPlaces(
+export async function deleteReview(
+  reviewId: string,
+  fetchImpl: typeof fetch = fetch,
+  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+): Promise<ReviewDeleteResult> {
+  if (!ReviewIdParamsSchema.safeParse({ reviewId }).success) {
+    return { status: "error", message: reviewDeleteErrorMessage };
+  }
+
+  const url = apiUrl(baseUrl, `/reviews/${encodeURIComponent(reviewId)}`);
+  if (url == null) return { status: "error", message: reviewDeleteErrorMessage };
+
+  try {
+    const response = await fetchImpl(url, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      return { status: "error", message: reviewDeleteErrorMessage };
+    }
+
+    return { status: "success" };
+  } catch {
+    return { status: "error", message: reviewDeleteErrorMessage };
+  }
+}
+
+export function searchReviewPlaces(
   region: PlaceRegion,
   query: string,
   fetchImpl: typeof fetch = fetch,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
 ): Promise<ReviewPlacesLoadState> {
-  const url = apiUrl(baseUrl, "/places");
-  if (url == null) return { status: "error" };
-
-  try {
-    const requestUrl = new URL(url);
-    requestUrl.searchParams.set("region", region);
-    requestUrl.searchParams.set("page", "1");
-    requestUrl.searchParams.set("pageSize", "20");
-    requestUrl.searchParams.set("q", query);
-
-    const response = await fetchImpl(requestUrl.href, { cache: "no-store" });
-    if (!response.ok) return { status: "error" };
-
-    const parsed = PlacesPageSchema.safeParse(await response.json());
-    return parsed.success
-      ? { status: "ready", items: parsed.data.items }
-      : { status: "error" };
-  } catch {
-    return { status: "error" };
-  }
+  return searchPlaces(region, query, fetchImpl, baseUrl);
 }
 
 export function mapReviewItem(item: ReviewItem): MyReviewItem {
@@ -151,7 +174,6 @@ export function mapReviewItem(item: ReviewItem): MyReviewItem {
     content: item.content,
     likeCount: 0,
     commentCount: 0,
-    bookmarked: false,
     image: {
       src: item.primaryImageUrl ?? fallbackImage,
       alt: `${item.placeTitle} 대표 이미지`,
@@ -172,6 +194,7 @@ async function mutateReview(
   try {
     const response = await fetchImpl(url, {
       method,
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });

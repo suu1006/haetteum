@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { ReviewEditorScreen } from "@/components/patterns/review-editor-screen";
+import { requireCurrentUser } from "@/features/auth/auth-server";
 import { loadMyReviews } from "@/features/profile/my-reviews-api";
 
 export const metadata: Metadata = {
@@ -9,7 +11,9 @@ export const metadata: Metadata = {
 };
 
 export default async function ReviewNewPage() {
-  const reviews = await loadMyReviews();
+  await requireCurrentUser("/reviews/new");
+  const cookieHeader = (await headers()).get("cookie");
+  const reviews = await loadMyReviews(cookieHeader);
   const reviewedPlaceIds =
     reviews.status === "ready"
       ? reviews.items.map(({ placeId }) => placeId)
