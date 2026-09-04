@@ -51,12 +51,12 @@ function HotPlaceSection({
           aria-label="세대별 핫플레이스"
           className="scrollbar-none mt-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
         >
-          {rankingData.items.map((place) => (
+          {rankingData.items.map((place, index) => (
             <li
               key={place.sourcePlaceId}
               className="w-40 shrink-0 snap-start sm:w-44"
             >
-              <HotPlaceRankingCard place={place} />
+              <HotPlaceRankingCard place={place} priority={index === 0} />
             </li>
           ))}
         </ol>

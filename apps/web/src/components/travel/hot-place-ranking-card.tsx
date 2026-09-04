@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 type HotPlaceRankingCardProps = {
   place: HotPlaceRankingItem;
+  priority?: boolean;
 };
 
 const rankBadgeClassNames: Record<number, string> = {
@@ -15,7 +16,10 @@ const rankBadgeClassNames: Record<number, string> = {
   3: "bg-rank-bronze text-rank-bronze-foreground",
 };
 
-function HotPlaceRankingCard({ place }: HotPlaceRankingCardProps) {
+function HotPlaceRankingCard({
+  place,
+  priority = false,
+}: HotPlaceRankingCardProps) {
   const rankLabel = `${place.rank}위`;
   const rankBadgeClassName =
     rankBadgeClassNames[place.rank] ?? "bg-primary text-primary-foreground";
@@ -34,6 +38,7 @@ function HotPlaceRankingCard({ place }: HotPlaceRankingCardProps) {
             fill
             sizes="(max-width: 480px) 30vw, 144px"
             className="object-cover"
+            priority={priority}
           />
           <span
             className={cn(

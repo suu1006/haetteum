@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 type PlaceRankingCardProps = {
   place: PlaceRankingItem;
+  priority?: boolean;
 };
 
 const rankBadgeClassNames: Record<number, string> = {
@@ -15,7 +16,7 @@ const rankBadgeClassNames: Record<number, string> = {
   3: "bg-rank-bronze text-rank-bronze-foreground",
 };
 
-function PlaceRankingCard({ place }: PlaceRankingCardProps) {
+function PlaceRankingCard({ place, priority = false }: PlaceRankingCardProps) {
   const rankLabel = `${place.rank}위`;
   const rankBadgeClassName =
     rankBadgeClassNames[place.rank] ?? "bg-primary text-primary-foreground";
@@ -34,6 +35,7 @@ function PlaceRankingCard({ place }: PlaceRankingCardProps) {
             fill
             sizes="(max-width: 480px) 30vw, 144px"
             className="object-cover"
+            priority={priority}
           />
           <span
             className={cn(
