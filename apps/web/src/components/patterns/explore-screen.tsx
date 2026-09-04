@@ -3,12 +3,16 @@ import { BellIcon, FlameIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
 import { ExploreSectionHeader } from "@/components/patterns/explore-section-header";
-import { ExploreCategoryLink } from "@/components/travel/explore-category-link";
 import { ExploreDestinationCard } from "@/components/travel/explore-destination-card";
 import { BottomNavigation } from "@/components/travel/bottom-navigation";
+import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { createMainNavigationItems } from "@/components/travel/main-navigation-items";
+import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 import {
   buildExploreRegionHref,
+  mapRegionalDestinations,
+  mapTrendingDestinations,
   type ExploreData,
   type ExploreRegionId,
 } from "@/features/explore/explore-model";
@@ -17,6 +21,8 @@ import { cn } from "@/lib/utils";
 type ExploreScreenProps = {
   data: ExploreData;
   region: ExploreRegionId;
+  trendingRanking: PlaceRankingLoadState | null;
+  regionalReels: PopularReelsLoadState | null;
 };
 
 const exploreScreenStyle = {
@@ -25,9 +31,21 @@ const exploreScreenStyle = {
     "calc(var(--main-navigation-height) + var(--safe-area-bottom) + 25px)",
 } as CSSProperties;
 
-function ExploreScreen({ data, region }: ExploreScreenProps) {
+function ExploreScreen({
+  data,
+  region,
+  trendingRanking,
+  regionalReels,
+}: ExploreScreenProps) {
   const selectedRegion = data.regions.find((item) => item.id === region);
-  const regionalDestinations = data.regionalDestinations[region];
+  const trending =
+    trendingRanking?.status === "ready"
+      ? mapTrendingDestinations(trendingRanking.data)
+      : [];
+  const regionalDestinations =
+    regionalReels?.status === "ready"
+      ? mapRegionalDestinations(regionalReels.data)
+      : [];
 
   return (
     <div
@@ -71,19 +89,9 @@ function ExploreScreen({ data, region }: ExploreScreenProps) {
         </form>
       </section>
 
-      <nav aria-label="탐색 카테고리" className="px-5 pt-5">
-        <ul className="grid grid-cols-5 gap-3">
-          {data.categories.map((category) => (
-            <li key={category.id} className="min-w-0">
-              <ExploreCategoryLink category={category} />
-            </li>
-          ))}
-        </ul>
-      </nav>
-
       <section
         aria-labelledby="trending-destinations-title"
-        className="px-5 pt-2"
+        className="px-5 pt-5"
       >
         <ExploreSectionHeader
           headingId="trending-destinations-title"
@@ -98,19 +106,31 @@ function ExploreScreen({ data, region }: ExploreScreenProps) {
           }
           moreHref="/?region=jeju&tab=places"
         />
-        <ol
-          aria-label="지금 뜨는 여행지"
-          className="mt-3 grid grid-cols-3 gap-3"
-        >
-          {data.trending.map((destination) => (
-            <li key={destination.id} className="min-w-0">
-              <ExploreDestinationCard
-                destination={destination}
-                variant="trending"
-              />
-            </li>
-          ))}
-        </ol>
+        {trending.length > 0 ? (
+          <ol
+            aria-label="지금 뜨는 여행지"
+            className="mt-3 grid grid-cols-3 gap-3"
+          >
+            {trending.map((destination) => (
+              <li key={destination.id} className="min-w-0">
+                <ExploreDestinationCard
+                  destination={destination}
+                  variant="trending"
+                />
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/45 p-4">
+            <p className="type-body-md text-muted-foreground">
+              지금 뜨는 여행지를 불러오지 못했어요.
+            </p>
+            <p className="type-caption mt-1 text-muted-foreground">
+              잠시 후 다시 시도해 주세요.
+            </p>
+            <PlaceRankingRetryButton />
+          </div>
+        )}
       </section>
 
       <section
@@ -143,22 +163,36 @@ function ExploreScreen({ data, region }: ExploreScreenProps) {
             ))}
           </ul>
         </nav>
-        <ul
-          aria-label={`${selectedRegion?.label ?? "선택 지역"} 추천 여행지`}
-          className="mt-4 grid grid-cols-3 gap-3"
-        >
-          {regionalDestinations.map((destination) => (
-            <li key={destination.id} className="min-w-0">
-              <ExploreDestinationCard
-                destination={destination}
-                variant="regional"
-              />
-            </li>
-          ))}
-        </ul>
+        {regionalDestinations.length > 0 ? (
+          <ul
+            key={region}
+            aria-label={`${selectedRegion?.label ?? "선택 지역"} 추천 여행지`}
+            className="mt-4 grid grid-cols-3 gap-3"
+          >
+            {regionalDestinations.map((destination) => (
+              <li key={destination.id} className="min-w-0">
+                <ExploreDestinationCard
+                  destination={destination}
+                  variant="regional"
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
+            <p className="type-body-md text-muted-foreground">
+              {selectedRegion?.label ?? "선택 지역"} 추천 여행지를 아직
+              준비하지 못했어요.
+            </p>
+            <p className="type-caption mt-1 text-muted-foreground">
+              다른 지역을 둘러보시거나 잠시 후 다시 시도해 주세요.
+            </p>
+            <PlaceRankingRetryButton />
+          </div>
+        )}
       </section>
 
-      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto min-h-[var(--main-navigation-height)] w-full max-w-[30rem] bg-card">
+      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card">
         <BottomNavigation items={createMainNavigationItems("explore")} />
       </div>
     </div>
