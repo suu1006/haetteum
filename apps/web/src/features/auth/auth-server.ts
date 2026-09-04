@@ -9,9 +9,9 @@ import { safeReturnTo, type AuthUser } from "@/features/auth/auth-model";
 const loadCurrentUserError = "Unable to load current user.";
 
 export async function loadCurrentUser(): Promise<AuthUser | null> {
+  const baseUrl = apiBaseUrl();
+  const cookie = (await headers()).get("cookie");
   try {
-    const baseUrl = apiBaseUrl();
-    const cookie = (await headers()).get("cookie");
     const response = await fetch(`${baseUrl}/auth/me`, {
       cache: "no-store",
       headers: cookie ? { Cookie: cookie } : {},
