@@ -1,12 +1,19 @@
+import { mkdirSync } from "node:fs";
+
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module.js";
 import type { ApiEnvironment } from "./config/environment.js";
 import { configureApp } from "./configure-app.js";
+import { REVIEW_UPLOADS_DIR } from "./reviews/review-images.constants.js";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  mkdirSync(REVIEW_UPLOADS_DIR, { recursive: true });
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useStaticAssets(REVIEW_UPLOADS_DIR, { prefix: "/uploads/reviews" });
   configureApp(app);
 
   const config = app.get(ConfigService<ApiEnvironment, true>);

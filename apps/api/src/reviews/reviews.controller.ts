@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -73,5 +75,14 @@ export class ReviewsController {
     return ReviewItemSchema.parse(
       await this.reviews.update(currentUser.id, params.reviewId, input),
     );
+  }
+
+  @Delete(":reviewId")
+  @HttpCode(204)
+  async remove(
+    @CurrentUser() currentUser: AuthUser,
+    @Param(new ZodValidationPipe(ReviewIdParamsSchema)) params: ReviewIdParams,
+  ): Promise<void> {
+    await this.reviews.remove(currentUser.id, params.reviewId);
   }
 }

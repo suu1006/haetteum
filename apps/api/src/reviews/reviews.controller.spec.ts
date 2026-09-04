@@ -1,6 +1,7 @@
 import { RequestMethod, type ExecutionContext } from "@nestjs/common";
 import {
   GUARDS_METADATA,
+  HTTP_CODE_METADATA,
   METHOD_METADATA,
   PATH_METADATA,
   ROUTE_ARGS_METADATA,
@@ -35,7 +36,9 @@ const review: ReviewItem = {
   placeTitle: "에버랜드",
   location: "경기 용인",
   rating: 5,
+  title: "다시 오고 싶어요",
   content: "다시 방문하고 싶은 곳이에요.",
+  images: ["https://example.test/uploads/reviews/photo-1.jpg"],
   primaryImageUrl: "https://example.test/everland.jpg",
   createdAt: "2026-08-25T03:00:00.000Z",
   updatedAt: "2026-08-26T03:00:00.000Z",
@@ -43,11 +46,15 @@ const review: ReviewItem = {
 const createInput: CreateReviewRequest = {
   placeId: PLACE_ID,
   rating: 5,
+  title: "다시 오고 싶어요",
   content: "다시 방문하고 싶은 곳이에요.",
+  images: ["https://example.test/uploads/reviews/photo-1.jpg"],
 };
 const updateInput: UpdateReviewRequest = {
   rating: 4,
-  content: "수정한 후기",
+  title: "수정한 제목",
+  content: "수정한 후기 본문입니다.",
+  images: [],
 };
 const currentUser: AuthUser = {
   id: "30000000-0000-4000-8000-000000000001",
@@ -100,6 +107,9 @@ describe("ReviewsController", () => {
           ) => Promise<ReviewItem>
         >()
         .mockResolvedValue({ ...review, ...updateInput }),
+      remove: jest
+        .fn<(userId: string, reviewId: string) => Promise<void>>()
+        .mockResolvedValue(undefined),
     };
     const controller = new ReviewsController(reviews as never);
     const params: ReviewIdParams = { reviewId: REVIEW_ID };
@@ -117,6 +127,9 @@ describe("ReviewsController", () => {
       ...review,
       ...updateInput,
     });
+    await expect(
+      controller.remove(currentUser, params),
+    ).resolves.toBeUndefined();
 
     expect(reviews.listMine).toHaveBeenCalledWith(currentUser.id);
     expect(reviews.findMine).toHaveBeenCalledWith(currentUser.id, REVIEW_ID);
@@ -126,6 +139,7 @@ describe("ReviewsController", () => {
       REVIEW_ID,
       updateInput,
     );
+    expect(reviews.remove).toHaveBeenCalledWith(currentUser.id, REVIEW_ID);
   });
 
   it("registers the versioned review routes", () => {
@@ -156,6 +170,15 @@ describe("ReviewsController", () => {
     expect(Reflect.getMetadata(METHOD_METADATA, handler("update"))).toBe(
       RequestMethod.PATCH,
     );
+    expect(Reflect.getMetadata(PATH_METADATA, handler("remove"))).toBe(
+      ":reviewId",
+    );
+    expect(Reflect.getMetadata(METHOD_METADATA, handler("remove"))).toBe(
+      RequestMethod.DELETE,
+    );
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler("remove"))).toBe(
+      204,
+    );
   });
 
   it("requires the session and same-origin guards for every review route", () => {
@@ -171,6 +194,7 @@ describe("ReviewsController", () => {
       ["findMine", 0],
       ["create", 0],
       ["update", 0],
+      ["remove", 0],
     ] as const) {
       const args = Reflect.getMetadata(
         ROUTE_ARGS_METADATA,
@@ -238,7 +262,7 @@ describe("ReviewsController", () => {
     expect(validationPipe("update", 2)).toBeInstanceOf(ZodValidationPipe);
     expect(
       validationPipe("update", 2).transform(
-        { ...updateInput, content: "  수정한 후기  " },
+        { ...updateInput, content: "  수정한 후기 본문입니다.  " },
         bodyMetadata,
       ),
     ).toEqual(UpdateReviewRequestSchema.parse(updateInput));

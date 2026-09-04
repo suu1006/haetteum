@@ -1,3 +1,6 @@
+import { unlink } from "node:fs/promises";
+import { basename, join } from "node:path";
+
 import {
   ConflictException,
   Injectable,
@@ -16,14 +19,23 @@ import type {
 
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import {
+  REVIEW_UPLOADS_DIR,
+  REVIEW_UPLOADS_URL_PREFIX,
+} from "./review-images.constants.js";
 
 export const REVIEW_SELECT = {
   id: true,
   placeId: true,
   rating: true,
+  title: true,
   content: true,
   createdAt: true,
   updatedAt: true,
+  images: {
+    orderBy: { sortOrder: "asc" },
+    select: { url: true },
+  },
   place: {
     select: {
       title: true,
@@ -153,7 +165,19 @@ export class ReviewsService {
     try {
       return mapReviewRow(
         await this.prisma.review.create({
-          data: { userId, ...input },
+          data: {
+            userId,
+            placeId: input.placeId,
+            rating: input.rating,
+            title: input.title,
+            content: input.content,
+            images: {
+              create: input.images.map((url, index) => ({
+                url,
+                sortOrder: index,
+              })),
+            },
+          },
           select: REVIEW_SELECT,
         }),
       );
@@ -179,7 +203,7 @@ export class ReviewsService {
   ): Promise<ReviewItem> {
     const existingReview = await this.prisma.review.findFirst({
       where: { id: reviewId, userId },
-      select: { id: true },
+      select: { images: { select: { url: true } } },
     });
     if (existingReview === null) {
       throw new NotFoundException({
@@ -188,14 +212,59 @@ export class ReviewsService {
       });
     }
 
-    return mapReviewRow(
+    const updated = mapReviewRow(
       await this.prisma.review.update({
         where: { id: reviewId, userId },
-        data: { rating: input.rating, content: input.content },
+        data: {
+          rating: input.rating,
+          title: input.title,
+          content: input.content,
+          images: {
+            deleteMany: {},
+            create: input.images.map((url, index) => ({
+              url,
+              sortOrder: index,
+            })),
+          },
+        },
         select: REVIEW_SELECT,
       }),
     );
+
+    await deleteUploadedImages(existingReview.images.map((image) => image.url));
+    return updated;
   }
+
+  async remove(userId: string, reviewId: string): Promise<void> {
+    const existingReview = await this.prisma.review.findFirst({
+      where: { id: reviewId, userId },
+      select: { images: { select: { url: true } } },
+    });
+    await this.prisma.review.deleteMany({ where: { id: reviewId, userId } });
+    if (existingReview !== null) {
+      await deleteUploadedImages(existingReview.images.map((image) => image.url));
+    }
+  }
+}
+
+/// 로컬 디스크에 저장된 업로드 파일을 best-effort로 정리한다. 실패해도 요청 자체는 성공으로 처리한다.
+async function deleteUploadedImages(urls: readonly string[]): Promise<void> {
+  await Promise.all(
+    urls.map(async (url) => {
+      const index = url.indexOf(REVIEW_UPLOADS_URL_PREFIX);
+      if (index === -1) return;
+
+      const filePath = join(
+        REVIEW_UPLOADS_DIR,
+        basename(url.slice(index + REVIEW_UPLOADS_URL_PREFIX.length)),
+      );
+      try {
+        await unlink(filePath);
+      } catch {
+        // 파일이 이미 없거나 접근할 수 없어도 무시한다.
+      }
+    }),
+  );
 }
 
 function mapReviewRow(row: ReviewRow): ReviewItem {
@@ -207,7 +276,9 @@ function mapReviewRow(row: ReviewRow): ReviewItem {
       .filter((value): value is string => value !== undefined)
       .join(" "),
     rating: row.rating,
+    title: row.title,
     content: row.content,
+    images: row.images.map((image) => image.url),
     primaryImageUrl: row.place.primaryImageUrl,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

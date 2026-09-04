@@ -6,6 +6,7 @@
 **/dist/
 **/coverage/
 apps/api/src/generated/prisma/
+apps/api/uploads/
 *.tsbuildinfo
 next-env.d.ts
 .env*
@@ -20,5 +21,9 @@ yarn-error.log*
 **/.vercel/
 .omx/
 design-qa.md
-.claude/worktrees/
+.claude/
+.agents/
+agent/
+skills-lock.json
+/CLAUDE.md
 /artifacts/

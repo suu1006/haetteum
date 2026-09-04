@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 const RatingSchema = z.number().int().min(1).max(5);
+const ReviewTitleSchema = z.string().trim().min(1).max(30);
+/// 기존에 작성된 후기(10자 미만 포함)를 조회 시 깨뜨리지 않기 위해 출력 스키마는 완화된 하한을 쓴다.
 const ReviewContentSchema = z.string().trim().min(1).max(500);
+const ReviewContentInputSchema = z.string().trim().min(10).max(500);
+const ReviewImagesSchema = z.array(z.string().url()).max(5);
 
 export const ReviewIdParamsSchema = z.object({
   reviewId: z.string().uuid(),
@@ -11,14 +15,18 @@ export const CreateReviewRequestSchema = z
   .object({
     placeId: z.string().uuid(),
     rating: RatingSchema,
-    content: ReviewContentSchema,
+    title: ReviewTitleSchema,
+    content: ReviewContentInputSchema,
+    images: ReviewImagesSchema.default([]),
   })
   .strict();
 
 export const UpdateReviewRequestSchema = z
   .object({
     rating: RatingSchema,
-    content: ReviewContentSchema,
+    title: ReviewTitleSchema,
+    content: ReviewContentInputSchema,
+    images: ReviewImagesSchema.default([]),
   })
   .strict();
 
@@ -28,7 +36,9 @@ export const ReviewItemSchema = z.object({
   placeTitle: z.string().min(1),
   location: z.string().min(1),
   rating: RatingSchema,
+  title: ReviewTitleSchema,
   content: ReviewContentSchema,
+  images: ReviewImagesSchema,
   primaryImageUrl: z.string().url().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

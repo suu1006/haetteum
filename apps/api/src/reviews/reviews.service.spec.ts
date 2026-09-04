@@ -19,11 +19,15 @@ const USER_ID = "30000000-0000-4000-8000-000000000001";
 const createInput: CreateReviewRequest = {
   placeId: PLACE_ID,
   rating: 5,
+  title: "다시 오고 싶어요",
   content: "다시 방문하고 싶은 곳이에요.",
+  images: ["https://example.test/uploads/reviews/photo-1.jpg"],
 };
 const updateInput: UpdateReviewRequest = {
   rating: 4,
-  content: "수정한 후기",
+  title: "수정한 제목",
+  content: "수정한 후기 본문입니다.",
+  images: [],
 };
 
 function reviewRow(districtName: string | null = "용인") {
@@ -31,7 +35,9 @@ function reviewRow(districtName: string | null = "용인") {
     id: REVIEW_ID,
     placeId: PLACE_ID,
     rating: 5,
+    title: "다시 오고 싶어요",
     content: "다시 방문하고 싶은 곳이에요.",
+    images: [{ url: "https://example.test/uploads/reviews/photo-1.jpg" }],
     createdAt: new Date("2026-08-25T03:00:00.000Z"),
     updatedAt: new Date("2026-08-26T03:00:00.000Z"),
     place: {
@@ -59,7 +65,9 @@ describe("ReviewsService", () => {
           placeTitle: "에버랜드",
           location: "경기 용인",
           rating: 5,
+          title: "다시 오고 싶어요",
           content: "다시 방문하고 싶은 곳이에요.",
+          images: ["https://example.test/uploads/reviews/photo-1.jpg"],
           primaryImageUrl: "https://example.test/everland.jpg",
           createdAt: "2026-08-25T03:00:00.000Z",
           updatedAt: "2026-08-26T03:00:00.000Z",
@@ -133,14 +141,27 @@ describe("ReviewsService", () => {
       id: REVIEW_ID,
       placeId: PLACE_ID,
       rating: 5,
+      title: "다시 오고 싶어요",
       content: "다시 방문하고 싶은 곳이에요.",
+      images: ["https://example.test/uploads/reviews/photo-1.jpg"],
     });
     expect(placeFindUnique).toHaveBeenCalledWith({
       where: { id: createInput.placeId, isVisible: true },
       select: { id: true },
     });
     expect(reviewCreate).toHaveBeenCalledWith({
-      data: { userId: USER_ID, ...createInput },
+      data: {
+        userId: USER_ID,
+        placeId: PLACE_ID,
+        rating: 5,
+        title: "다시 오고 싶어요",
+        content: "다시 방문하고 싶은 곳이에요.",
+        images: {
+          create: [
+            { url: "https://example.test/uploads/reviews/photo-1.jpg", sortOrder: 0 },
+          ],
+        },
+      },
       select: REVIEW_SELECT,
     });
   });
@@ -210,10 +231,12 @@ describe("ReviewsService", () => {
   });
 
   it("updates only a review owned by the passed user", async () => {
-    const row = { ...reviewRow(), ...updateInput };
+    const row = { ...reviewRow(), ...updateInput, images: [] };
     const findFirst = jest
-      .fn<() => Promise<{ id: string } | null>>()
-      .mockResolvedValue({ id: REVIEW_ID });
+      .fn<() => Promise<{ images: { url: string }[] } | null>>()
+      .mockResolvedValue({
+        images: [{ url: "https://example.test/uploads/reviews/photo-1.jpg" }],
+      });
     const reviewUpdate = jest
       .fn<() => Promise<typeof row>>()
       .mockResolvedValue(row);
@@ -226,15 +249,21 @@ describe("ReviewsService", () => {
     ).resolves.toMatchObject({
       id: REVIEW_ID,
       rating: 4,
-      content: "수정한 후기",
+      title: "수정한 제목",
+      content: "수정한 후기 본문입니다.",
     });
     expect(findFirst).toHaveBeenCalledWith({
       where: { id: REVIEW_ID, userId: USER_ID },
-      select: { id: true },
+      select: { images: { select: { url: true } } },
     });
     expect(reviewUpdate).toHaveBeenCalledWith({
       where: { id: REVIEW_ID, userId: USER_ID },
-      data: { rating: 4, content: "수정한 후기" },
+      data: {
+        rating: 4,
+        title: "수정한 제목",
+        content: "수정한 후기 본문입니다.",
+        images: { deleteMany: {}, create: [] },
+      },
       select: REVIEW_SELECT,
     });
   });
@@ -255,6 +284,24 @@ describe("ReviewsService", () => {
       }),
     );
     expect(reviewUpdate).not.toHaveBeenCalled();
+  });
+
+  it("deletes only a review owned by the passed user", async () => {
+    const findFirst = jest
+      .fn<() => Promise<{ images: { url: string }[] } | null>>()
+      .mockResolvedValue({ images: [] });
+    const deleteMany = jest
+      .fn<() => Promise<{ count: number }>>()
+      .mockResolvedValue({ count: 1 });
+    const service = new ReviewsService({
+      review: { findFirst, deleteMany },
+    } as never);
+
+    await service.remove(USER_ID, REVIEW_ID);
+
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: REVIEW_ID, userId: USER_ID },
+    });
   });
 });
 
