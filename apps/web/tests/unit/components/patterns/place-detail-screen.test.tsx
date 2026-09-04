@@ -1,9 +1,12 @@
-import { render, screen, within } from "@testing-library/react";
+import { render as rtlRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import axe from "axe-core";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { PlaceDetailScreen } from "@/components/patterns/place-detail-screen";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
 import { getPlaceDetailById } from "@/features/places/place-detail.mock";
 
 const routerMocks = vi.hoisted(() => ({
@@ -14,6 +17,23 @@ const routerMocks = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
+
+vi.mock("@/features/places/favorite-place-api", () => ({
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
+  loadMyFavorites: vi.fn().mockResolvedValue({ items: [] }),
+}));
+
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={queryClient}>
+      <AuthStoreProvider>{ui}</AuthStoreProvider>
+    </QueryClientProvider>,
+  );
+}
 
 function requirePlace(placeId: string) {
   const place = getPlaceDetailById(placeId);

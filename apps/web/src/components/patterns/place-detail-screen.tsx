@@ -40,7 +40,12 @@ function PlaceDetailScreen({ place, query }: PlaceDetailScreenProps) {
           data-testid="place-detail-region"
           data-region="header"
         >
-          <PlaceDetailHeader title={place.title} />
+          <PlaceDetailHeader
+            title={place.title}
+            placeId={place.id}
+            location={place.location}
+            primaryImageUrl={place.image.src}
+          />
         </div>
         <div data-testid="place-detail-region" data-region="tabs">
           <PlaceDetailTabs placeId={place.id} currentTab={query.tab} />

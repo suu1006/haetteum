@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ import PlaceDetailPage, {
   generateStaticParams,
 } from "@/app/places/[placeId]/page";
 import PlaceNotFound from "@/app/places/[placeId]/not-found";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 
 const navigationMocks = vi.hoisted(() => ({
@@ -38,6 +39,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/places/place-detail-api", () => apiMocks);
+vi.mock("@/features/places/favorite-place-api", () => ({
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
+  loadMyFavorites: vi.fn().mockResolvedValue({ items: [] }),
+}));
+
+function render(ui: ReactNode) {
+  return rtlRender(<AuthStoreProvider>{ui}</AuthStoreProvider>);
+}
 
 function renderWithQueryClient(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -67,7 +77,7 @@ describe("place detail page", () => {
   });
 
   it("renders the requested place and URL-selected provider", async () => {
-    render(
+    renderWithQueryClient(
       await PlaceDetailPage({
         params: Promise.resolve({ placeId: "icheon-termeden" }),
         searchParams: Promise.resolve({ tab: "reviews", source: "google" }),
@@ -212,7 +222,9 @@ describe("place detail page", () => {
       <QueryClientProvider client={queryClient}>{tree}</QueryClientProvider>,
     );
     view.rerender(
-      <QueryClientProvider client={queryClient}>{tree}</QueryClientProvider>,
+      <AuthStoreProvider>
+        <QueryClientProvider client={queryClient}>{tree}</QueryClientProvider>
+      </AuthStoreProvider>,
     );
 
     expect(screen.getByText("attraction 장소")).toBeVisible();

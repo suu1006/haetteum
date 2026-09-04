@@ -6,18 +6,59 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { safeReturnTo } from "@/features/auth/auth-model";
+import { useAuthStore } from "@/features/auth/auth-store";
+import {
+  useIsPlaceFavorited,
+  useTogglePlaceFavorite,
+} from "@/features/places/favorite-place-query";
 
 type PlaceDetailHeaderProps = {
   title: string;
+  placeId?: string;
+  location?: string;
+  primaryImageUrl?: string | null;
 };
 
-function PlaceDetailHeader({ title }: PlaceDetailHeaderProps) {
+function PlaceDetailHeader({
+  title,
+  placeId,
+  location = "",
+  primaryImageUrl = null,
+}: PlaceDetailHeaderProps) {
   const router = useRouter();
-  const [saved, setSaved] = useState(false);
   const [message, setMessage] = useState("");
+  const isAuthenticated = useAuthStore((state) => state.status === "authenticated");
+  const saved = useIsPlaceFavorited(
+    placeId ?? "",
+    Boolean(placeId) && isAuthenticated,
+  );
+  const toggleFavorite = useTogglePlaceFavorite();
 
   function handleBack() {
     router.replace("/");
+  }
+
+  function handleToggleSaved() {
+    if (!placeId) return;
+
+    if (!isAuthenticated) {
+      const returnTo = safeReturnTo(
+        `${window.location.pathname}${window.location.search}`,
+      );
+      router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      return;
+    }
+
+    toggleFavorite.mutate(
+      { placeId, title, location, primaryImageUrl, nextFavorited: !saved },
+      {
+        onError: () =>
+          setMessage(
+            saved ? "찜 해제에 실패했어요" : "찜하기에 실패했어요",
+          ),
+      },
+    );
   }
 
   async function handleShare() {
@@ -64,7 +105,8 @@ function PlaceDetailHeader({ title }: PlaceDetailHeaderProps) {
           size="icon"
           aria-label={saved ? `${title} 찜 해제` : `${title} 찜하기`}
           aria-pressed={saved}
-          onClick={() => setSaved((current) => !current)}
+          disabled={!placeId || toggleFavorite.isPending}
+          onClick={handleToggleSaved}
         >
           <HeartIcon
             className={cn(saved && "fill-current text-primary")}

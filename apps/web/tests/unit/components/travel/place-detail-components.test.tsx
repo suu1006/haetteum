@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PlaceDetailActions } from "@/components/travel/place-detail-actions";
@@ -11,6 +13,8 @@ import { RatingSummary } from "@/components/travel/rating-summary";
 import { ReviewCard } from "@/components/travel/review-card";
 import { ReviewProviderMark } from "@/components/travel/review-provider-mark";
 import { ReviewSourceFilter } from "@/components/travel/review-source-filter";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
+import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { getPlaceDetailById } from "@/features/places/place-detail.mock";
 
 const routerMocks = vi.hoisted(() => ({
@@ -23,8 +27,44 @@ vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
 
+const { addFavorite, removeFavorite, loadMyFavorites } = vi.hoisted(() => ({
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
+  loadMyFavorites: vi.fn(),
+}));
+
+vi.mock("@/features/places/favorite-place-api", () => ({
+  addFavorite,
+  removeFavorite,
+  loadMyFavorites,
+}));
+
+const authenticatedUser = {
+  id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
+  displayName: "실제 카카오 여행자",
+  profileImageUrl: null,
+};
+
+function renderPlaceDetailHeader(
+  ui: ReactElement,
+  { authenticated = false }: { authenticated?: boolean } = {},
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AuthStoreProvider>
+        {authenticated ? <AuthUserHydrator user={authenticatedUser} /> : null}
+        {ui}
+      </AuthStoreProvider>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  loadMyFavorites.mockResolvedValue({ items: [] });
 });
 
 describe("ReviewProviderMark", () => {
@@ -184,23 +224,96 @@ describe("place detail navigation and actions", () => {
       value: 4,
     });
 
-    render(<PlaceDetailHeader title="이천 테르메덴" />);
+    renderPlaceDetailHeader(<PlaceDetailHeader title="이천 테르메덴" />);
 
     await user.click(screen.getByRole("button", { name: "뒤로가기" }));
     expect(routerMocks.replace).toHaveBeenCalledWith("/");
     expect(routerMocks.back).not.toHaveBeenCalled();
   });
 
-  it("toggles the local save state", async () => {
+  it("optimistically shows a place as saved before the request resolves", async () => {
     const user = userEvent.setup();
-    render(<PlaceDetailHeader title="이천 테르메덴" />);
+    let resolveAdd: (() => void) | undefined;
+    addFavorite.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAdd = () =>
+          resolve({
+            id: "icheon-termeden",
+            title: "이천 테르메덴",
+            location: "경기 이천",
+            primaryImageUrl: null,
+            favoritedAt: "2026-08-31T00:00:00.000Z",
+          });
+      }),
+    );
 
-    const saveButton = screen.getByRole("button", {
+    renderPlaceDetailHeader(
+      <PlaceDetailHeader
+        title="이천 테르메덴"
+        placeId="icheon-termeden"
+        location="경기 이천"
+      />,
+      { authenticated: true },
+    );
+
+    const saveButton = await screen.findByRole("button", {
       name: "이천 테르메덴 찜하기",
     });
     await user.click(saveButton);
 
     expect(saveButton).toHaveAttribute("aria-pressed", "true");
+    expect(addFavorite).toHaveBeenCalledWith("icheon-termeden");
+
+    resolveAdd?.();
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+  });
+
+  it("rolls back the saved state and reports failure when the request fails", async () => {
+    const user = userEvent.setup();
+    addFavorite.mockRejectedValue(new Error("network down"));
+
+    renderPlaceDetailHeader(
+      <PlaceDetailHeader
+        title="이천 테르메덴"
+        placeId="icheon-termeden"
+        location="경기 이천"
+      />,
+      { authenticated: true },
+    );
+
+    const saveButton = await screen.findByRole("button", {
+      name: "이천 테르메덴 찜하기",
+    });
+    await user.click(saveButton);
+
+    await waitFor(() =>
+      expect(saveButton).toHaveAttribute("aria-pressed", "false"),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "찜하기에 실패했어요",
+    );
+  });
+
+  it("sends an anonymous visitor to log in instead of calling the API", async () => {
+    const user = userEvent.setup();
+
+    renderPlaceDetailHeader(
+      <PlaceDetailHeader
+        title="이천 테르메덴"
+        placeId="icheon-termeden"
+        location="경기 이천"
+      />,
+    );
+
+    const saveButton = await screen.findByRole("button", {
+      name: "이천 테르메덴 찜하기",
+    });
+    await user.click(saveButton);
+
+    expect(addFavorite).not.toHaveBeenCalled();
+    expect(routerMocks.push).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/login\?returnTo=/),
+    );
   });
 
   it("copies the current URL when native sharing is unavailable", async () => {
@@ -215,7 +328,7 @@ describe("place detail navigation and actions", () => {
       value: { writeText },
     });
 
-    render(<PlaceDetailHeader title="이천 테르메덴" />);
+    renderPlaceDetailHeader(<PlaceDetailHeader title="이천 테르메덴" />);
     await user.click(screen.getByRole("button", { name: "공유하기" }));
 
     expect(writeText).toHaveBeenCalledWith(window.location.href);

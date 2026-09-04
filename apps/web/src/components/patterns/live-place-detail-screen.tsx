@@ -72,7 +72,12 @@ export function LivePlaceDetailScreen({
   return (
     <div className="mx-auto min-h-screen w-full max-w-[30rem] bg-background pb-[calc(7rem+var(--safe-area-bottom))]">
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md">
-        <PlaceDetailHeader title={place.title} />
+        <PlaceDetailHeader
+          title={place.title}
+          placeId={place.id}
+          location={place.address ?? place.district ?? ""}
+          primaryImageUrl={place.images[0]?.url ?? null}
+        />
         <PlaceDetailTabs placeId={place.id} currentTab={query.tab} />
       </div>
       {query.tab === "introduction" ? <LiveIntroduction place={place} /> : null}
