@@ -1,42 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { PlaceListItem, PlaceRegion } from "@haetteum/contracts";
 
-import { NearbyPlaceSearchScreen } from "@/components/patterns/nearby-place-search-screen";
-import {
-  filterAndSortNearbyPlaces,
-  type NearbyPlaceCategoryFilter,
-  type NearbyPlaceResult,
-  type NearbyPlaceSort,
-} from "@/features/places/nearby-place-search-model";
+import { PlaceRegionSearchScreen } from "@/components/patterns/place-region-search-screen";
+import { searchPlaces } from "@/features/places/place-search-api";
 
 type CoursePlacePickerProps = {
-  places: readonly NearbyPlaceResult[];
   unavailableIds: ReadonlySet<string>;
   onCancel: () => void;
-  onConfirm: (places: readonly NearbyPlaceResult[]) => void;
+  onConfirm: (places: readonly PlaceListItem[]) => void;
+  onRemovePlace: (placeId: string) => void;
+  selectOnTap?: boolean;
 };
 
+type SearchResult = {
+  region: PlaceRegion;
+  query: string;
+  status: "ready" | "error";
+  items: readonly PlaceListItem[];
+};
+
+const DEFAULT_REGION: PlaceRegion = "seoul";
+const SEARCH_DEBOUNCE_MS = 350;
+
 function CoursePlacePicker({
-  places,
   unavailableIds,
   onCancel,
   onConfirm,
+  onRemovePlace,
+  selectOnTap = false,
 }: CoursePlacePickerProps) {
+  const [region, setRegion] = useState<PlaceRegion>(DEFAULT_REGION);
   const [query, setQuery] = useState("");
-  const [category, setCategory] =
-    useState<NearbyPlaceCategoryFilter>("all");
-  const [sort, setSort] = useState<NearbyPlaceSort>("recommended");
+  const [result, setResult] = useState<SearchResult | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [status, setStatus] = useState("");
-  const visiblePlaces = filterAndSortNearbyPlaces(places, {
-    query,
-    category,
-    sort,
-  });
+  const requestIdRef = useRef(0);
+
+  const trimmedQuery = query.trim();
+  const isCurrent =
+    result != null && result.region === region && result.query === trimmedQuery;
+  const loadState = isCurrent ? result.status : "loading";
+  const places = isCurrent ? result.items : [];
+
+  useEffect(() => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    const timeoutId = setTimeout(
+      () => {
+        void searchPlaces(region, trimmedQuery).then((response) => {
+          if (requestIdRef.current !== requestId) return;
+
+          setResult({
+            region,
+            query: trimmedQuery,
+            status: response.status,
+            items: response.status === "ready" ? response.items : [],
+          });
+        });
+      },
+      trimmedQuery === "" ? 0 : SEARCH_DEBOUNCE_MS,
+    );
+
+    return () => clearTimeout(timeoutId);
+  }, [region, trimmedQuery]);
 
   function handleSelectedChange(placeId: string, selected: boolean) {
     if (unavailableIds.has(placeId)) return;
+
+    if (selectOnTap) {
+      if (!selected) return;
+      const place = places.find((candidate) => candidate.id === placeId);
+      if (place) onConfirm([place]);
+      return;
+    }
 
     setSelectedIds((current) => {
       if (selected) {
@@ -49,26 +88,27 @@ function CoursePlacePicker({
   function handleConfirm() {
     const selectedPlaces = selectedIds
       .map((id) => places.find((place) => place.id === id))
-      .filter((place): place is NearbyPlaceResult => Boolean(place));
+      .filter((place): place is PlaceListItem => Boolean(place));
     onConfirm(selectedPlaces);
   }
 
   return (
-    <NearbyPlaceSearchScreen
+    <PlaceRegionSearchScreen
+      region={region}
       query={query}
-      category={category}
-      sort={sort}
-      places={visiblePlaces}
+      places={places}
+      loadState={loadState}
       selectedIds={new Set(selectedIds)}
       unavailableIds={unavailableIds}
       status={status}
       onBack={onCancel}
       onMapRequest={() => setStatus("지도 보기는 준비 중이에요.")}
+      onRegionChange={setRegion}
       onQueryChange={setQuery}
-      onCategoryChange={setCategory}
-      onSortChange={setSort}
       onSelectedChange={handleSelectedChange}
+      onRemovePlace={onRemovePlace}
       onConfirm={handleConfirm}
+      showConfirmBar={!selectOnTap}
     />
   );
 }

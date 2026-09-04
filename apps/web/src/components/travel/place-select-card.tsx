@@ -1,34 +1,31 @@
 import Image from "next/image";
-import { CheckIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, MapPinIcon, MinusIcon, PlusIcon } from "lucide-react";
+import type { PlaceListItem } from "@haetteum/contracts";
 
-import { RatingSummary } from "@/components/travel/rating-summary";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { NearbyPlaceResult } from "@/features/places/nearby-place-search-model";
+import { resolveOfficialImageSource } from "@/lib/official-image";
 import { cn } from "@/lib/utils";
 
-type NearbyPlaceSelectCardProps = {
-  place: NearbyPlaceResult;
+type PlaceSelectCardProps = {
+  place: PlaceListItem;
   selected: boolean;
   unavailable: boolean;
   eager?: boolean;
   onSelectedChange: (selected: boolean) => void;
+  onRemove: () => void;
 };
 
-const travelModeLabels = {
-  car: "차로",
-  walk: "도보",
-} as const;
-
-function NearbyPlaceSelectCard({
+function PlaceSelectCard({
   place,
   selected,
   unavailable,
   eager = false,
   onSelectedChange,
-}: NearbyPlaceSelectCardProps) {
+  onRemove,
+}: PlaceSelectCardProps) {
+  const location = place.district ?? place.address;
   const controlLabel = unavailable
-    ? `${place.title} 이미 일정에 추가됨`
+    ? `${place.title} 일정에서 빼기`
     : selected
       ? `${place.title} 선택 해제`
       : `${place.title} 선택`;
@@ -43,8 +40,8 @@ function NearbyPlaceSelectCard({
     >
       <div className="relative h-24 overflow-hidden rounded-xl bg-primary-subtle">
         <Image
-          src={place.image.src}
-          alt={place.image.alt}
+          src={resolveOfficialImageSource(place.primaryImageUrl)}
+          alt={place.title}
           fill
           loading={eager ? "eager" : "lazy"}
           sizes="80px"
@@ -53,29 +50,13 @@ function NearbyPlaceSelectCard({
       </div>
 
       <div className="min-w-0 py-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Badge
-            variant="secondary"
-            className="h-5 bg-primary-subtle px-1.5 text-[0.65rem] text-primary"
-          >
-            {place.categoryLabel}
-          </Badge>
-          <h2 className="type-label truncate text-foreground">{place.title}</h2>
-        </div>
-        <p className="type-caption mt-1 text-muted-foreground">
-          {place.distanceKm.toFixed(1)}km · {travelModeLabels[place.travelMode]}{" "}
-          {place.travelMinutes}분
-        </p>
-        <p className="type-caption mt-1 line-clamp-2 text-muted-foreground">
-          {place.description}
-        </p>
-        <RatingSummary
-          value={place.rating}
-          reviewCount={place.reviewCount}
-          size="compact"
-          countVariant="parenthetical"
-          className="mt-1"
-        />
+        <h2 className="type-label truncate text-foreground">{place.title}</h2>
+        {location != null ? (
+          <p className="type-caption mt-1 flex items-center gap-1 text-muted-foreground">
+            <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{location}</span>
+          </p>
+        ) : null}
       </div>
 
       <div className="flex min-w-0 flex-col items-center gap-1">
@@ -83,13 +64,14 @@ function NearbyPlaceSelectCard({
           type="button"
           size="icon"
           variant={selected ? "default" : "outline"}
-          disabled={unavailable}
           aria-pressed={unavailable ? undefined : selected}
           aria-label={controlLabel}
-          onClick={() => onSelectedChange(!selected)}
+          onClick={() => (unavailable ? onRemove() : onSelectedChange(!selected))}
           className="rounded-full"
         >
-          {selected ? (
+          {unavailable ? (
+            <MinusIcon className="size-5" aria-hidden="true" />
+          ) : selected ? (
             <CheckIcon className="size-5" aria-hidden="true" />
           ) : (
             <PlusIcon className="size-5" aria-hidden="true" />
@@ -105,4 +87,4 @@ function NearbyPlaceSelectCard({
   );
 }
 
-export { NearbyPlaceSelectCard, type NearbyPlaceSelectCardProps };
+export { PlaceSelectCard, type PlaceSelectCardProps };
