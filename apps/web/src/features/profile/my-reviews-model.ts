@@ -10,14 +10,15 @@ export type MyReviewItem = {
   content: string;
   likeCount: number;
   commentCount: number;
-  bookmarked: boolean;
   image: {
     src: string;
     alt: string;
   };
 };
 
-export type MyReviewsData = Record<MyReviewsTabId, readonly MyReviewItem[]>;
+export type MyReviewsData = {
+  written: readonly MyReviewItem[];
+};
 
 export type MyWrittenReviewsLoadState =
   | { status: "ready"; items: MyReviewItem[] }

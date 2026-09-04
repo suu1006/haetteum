@@ -1,19 +1,32 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
   loadMyReviews: vi.fn(),
+  loadMyFavorites: vi.fn(),
   requireCurrentUser: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
+}));
 vi.mock("@/features/auth/auth-server", () => ({
   requireCurrentUser: mocks.requireCurrentUser,
 }));
 vi.mock("@/features/reviews/my-reviews-api", () => ({
   loadMyReviews: mocks.loadMyReviews,
+}));
+vi.mock("@/features/profile/my-favorites-api", () => ({
+  loadMyFavorites: mocks.loadMyFavorites,
+}));
+vi.mock("@/features/places/favorite-place-api", () => ({
+  addFavorite: vi.fn(),
+  removeFavorite: vi.fn(),
+  loadMyFavorites: vi.fn(),
 }));
 vi.mock("@/features/auth/auth-user-hydrator", () => ({
   AuthUserHydrator: ({ user }: { user: { id: string } }) => (
@@ -40,12 +53,25 @@ const writtenReview: MyReviewItem = {
   content: "DB에서 불러온 실제 작성 후기예요.",
   likeCount: 0,
   commentCount: 0,
-  bookmarked: false,
   image: {
     src: "/images/explore/categories/popular-attraction.png",
     alt: "실제 에버랜드 후기 대표 이미지",
   },
 };
+
+function renderPage(searchParams: Record<string, string | string[]> = {}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return ReviewsPage({ searchParams: Promise.resolve(searchParams) }).then(
+    (element) =>
+      render(
+        <QueryClientProvider client={queryClient}>
+          {element}
+        </QueryClientProvider>,
+      ),
+  );
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,7 +81,11 @@ beforeEach(() => {
   );
   mocks.loadMyReviews.mockResolvedValue({
     status: "ready",
-    data: { written: [writtenReview], bookmarked: [] },
+    data: { written: [writtenReview] },
+  });
+  mocks.loadMyFavorites.mockResolvedValue({
+    status: "ready",
+    data: { items: [] },
   });
 });
 
@@ -63,11 +93,14 @@ describe("reviews page", () => {
   it("protects the exact route and renders only actual written reviews", async () => {
     expect(metadata).toMatchObject({ title: "내 후기 | 해뜸" });
 
-    render(await ReviewsPage());
+    await renderPage();
 
     expect(mocks.requireCurrentUser).toHaveBeenCalledWith("/reviews");
     expect(screen.getByTestId("hydrated-user")).toHaveTextContent(user.id);
     expect(mocks.loadMyReviews).toHaveBeenCalledWith(
+      "haetteum_session=opaque-session",
+    );
+    expect(mocks.loadMyFavorites).toHaveBeenCalledWith(
       "haetteum_session=opaque-session",
     );
     expect(
@@ -76,10 +109,18 @@ describe("reviews page", () => {
     expect(screen.queryByText("성산일출봉")).not.toBeInTheDocument();
   });
 
+  it("opens directly on the bookmarked tab when asked via the tab query param", async () => {
+    await renderPage({ tab: "bookmarked" });
+
+    expect(
+      screen.getByRole("tab", { name: "북마크" }),
+    ).toHaveAttribute("aria-selected", "true");
+  });
+
   it("renders an explicit failure instead of mock or false-empty review data", async () => {
     mocks.loadMyReviews.mockResolvedValue({ status: "error" });
 
-    render(await ReviewsPage());
+    await renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "후기를 불러오지 못했어요",
@@ -93,9 +134,10 @@ describe("reviews page", () => {
       new Error("redirected:/login?returnTo=%2Freviews"),
     );
 
-    await expect(ReviewsPage()).rejects.toThrow(
-      "redirected:/login?returnTo=%2Freviews",
-    );
+    await expect(
+      ReviewsPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("redirected:/login?returnTo=%2Freviews");
     expect(mocks.loadMyReviews).not.toHaveBeenCalled();
+    expect(mocks.loadMyFavorites).not.toHaveBeenCalled();
   });
 });

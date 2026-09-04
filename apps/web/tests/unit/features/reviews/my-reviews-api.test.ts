@@ -11,7 +11,9 @@ const review = {
   placeTitle: "에버랜드",
   location: "경기 용인",
   rating: 5,
+  title: "하루 종일 즐거웠어요",
   content: "퍼레이드와 놀이기구를 하루 종일 즐겼어요.",
+  images: [],
   primaryImageUrl: null,
   createdAt: "2026-08-25T14:00:00.000Z",
   updatedAt: "2026-08-26T01:30:00.000Z",
@@ -43,14 +45,12 @@ describe("loadMyReviews", () => {
             content: review.content,
             likeCount: 0,
             commentCount: 0,
-            bookmarked: false,
             image: {
               src: "/images/explore/categories/popular-attraction.png",
               alt: "에버랜드 대표 이미지",
             },
           },
         ],
-        bookmarked: [],
       },
     });
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -84,11 +84,9 @@ describe("loadMyReviews", () => {
           {
             likeCount: 0,
             commentCount: 0,
-            bookmarked: false,
             image: { src: remoteReview.primaryImageUrl },
           },
         ],
-        bookmarked: [],
       },
     });
     expect(fetchImpl).toHaveBeenCalledWith(

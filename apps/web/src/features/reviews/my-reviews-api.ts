@@ -38,7 +38,6 @@ export async function loadMyReviews(
       status: "ready",
       data: {
         written: parsed.data.items.map(mapReviewItem),
-        bookmarked: [],
       },
     };
   } catch {
@@ -57,7 +56,6 @@ function mapReviewItem(item: ReviewItem): MyReviewItem {
     content: item.content,
     likeCount: 0,
     commentCount: 0,
-    bookmarked: false,
     image: {
       src: item.primaryImageUrl ?? fallbackImage,
       alt: `${item.placeTitle} 대표 이미지`,
