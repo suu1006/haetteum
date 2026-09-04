@@ -7,6 +7,7 @@ import { FestivalSection } from "@/components/patterns/festival-section";
 import { HotPlaceSection } from "@/components/patterns/hot-place-section";
 import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { RankedPlaceSection } from "@/components/patterns/ranked-place-section";
+import { SearchResultsSection } from "@/components/patterns/search-results-section";
 import {
   BottomNavigation,
 } from "@/components/travel/bottom-navigation";
@@ -21,6 +22,7 @@ import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ra
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 import type { MonthlyFestivalsLoadState } from "@/features/festivals/festival-discovery-api";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
+import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
 import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
 
 export type MainDiscoveryProps = {
@@ -31,6 +33,7 @@ export type MainDiscoveryProps = {
   hotRanking?: HotPlaceRankingLoadState | null;
   monthlyFestivals?: MonthlyFestivalsLoadState | null;
   popularReels?: PopularReelsLoadState | null;
+  searchResults?: PlaceSearchLoadState | null;
 };
 
 const mainDiscoveryStyle = {
@@ -47,6 +50,7 @@ function MainDiscovery({
   hotRanking = { status: "error" },
   monthlyFestivals = { status: "error" },
   popularReels = null,
+  searchResults = null,
 }: MainDiscoveryProps) {
   const festivalItems =
     monthlyFestivals?.status === "ready" ? monthlyFestivals.items : [];
@@ -60,10 +64,13 @@ function MainDiscovery({
       <div data-testid="main-region" data-region="hero">
         <DiscoveryAppHeader compact={view.showThemeTravel} />
       </div>
-      <div data-testid="main-region" data-region="search">
+      <div data-testid="main-region" data-region="tabs">
         <DiscoverySearchPanel query={query} compact={view.showThemeTravel} />
       </div>
       <div data-testid="main-region" data-region="list">
+        {view.showSearchResults ? (
+          <SearchResultsSection results={searchResults} query={query} />
+        ) : null}
         {view.showRankedPlaces ? (
           <RankedPlaceSection
             ranking={ranking}
@@ -79,7 +86,6 @@ function MainDiscovery({
         {view.showPopularPlaces ? (
           <PopularPlacesTab
             videos={view.popularVideos}
-            themes={view.travelThemes}
             query={query}
             popularReels={popularReels}
           />
@@ -115,7 +121,7 @@ function MainDiscovery({
       <div
         data-testid="main-region"
         data-region="navigation"
-        className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto min-h-[var(--main-navigation-height)] w-full max-w-[30rem] bg-card"
+        className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card"
       >
         <BottomNavigation
           items={

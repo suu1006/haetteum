@@ -18,6 +18,7 @@ describe("parseDiscoveryQuery", () => {
       tab: "recommended",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
   });
@@ -29,6 +30,7 @@ describe("parseDiscoveryQuery", () => {
       tab: "recommended",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
   });
@@ -43,6 +45,15 @@ describe("parseDiscoveryQuery", () => {
     expect(query.audience).toBe("30s");
     expect(query.hotAudience).toBe("50s");
     expect(parseDiscoveryQuery({ hotAudience: "teens" }).hotAudience).toBe(
+      "all",
+    );
+  });
+
+  it("accepts an approved reel region and defaults unknown values to all", () => {
+    expect(parseDiscoveryQuery({ reelRegion: "jeju" }).reelRegion).toBe(
+      "jeju",
+    );
+    expect(parseDiscoveryQuery({ reelRegion: "gyeongju" }).reelRegion).toBe(
       "all",
     );
   });
@@ -136,6 +147,7 @@ describe("selectDiscoveryView", () => {
       tab: "places",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -152,6 +164,7 @@ describe("selectDiscoveryView", () => {
       tab: "places",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -175,6 +188,7 @@ describe("selectDiscoveryView", () => {
       tab: "recommended",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -192,6 +206,7 @@ describe("selectDiscoveryView", () => {
       tab: "ai-course",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -210,6 +225,7 @@ describe("selectDiscoveryView", () => {
       tab: "festivals",
       audience: "all",
       hotAudience: "all",
+      reelRegion: "all",
       festivalFilters: defaultFestivalFilters,
     });
 
@@ -231,6 +247,7 @@ it("builds a complete filter URL without dropping the active query", () => {
         tab: "recommended",
         audience: "40s",
         hotAudience: "all",
+        reelRegion: "all",
         festivalFilters: defaultFestivalFilters,
       },
       { tab: "festivals", audience: "50s" },
@@ -248,6 +265,7 @@ it("adds the hot-place audience only when it differs from the default", () => {
     tab: "recommended" as const,
     audience: "all" as const,
     hotAudience: "all" as const,
+    reelRegion: "all" as const,
     festivalFilters: defaultFestivalFilters,
   };
 
@@ -262,6 +280,25 @@ it("adds the hot-place audience only when it differs from the default", () => {
   );
 });
 
+it("adds the reel region only when it differs from the default", () => {
+  const base = {
+    q: "",
+    region: "gyeonggi" as const,
+    tab: "places" as const,
+    audience: "all" as const,
+    hotAudience: "all" as const,
+    reelRegion: "all" as const,
+    festivalFilters: defaultFestivalFilters,
+  };
+
+  expect(buildDiscoveryHref(base, { reelRegion: "jeju" })).toBe(
+    "/?region=gyeonggi&tab=places&reelRegion=jeju",
+  );
+  expect(buildDiscoveryHref(base, { reelRegion: "all" })).toBe(
+    "/?region=gyeonggi&tab=places",
+  );
+});
+
 it("toggles one festival filter without dropping the discovery query", () => {
   const query = {
     q: "꽃",
@@ -269,6 +306,7 @@ it("toggles one festival filter without dropping the discovery query", () => {
     tab: "festivals",
     audience: "30s",
     hotAudience: "all",
+    reelRegion: "all",
     festivalFilters: defaultFestivalFilters,
   } as const;
 

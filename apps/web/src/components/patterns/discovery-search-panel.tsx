@@ -1,8 +1,5 @@
 import Link from "next/link";
-import { SearchIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   buildDiscoveryHref,
   type DiscoveryQuery,
@@ -51,66 +48,28 @@ function DiscoverySearchPanel({
   compact = false,
 }: DiscoverySearchPanelProps) {
   return (
-    <section
-      aria-label="여행지 탐색"
-      className={cn("bg-card px-5", compact ? "py-1" : "py-2")}
+    <nav
+      aria-label="탐색 분류"
+      className={cn(
+        "overflow-x-auto bg-card px-5",
+        compact ? "py-1" : "py-2",
+      )}
     >
-      <form action="" method="get" role="search" className="flex gap-2">
-        <input name="tab" type="hidden" value={query.tab} />
-        <input name="region" type="hidden" value={query.region} />
-        {query.audience !== "all" ? (
-          <input name="audience" type="hidden" value={query.audience} />
-        ) : null}
-        {query.festivalFilters.ongoing ? (
-          <input name="festivalStatus" type="hidden" value="ongoing" />
-        ) : null}
-        {query.festivalFilters.thisWeek ? (
-          <input name="festivalPeriod" type="hidden" value="week" />
-        ) : null}
-        {query.festivalFilters.free ? (
-          <input name="festivalPrice" type="hidden" value="free" />
-        ) : null}
-        {query.festivalFilters.family ? (
-          <input name="festivalAudience" type="hidden" value="family" />
-        ) : null}
-        <Input
-          aria-label="여행지 검색"
-          className="rounded-full border-transparent bg-muted"
-          defaultValue={query.q}
-          name="q"
-          placeholder="지역, 관광지, 축제 검색"
-          type="search"
-        />
-        <Button
-          className="rounded-full"
-          size="icon"
-          type="submit"
-          aria-label="검색"
-        >
-          <SearchIcon aria-hidden="true" />
-        </Button>
-      </form>
-
-      <nav
-        aria-label="탐색 분류"
-        className={cn("overflow-x-auto", compact ? "mt-1" : "mt-3")}
-      >
-        <ul className="flex gap-4">
-          {discoveryTabs.map((tab) => (
-            <li key={tab.id}>
-              <Link
-                href={discoveryLinkHref(query, { tab: tab.id })}
-                scroll={false}
-                aria-current={query.tab === tab.id ? "page" : undefined}
-                className={linkClassName}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </section>
+      <ul className="flex gap-4">
+        {discoveryTabs.map((tab) => (
+          <li key={tab.id}>
+            <Link
+              href={discoveryLinkHref(query, { tab: tab.id })}
+              scroll={false}
+              aria-current={query.tab === tab.id ? "page" : undefined}
+              className={linkClassName}
+            >
+              {tab.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 

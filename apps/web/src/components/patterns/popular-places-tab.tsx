@@ -2,23 +2,18 @@ import Link from "next/link";
 import { FlameIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
-import { PopularReelGrid } from "@/components/travel/popular-reel-grid";
+import { PopularReelFeed } from "@/components/travel/popular-reel-feed";
+import { PopularReelRegionFilter } from "@/components/travel/popular-reel-region-filter";
 import { PopularVideoRail } from "@/components/travel/popular-video-rail";
-import {
-  TravelThemeItem,
-  TravelThemeMoreItem,
-} from "@/components/travel/travel-theme-item";
 import {
   buildDiscoveryHref,
   type DiscoveryQuery,
   type PopularVideoItem,
-  type TravelThemeItem as TravelThemeItemData,
 } from "@/features/discovery/discovery-model";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 
 type PopularPlacesTabProps = {
   videos: readonly PopularVideoItem[];
-  themes: readonly TravelThemeItemData[];
   query: DiscoveryQuery;
   popularReels?: PopularReelsLoadState | null;
 };
@@ -48,42 +43,16 @@ function SectionHeading({ id, title, description, icon }: SectionHeadingProps) {
 
 function PopularPlacesTab({
   videos,
-  themes,
   query,
   popularReels,
 }: PopularPlacesTabProps) {
   const headingIdPrefix = useId();
-  const liveReels =
-    popularReels?.status === "ready" ? popularReels.data.items : null;
+  const liveReelsPage =
+    popularReels?.status === "ready" ? popularReels.data : null;
   const popularVideosTitleId = `${headingIdPrefix}-popular-videos-title`;
-  const travelThemesTitleId = `${headingIdPrefix}-travel-themes-title`;
 
   return (
     <div id="places" aria-label="인기 관광지" className="space-y-4 pt-4">
-      <section
-        aria-labelledby={travelThemesTitleId}
-        data-testid="popular-place-section"
-        data-section="travel-themes"
-        className="px-4"
-      >
-        <h2 id={travelThemesTitleId} className="sr-only">
-          여행 테마
-        </h2>
-        <ul
-          aria-label="여행 테마"
-          className="scrollbar-none flex gap-2 overflow-x-auto pb-1"
-        >
-          {themes.map((theme) => (
-            <li key={theme.id}>
-              <TravelThemeItem theme={theme} />
-            </li>
-          ))}
-          <li>
-            <TravelThemeMoreItem />
-          </li>
-        </ul>
-      </section>
-
       <section
         aria-labelledby={popularVideosTitleId}
         data-testid="popular-place-section"
@@ -101,8 +70,14 @@ function PopularPlacesTab({
             />
           }
         />
-        {liveReels ? (
-          <PopularReelGrid reels={liveReels} />
+        <PopularReelRegionFilter query={query} />
+        {liveReelsPage ? (
+          <PopularReelFeed
+            key={query.reelRegion}
+            audience="all"
+            region={query.reelRegion}
+            initialPage={liveReelsPage}
+          />
         ) : videos.length > 0 ? (
           <PopularVideoRail videos={videos} />
         ) : (

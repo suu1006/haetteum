@@ -28,7 +28,7 @@ describe("PopularReelGrid", () => {
     });
     expect(link).toHaveAttribute(
       "href",
-      "/reels/place/84549352-0c20-4e11-af50-2d4f278f41ef",
+      "/reels/place/84549352-0c20-4e11-af50-2d4f278f41ef?v=dQw4w9WgXcQ",
     );
     expect(link).toBeEmptyDOMElement();
     expect(container.querySelector('[aria-hidden="true"]')).toBeNull();

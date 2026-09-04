@@ -133,7 +133,7 @@ describe("MainDiscovery", () => {
     const landmarks = screen.getAllByTestId("main-region");
     expect(landmarks.map((node) => node.dataset.region)).toEqual([
       "hero",
-      "search",
+      "tabs",
       "list",
       "banner",
       "navigation",
@@ -260,7 +260,6 @@ describe("MainDiscovery", () => {
     expect(
       screen.getByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
     ).toBeVisible();
-    expect(screen.getByRole("search")).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "어디로 떠나볼까요?" }),
     ).toBeVisible();
@@ -272,7 +271,7 @@ describe("MainDiscovery", () => {
     );
     expect(
       screen.getAllByTestId("main-region").map((node) => node.dataset.region),
-    ).toEqual(["hero", "search", "list", "navigation"]);
+    ).toEqual(["hero", "tabs", "list", "navigation"]);
     expect(
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
@@ -350,7 +349,6 @@ describe("MainDiscovery", () => {
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
     expect(screen.getByRole("heading", { name: "릴스형 인기 관광지" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "여행 테마" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
@@ -468,42 +466,6 @@ describe("DiscoverySearchPanel", () => {
       "href",
       "/?region=all&tab=festivals",
     );
-  });
-
-  it("submits search with preserved tab and region values", () => {
-    render(
-      <DiscoverySearchPanel
-        query={{
-          ...defaultDiscoveryQuery,
-          q: "해변",
-          tab: "festivals",
-          audience: "30s",
-          festivalFilters: {
-            ...defaultDiscoveryQuery.festivalFilters,
-            free: true,
-          },
-        }}
-      />,
-    );
-
-    const search = screen.getByRole("search");
-
-    expect(search).toHaveAttribute("method", "get");
-    expect(
-      within(search).getByRole("searchbox", { name: "여행지 검색" }),
-    ).toHaveAttribute("name", "q");
-    expect(
-      search.querySelector('input[type="hidden"][name="tab"]'),
-    ).toHaveValue("festivals");
-    expect(search.querySelector('input[type="hidden"][name="region"]')).toHaveValue(
-      "gyeonggi",
-    );
-    expect(
-      search.querySelector('input[type="hidden"][name="festivalPrice"]'),
-    ).toHaveValue("free");
-    expect(
-      search.querySelector('input[type="hidden"][name="audience"]'),
-    ).toHaveValue("30s");
   });
 
   it("builds every tab link without a scroll-target fragment", () => {
@@ -824,7 +786,6 @@ describe("PopularPlacesTab", () => {
     render(
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
-        themes={mainDiscoveryMock.popularPlaces.themes}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );
@@ -833,17 +794,16 @@ describe("PopularPlacesTab", () => {
       screen.getAllByTestId("popular-place-section").map((node) =>
         node.getAttribute("data-section"),
       ),
-    ).toEqual(["travel-themes", "popular-videos"]);
+    ).toEqual(["popular-videos"]);
     expect(
       screen.getByRole("heading", { name: "릴스형 인기 관광지" }),
     ).toBeVisible();
-    expect(screen.getByRole("heading", { name: "여행 테마" })).toHaveClass(
-      "sr-only",
-    );
+    expect(
+      screen.queryByRole("heading", { name: "여행 테마" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "영상으로 둘러보기" }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText("더보기")).toHaveLength(1);
     expect(
       screen.queryByRole("article", { name: "짧게 보고 바로 저장" }),
     ).not.toBeInTheDocument();
@@ -855,11 +815,32 @@ describe("PopularPlacesTab", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers a region filter for the reel feed without an age filter", () => {
+    render(
+      <PopularPlacesTab
+        videos={mainDiscoveryMock.popularPlaces.videos}
+        query={{ ...defaultDiscoveryQuery, tab: "places", reelRegion: "jeju" }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("navigation", { name: "세대 필터" }),
+    ).not.toBeInTheDocument();
+
+    const regionNav = screen.getByRole("navigation", {
+      name: "릴스 지역 필터",
+    });
+    const jejuLink = within(regionNav).getByRole("link", { name: "제주" });
+    expect(jejuLink).toHaveAttribute("aria-current", "true");
+    expect(
+      within(regionNav).getByRole("link", { name: "서울" }),
+    ).toHaveAttribute("href", "/?region=gyeonggi&tab=places&reelRegion=seoul");
+  });
+
   it("preloads only the first popular short-video preview", () => {
     const { container } = render(
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
-        themes={mainDiscoveryMock.popularPlaces.themes}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );
@@ -871,11 +852,10 @@ describe("PopularPlacesTab", () => {
     }
   });
 
-  it("offers a reset action while keeping travel themes visible", () => {
+  it("offers a reset action when no popular place matches", () => {
     render(
       <PopularPlacesTab
         videos={[]}
-        themes={mainDiscoveryMock.popularPlaces.themes}
         query={{
           ...defaultDiscoveryQuery,
           q: "해당없음",
@@ -892,16 +872,12 @@ describe("PopularPlacesTab", () => {
       "href",
       "/?region=busan&tab=places#places",
     );
-    expect(screen.getByRole("heading", { name: "여행 테마" })).toHaveClass(
-      "sr-only",
-    );
   });
 
   it("has no detectable accessibility violations on the popular-place tab", async () => {
     const { container } = render(
       <PopularPlacesTab
         videos={mainDiscoveryMock.popularPlaces.videos}
-        themes={mainDiscoveryMock.popularPlaces.themes}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );

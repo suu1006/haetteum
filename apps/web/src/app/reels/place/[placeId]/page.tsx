@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { YouTubeReelsViewer } from "@/components/travel/youtube-reels-viewer";
-import { loadPlaceReels } from "@/features/discovery/place-reels-api";
+import {
+  loadPlaceReels,
+  orderPlaceReelItemsFrom,
+} from "@/features/discovery/place-reels-api";
 
 type PlaceReelsPageProps = {
   params: Promise<{ placeId: string }>;
+  searchParams: Promise<{ v?: string }>;
 };
 
 export const metadata: Metadata = {
@@ -13,8 +17,12 @@ export const metadata: Metadata = {
   description: "인기 관광지의 짧은 영상을 이어서 만나보세요.",
 };
 
-export default async function PlaceReelsPage({ params }: PlaceReelsPageProps) {
+export default async function PlaceReelsPage({
+  params,
+  searchParams,
+}: PlaceReelsPageProps) {
   const { placeId } = await params;
+  const { v: videoId } = await searchParams;
   const result = await loadPlaceReels(placeId);
 
   if (result.status === "not-found" || result.status === "empty") notFound();
@@ -31,13 +39,15 @@ export default async function PlaceReelsPage({ params }: PlaceReelsPageProps) {
     );
   }
 
-  const items = result.data.items.map((item) => ({
-    videoId: item.videoId,
-    title: item.title,
-    channelTitle: item.channelTitle,
-    embedUrl: item.embedUrl,
-    placeId: result.data.placeId,
-  }));
+  const items = orderPlaceReelItemsFrom(result.data.items, videoId).map(
+    (item) => ({
+      videoId: item.videoId,
+      title: item.title,
+      channelTitle: item.channelTitle,
+      embedUrl: item.embedUrl,
+      placeId: result.data.placeId,
+    }),
+  );
 
   return <YouTubeReelsViewer items={items} returnHref="/?tab=places" />;
 }

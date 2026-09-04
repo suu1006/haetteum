@@ -1,4 +1,8 @@
-import type { PlaceRankingAudience } from "@haetteum/contracts";
+import type {
+  PlaceRankingAudience,
+  PlaceRegion,
+  PopularReelRegion,
+} from "@haetteum/contracts";
 
 import type { ThemeTravelData } from "@/features/themes/theme-travel-model";
 
@@ -17,6 +21,13 @@ export const regionIds = [
   "gyeongju",
   "jeonju",
 ] as const;
+const placeSearchRegionIds = [
+  "seoul",
+  "gyeonggi",
+  "gangwon",
+  "busan",
+  "jeju",
+] as const satisfies readonly PlaceRegion[];
 export const festivalBrowseRegionIds = [
   "all",
   "jeju",
@@ -40,6 +51,14 @@ export const placeRankingAudienceIds = [
   "50s",
   "60s-plus",
 ] as const satisfies readonly PlaceRankingAudience[];
+export const popularReelRegionIds = [
+  "all",
+  "seoul",
+  "gyeonggi",
+  "gangwon",
+  "busan",
+  "jeju",
+] as const satisfies readonly PopularReelRegion[];
 
 export type DiscoveryTabId = (typeof discoveryTabIds)[number];
 export type RegionId = (typeof regionIds)[number];
@@ -59,6 +78,7 @@ export type DiscoveryQuery = {
   tab: DiscoveryTabId;
   audience: DiscoveryAudience;
   hotAudience: DiscoveryAudience;
+  reelRegion: PopularReelRegion;
   festivalFilters: FestivalFilters;
 };
 
@@ -75,6 +95,7 @@ export const defaultDiscoveryQuery: DiscoveryQuery = {
   tab: "recommended",
   audience: "all",
   hotAudience: "all",
+  reelRegion: "all",
   festivalFilters: defaultFestivalFilters,
 };
 
@@ -204,7 +225,15 @@ export type DiscoveryView = {
   showThemeTravel: boolean;
   showFestivals: boolean;
   showFestivalDiscovery: boolean;
+  showSearchResults: boolean;
 };
+
+/** 탐색탭 검색이 넘긴 지역이 `/places` 검색 API가 지원하는 5개 지역인지 확인한다. */
+export function isPlaceSearchRegion(
+  region: string,
+): region is PlaceRegion {
+  return (placeSearchRegionIds as readonly string[]).includes(region);
+}
 
 function firstValue(value: SearchParamValue) {
   return Array.isArray(value) ? value[0] : value;
@@ -217,6 +246,7 @@ export function parseDiscoveryQuery(
   const region = firstValue(searchParams.region);
   const audience = firstValue(searchParams.audience);
   const hotAudience = firstValue(searchParams.hotAudience);
+  const reelRegion = firstValue(searchParams.reelRegion);
   // 테마 여행은 데이터 연동 전까지 직접 URL 접근도 추천 탭으로 처리한다.
   const parsedTab =
     tab !== "ai-course" && discoveryTabIds.includes(tab as DiscoveryTabId)
@@ -245,6 +275,11 @@ export function parseDiscoveryQuery(
     )
       ? (hotAudience as DiscoveryAudience)
       : defaultDiscoveryQuery.hotAudience,
+    reelRegion: popularReelRegionIds.includes(
+      reelRegion as PopularReelRegion,
+    )
+      ? (reelRegion as PopularReelRegion)
+      : defaultDiscoveryQuery.reelRegion,
     festivalFilters: {
       ongoing: firstValue(searchParams.festivalStatus) === "ongoing",
       thisWeek: firstValue(searchParams.festivalPeriod) === "week",
@@ -269,6 +304,9 @@ export function buildDiscoveryHref(
   }
   if (next.hotAudience && next.hotAudience !== defaultDiscoveryQuery.hotAudience) {
     params.set("hotAudience", next.hotAudience);
+  }
+  if (next.reelRegion !== defaultDiscoveryQuery.reelRegion) {
+    params.set("reelRegion", next.reelRegion);
   }
   if (next.festivalFilters.ongoing) {
     params.set("festivalStatus", "ongoing");
@@ -354,17 +392,22 @@ export function selectDiscoveryView(
         )),
   );
 
+  // 추천 탭에서 검색어가 있으면 랭킹 대신 검색 결과 섹션을 보여준다.
+  const isSearchingRecommended =
+    query.tab === "recommended" && normalizedQuery !== "";
+
   return {
     places,
     popularVideos,
     travelThemes: data.popularPlaces.themes,
     videoCourses,
-    showRankedPlaces: query.tab === "recommended",
+    showRankedPlaces: query.tab === "recommended" && !isSearchingRecommended,
     showPopularPlaces: query.tab === "places",
-    showAiCourse: query.tab === "recommended",
+    showAiCourse: query.tab === "recommended" && !isSearchingRecommended,
     // TODO: 테마 여행 데이터 연동 후 query.tab 조건을 다시 활성화한다.
     showThemeTravel: false,
-    showFestivals: query.tab === "recommended",
+    showFestivals: query.tab === "recommended" && !isSearchingRecommended,
+    showSearchResults: isSearchingRecommended,
     showFestivalDiscovery: query.tab === "festivals",
   };
 }

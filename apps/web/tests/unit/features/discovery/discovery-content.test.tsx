@@ -214,6 +214,8 @@ describe("DiscoveryContent", () => {
     const reelsResponse = {
       source: "YOUTUBE",
       audience: "all",
+      region: "all",
+      nextCursor: null,
       items: [
         {
           provider: "YOUTUBE",
@@ -238,14 +240,14 @@ describe("DiscoveryContent", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithQueryClient(
       await DiscoveryContent({
         searchParams: Promise.resolve({ tab: "places", region: "jeju" }),
       }),
     );
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:4000/api/v1/place-reels?audience=all&limit=12",
+      "http://localhost:4000/api/v1/place-reels?audience=all&region=all&limit=12",
       { cache: "no-store" },
     );
     const reelLink = screen.getByRole("link", {
@@ -253,8 +255,40 @@ describe("DiscoveryContent", () => {
     });
     expect(reelLink).toHaveAttribute(
       "href",
-      "/reels/place/84549352-0c20-4e11-af50-2d4f278f41ef",
+      "/reels/place/84549352-0c20-4e11-af50-2d4f278f41ef?v=dQw4w9WgXcQ",
     );
+  });
+
+  it("scopes the reel feed to the selected reel region from URL search params", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          source: "YOUTUBE",
+          audience: "all",
+          region: "jeju",
+          nextCursor: null,
+          items: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithQueryClient(
+      await DiscoveryContent({
+        searchParams: Promise.resolve({ tab: "places", reelRegion: "jeju" }),
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/place-reels?audience=all&region=jeju&limit=12",
+      { cache: "no-store" },
+    );
+    const regionNav = screen.getByRole("navigation", { name: "릴스 지역 필터" });
+    expect(
+      within(regionNav).getByRole("link", { name: "제주" }),
+    ).toHaveAttribute("aria-current", "true");
   });
 
   it("loads live festival discovery data only for the festival tab", async () => {

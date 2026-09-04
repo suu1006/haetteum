@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   loadPlaceReels,
   loadPopularReels,
+  orderPlaceReelItemsFrom,
 } from "@/features/discovery/place-reels-api";
 
 const BASE_URL = "http://localhost:4000/api/v1";
@@ -26,6 +27,7 @@ const reel = {
 const popularResponse = {
   source: "YOUTUBE",
   audience: "all",
+  region: "all",
   items: [
     {
       ...reel,
@@ -34,6 +36,7 @@ const popularResponse = {
       region: "제주특별자치도",
     },
   ],
+  nextCursor: null,
 } as const satisfies PopularReelsResponse;
 
 const placeResponse = {
@@ -53,13 +56,42 @@ describe("loadPopularReels", () => {
       .fn<typeof fetch>()
       .mockResolvedValue(jsonResponse(popularResponse));
 
-    const result = await loadPopularReels("30s", fetchMock, BASE_URL);
+    const result = await loadPopularReels("30s", "all", fetchMock, BASE_URL);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:4000/api/v1/place-reels?audience=30s&limit=12",
+      "http://localhost:4000/api/v1/place-reels?audience=30s&region=all&limit=12",
       { cache: "no-store" },
     );
     expect(result).toEqual({ status: "ready", data: popularResponse });
+  });
+
+  it("requests the aggregate feed scoped to the given region", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ ...popularResponse, region: "jeju" }));
+
+    await loadPopularReels("all", "jeju", fetchMock, BASE_URL);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/place-reels?audience=all&region=jeju&limit=12",
+      { cache: "no-store" },
+    );
+  });
+
+  it("requests a subsequent page using the given cursor and limit", async () => {
+    const nextPage = { ...popularResponse, nextCursor: 24 };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(nextPage));
+
+    const result = await loadPopularReels("30s", "all", fetchMock, BASE_URL, {
+      cursor: 12,
+      limit: 12,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/v1/place-reels?audience=30s&region=all&limit=12&cursor=12",
+      { cache: "no-store" },
+    );
+    expect(result).toEqual({ status: "ready", data: nextPage });
   });
 
   it("reports an empty state when the feed has no items", async () => {
@@ -68,7 +100,7 @@ describe("loadPopularReels", () => {
       .mockResolvedValue(jsonResponse({ ...popularResponse, items: [] }));
 
     await expect(
-      loadPopularReels("all", fetchMock, BASE_URL),
+      loadPopularReels("all", "all", fetchMock, BASE_URL),
     ).resolves.toEqual({ status: "empty" });
   });
 
@@ -89,7 +121,7 @@ describe("loadPopularReels", () => {
     if (result) fetchMock.mockResolvedValue(result);
 
     await expect(
-      loadPopularReels("all", fetchMock, baseUrl),
+      loadPopularReels("all", "all", fetchMock, baseUrl),
     ).resolves.toEqual({ status: "error" });
   });
 });
@@ -137,5 +169,27 @@ describe("loadPlaceReels", () => {
     await expect(
       loadPlaceReels("84549352-0c20-4e11-af50-2d4f278f41ef", fetchMock, BASE_URL),
     ).resolves.toEqual({ status: "error" });
+  });
+});
+
+describe("orderPlaceReelItemsFrom", () => {
+  const items = [
+    { videoId: "a" },
+    { videoId: "b" },
+    { videoId: "c" },
+  ];
+
+  it("rotates the list so the given video leads", () => {
+    expect(orderPlaceReelItemsFrom(items, "b")).toEqual([
+      { videoId: "b" },
+      { videoId: "c" },
+      { videoId: "a" },
+    ]);
+  });
+
+  it("leaves the order untouched when the video already leads or is absent", () => {
+    expect(orderPlaceReelItemsFrom(items, "a")).toEqual(items);
+    expect(orderPlaceReelItemsFrom(items, "missing")).toEqual(items);
+    expect(orderPlaceReelItemsFrom(items, undefined)).toEqual(items);
   });
 });

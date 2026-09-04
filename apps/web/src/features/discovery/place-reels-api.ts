@@ -3,6 +3,7 @@ import {
   PopularReelsResponseSchema,
   type PlaceRankingAudience,
   type PlaceReelListResponse,
+  type PopularReelRegion,
   type PopularReelsResponse,
 } from "@haetteum/contracts";
 
@@ -22,10 +23,17 @@ function apiBaseUrl(value: string | undefined): string | null {
   return baseUrl ? baseUrl.replace(/\/+$/, "") : null;
 }
 
+export type PopularReelsPage = {
+  cursor?: number;
+  limit?: number;
+};
+
 export async function loadPopularReels(
   audience: PlaceRankingAudience,
+  region: PopularReelRegion = "all",
   fetchImpl: typeof fetch = fetch,
   baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  page: PopularReelsPage = {},
 ): Promise<PopularReelsLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };
@@ -33,7 +41,11 @@ export async function loadPopularReels(
   try {
     const url = new URL(`${api}/place-reels`);
     url.searchParams.set("audience", audience);
-    url.searchParams.set("limit", "12");
+    url.searchParams.set("region", region);
+    url.searchParams.set("limit", String(page.limit ?? 12));
+    if (page.cursor !== undefined) {
+      url.searchParams.set("cursor", String(page.cursor));
+    }
 
     const response = await fetchImpl(url.href, { cache: "no-store" });
     if (!response.ok) return { status: "error" };
@@ -72,4 +84,14 @@ export async function loadPlaceReels(
   } catch {
     return { status: "error" };
   }
+}
+
+export function orderPlaceReelItemsFrom<T extends { videoId: string }>(
+  items: readonly T[],
+  videoId: string | undefined,
+): readonly T[] {
+  if (videoId === undefined) return items;
+  const index = items.findIndex((item) => item.videoId === videoId);
+  if (index <= 0) return items;
+  return [...items.slice(index), ...items.slice(0, index)];
 }
