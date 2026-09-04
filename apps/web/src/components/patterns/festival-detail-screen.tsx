@@ -54,7 +54,7 @@ function FestivalDetailScreen({ festival }: FestivalDetailScreenProps) {
         {festival.eventInfo.length > 0 ? (
           <Card data-detail-region="event-info" className="gap-0 py-4">
             <CardContent>
-              <h2 className="type-label text-foreground">행사 정보</h2>
+              <h2 className="type-title-md text-foreground">행사 정보</h2>
               <dl className="mt-3 space-y-2.5">
                 {festival.eventInfo.map((item) => (
                   <div key={item.id} className="flex gap-3">
