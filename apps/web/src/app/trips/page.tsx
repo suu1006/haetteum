@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 
 import { MyTripsScreen } from "@/components/patterns/my-trips-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
+import { loadMySavedCourses } from "@/features/trips/my-saved-courses-api";
 import type { TripScheduleCollection } from "@/features/trips/trip-schedule-model";
 
 export const metadata: Metadata = {
@@ -16,12 +18,19 @@ const emptyTrips: TripScheduleCollection = { scheduled: [], past: [] };
 export default async function TripsPage() {
   await connection();
   const user = await requireCurrentUser("/trips");
+  const cookieHeader = (await headers()).get("cookie");
+  const savedCourses = await loadMySavedCourses(cookieHeader);
 
   return (
     <>
       <AuthUserHydrator user={user} />
       <main className="min-h-screen bg-background">
-        <MyTripsScreen trips={emptyTrips} />
+        <MyTripsScreen
+          trips={emptyTrips}
+          {...(savedCourses.status === "ready"
+            ? { initialSavedCourses: savedCourses.data.items }
+            : {})}
+        />
       </main>
     </>
   );

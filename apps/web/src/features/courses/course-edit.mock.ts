@@ -108,6 +108,8 @@ export const courseEditMock = {
             src: "/images/themes/theme-food-cafe.png",
             alt: "정갈하게 차려진 이천 쌀밥 한상",
           },
+          latitude: 37.279,
+          longitude: 127.485,
           detail: coursePlaceDetailMock["icheon-rice-breakfast"],
         },
         {
@@ -118,6 +120,8 @@ export const courseEditMock = {
             src: "/images/discovery/reference-main/icheon-termeden.png",
             alt: "온천 수영장이 있는 이천 테르메덴",
           },
+          latitude: 37.276,
+          longitude: 127.442,
           detail: coursePlaceDetailMock["icheon-termeden"],
         },
         {
@@ -128,6 +132,8 @@ export const courseEditMock = {
             src: "/images/welcome-lake-desktop.png",
             alt: "호수와 산책로가 어우러진 설봉공원",
           },
+          latitude: 37.281,
+          longitude: 127.435,
           detail: coursePlaceDetailMock["seolbong-park"],
         },
         {
@@ -138,6 +144,8 @@ export const courseEditMock = {
             src: "/images/themes/theme-culture-hanok.png",
             alt: "전통 건축과 문화 전시 공간",
           },
+          latitude: 37.279,
+          longitude: 127.434,
           detail: coursePlaceDetailMock["icheon-city-museum"],
         },
         {
@@ -148,6 +156,8 @@ export const courseEditMock = {
             src: "/images/festivals/icheon-rice-cultural-festival/food-experience.png",
             alt: "이천의 지역 식재료로 차린 저녁 식사",
           },
+          latitude: 37.272,
+          longitude: 127.44,
           detail: coursePlaceDetailMock["haeju-cold-noodles"],
         },
       ],
@@ -178,6 +188,8 @@ export const courseEditMock = {
             src: "/images/welcome-lake-desktop.png",
             alt: "호수와 산책로가 어우러진 설봉공원",
           },
+          latitude: 37.281,
+          longitude: 127.435,
           detail: coursePlaceDetailMock["seolbong-park"],
         },
         {
@@ -188,6 +200,8 @@ export const courseEditMock = {
             src: "/images/themes/theme-culture-hanok.png",
             alt: "전통 건축과 문화 전시 공간",
           },
+          latitude: 37.279,
+          longitude: 127.434,
           detail: coursePlaceDetailMock["icheon-city-museum"],
         },
         {
@@ -198,6 +212,8 @@ export const courseEditMock = {
             src: "/images/themes/theme-food-cafe.png",
             alt: "정갈하게 차려진 이천 쌀밥 한상",
           },
+          latitude: 37.279,
+          longitude: 127.485,
           detail: coursePlaceDetailMock["icheon-rice-breakfast"],
         },
         {
@@ -208,6 +224,8 @@ export const courseEditMock = {
             src: "/images/discovery/reference-main/icheon-termeden.png",
             alt: "온천 수영장이 있는 이천 테르메덴",
           },
+          latitude: 37.276,
+          longitude: 127.442,
           detail: coursePlaceDetailMock["icheon-termeden"],
         },
         {
@@ -218,6 +236,8 @@ export const courseEditMock = {
             src: "/images/festivals/icheon-rice-cultural-festival/food-experience.png",
             alt: "이천의 지역 식재료로 차린 저녁 식사",
           },
+          latitude: 37.272,
+          longitude: 127.44,
           detail: coursePlaceDetailMock["haeju-cold-noodles"],
         },
       ],
@@ -233,6 +253,17 @@ export const courseEditMock = {
   },
 } as const satisfies CourseEditFixture;
 
+export const blankCourseMock = {
+  id: "new",
+  title: "새 일정",
+  courses: {
+    ai: { source: "ai", slots: [], places: [], recommendedOrder: [] },
+    custom: { source: "custom", slots: [], places: [], recommendedOrder: [] },
+  },
+} as const satisfies CourseEditFixture;
+
 export function getEditableCourseById(courseId: string) {
-  return courseId === courseEditMock.id ? courseEditMock : undefined;
+  if (courseId === courseEditMock.id) return courseEditMock;
+  if (courseId === blankCourseMock.id) return blankCourseMock;
+  return undefined;
 }

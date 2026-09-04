@@ -6,13 +6,16 @@ import { useRef, useState } from "react";
 
 import type { GeneratedCourseStop } from "@haetteum/contracts";
 
-import {
-  GeneratedCourseStopCard,
-  ROLE_LABELS,
-} from "@/components/patterns/generated-course-stop-list";
+import { GeneratedCourseStopList } from "@/components/patterns/generated-course-stop-list";
 import { LiveGeneratedCourseMap } from "@/components/patterns/live-generated-course-map";
 
 export type RandomCoursePhase = "loading" | "ready" | "empty";
+export type SaveCourseState =
+  | "idle"
+  | "saving"
+  | "saved"
+  | "canceling"
+  | "error";
 
 type RandomCourseDialogProps = {
   open: boolean;
@@ -21,6 +24,17 @@ type RandomCourseDialogProps = {
   stops: GeneratedCourseStop[];
   startTitle: string | null;
   onRetry: () => void;
+  onSave: () => void;
+  onCancelSave: () => void;
+  saveState: SaveCourseState;
+};
+
+const SAVE_BUTTON_LABEL: Record<SaveCourseState, string> = {
+  idle: "일정 저장하기",
+  saving: "저장 중…",
+  saved: "저장 취소",
+  canceling: "취소 중…",
+  error: "다시 시도",
 };
 
 function RandomCourseDialog({
@@ -30,19 +44,19 @@ function RandomCourseDialog({
   stops,
   startTitle,
   onRetry,
+  onSave,
+  onCancelSave,
+  saveState,
 }: RandomCourseDialogProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [stopsForIndex, setStopsForIndex] = useState(stops);
-  const labels = { ...ROLE_LABELS, anchor: "출발지" };
 
   // 새로 추천받은 코스로 stops가 바뀌면 렌더링 중에 활성 경유지를 첫 번째로 되돌린다.
   if (stops !== stopsForIndex) {
     setStopsForIndex(stops);
     setActiveIndex(0);
   }
-
-  const activeStop = stops[activeIndex] ?? null;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -94,7 +108,7 @@ function RandomCourseDialog({
               </div>
             ) : null}
 
-            {phase === "ready" && activeStop ? (
+            {phase === "ready" && stops.length > 0 ? (
               <>
                 <LiveGeneratedCourseMap
                   stops={stops}
@@ -105,24 +119,32 @@ function RandomCourseDialog({
                 <p className="type-caption mt-2 text-center text-muted-foreground">
                   {activeIndex + 1} / {stops.length}
                 </p>
-                <div className="mt-2 grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
-                  <span className="type-caption mt-1 flex size-7 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">
-                    {activeStop.sequence}
-                  </span>
-                  <div className="pt-1">
-                    <GeneratedCourseStopCard
-                      stop={activeStop}
-                      roleLabel={labels[activeStop.role]}
-                    />
-                  </div>
+                <div className="mt-2">
+                  <GeneratedCourseStopList stops={stops} anchorLabel="출발지" />
                 </div>
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  className="type-label mt-4 min-h-11 w-full rounded-xl border border-border bg-card text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/25"
-                >
-                  다른 코스 추천받기
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="type-label min-h-11 flex-1 rounded-xl border border-border bg-card text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/25"
+                  >
+                    다른 코스 추천받기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveState === "saved" ? onCancelSave : onSave}
+                    disabled={
+                      saveState === "saving" || saveState === "canceling"
+                    }
+                    className={
+                      saveState === "saved" || saveState === "canceling"
+                        ? "type-label min-h-11 flex-1 rounded-xl border border-border bg-card text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-70"
+                        : "type-label min-h-11 flex-1 rounded-xl bg-primary text-primary-foreground outline-none transition-colors hover:bg-primary-pressed focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-70"
+                    }
+                  >
+                    {SAVE_BUTTON_LABEL[saveState]}
+                  </button>
+                </div>
               </>
             ) : null}
           </Dialog.Popup>

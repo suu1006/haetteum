@@ -1,6 +1,14 @@
-import { render, screen, within } from "@testing-library/react";
+import type { PlaceListItem } from "@haetteum/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CourseEditor } from "@/features/courses/course-editor";
@@ -16,10 +24,79 @@ vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
 
+const searchablePlaces = vi.hoisted(
+  () =>
+    [
+      {
+        id: "icheon-city-museum",
+        title: "이천 시립박물관",
+        region: "seoul",
+        district: "종로구",
+        address: null,
+        longitude: 0,
+        latitude: 0,
+        primaryImageUrl: null,
+        imageCopyrightType: null,
+      },
+      {
+        id: "cafe-oncheon",
+        title: "카페 온천",
+        region: "seoul",
+        district: "종로구",
+        address: null,
+        longitude: 0,
+        latitude: 0,
+        primaryImageUrl: null,
+        imageCopyrightType: null,
+      },
+      {
+        id: "termeden-resort",
+        title: "테르메덴 리조트",
+        region: "seoul",
+        district: "종로구",
+        address: null,
+        longitude: 0,
+        latitude: 0,
+        primaryImageUrl: null,
+        imageCopyrightType: null,
+      },
+    ] as const satisfies readonly PlaceListItem[],
+);
+
+vi.mock("@/features/places/place-search-api", () => ({
+  searchPlaces: vi.fn().mockResolvedValue({
+    status: "ready",
+    items: searchablePlaces,
+  }),
+}));
+
+const savedCourseApiMocks = vi.hoisted(() => ({
+  saveCourse: vi.fn(),
+  updateSavedCourse: vi.fn(),
+  loadMySavedCourses: vi.fn(),
+  removeSavedCourse: vi.fn(),
+}));
+
+vi.mock("@/features/trips/saved-course-api", () => savedCourseApiMocks);
+
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
 describe("CourseEditor", () => {
   beforeEach(() => {
     routerMocks.back.mockReset();
     routerMocks.push.mockReset();
+    savedCourseApiMocks.saveCourse.mockReset();
+    savedCourseApiMocks.updateSavedCourse.mockReset();
+    savedCourseApiMocks.loadMySavedCourses.mockReset();
+    savedCourseApiMocks.removeSavedCourse.mockReset();
+    savedCourseApiMocks.loadMySavedCourses.mockResolvedValue({ items: [] });
   });
 
   it("renders the approved mobile regions in reference order", () => {
@@ -181,29 +258,52 @@ describe("CourseEditor", () => {
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "주변 장소 검색" }),
+      screen.getByRole("heading", { level: 1, name: "장소 검색" }),
     ).toBeVisible();
     expect(
       screen.queryByRole("heading", { level: 1, name: "일정 수정" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "이천 시립박물관 이미 일정에 추가됨",
+      await screen.findByRole("button", {
+        name: "이천 시립박물관 일정에서 빼기",
       }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
-  it("selects places across filters and appends them to the active course", async () => {
+  it("removes a place already in the course from the nearby search screen", async () => {
     const user = userEvent.setup();
     render(<CourseEditor course={courseEditMock} />);
 
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
-    await user.click(screen.getByRole("button", { name: "카페 온천 선택" }));
     await user.click(
-      within(screen.getByRole("group", { name: "장소 카테고리" })).getByRole(
-        "button",
-        { name: "숙소" },
-      ),
+      await screen.findByRole("button", { name: "이천 시립박물관 일정에서 빼기" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "이천 시립박물관 선택" }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "일정 수정으로 돌아가기" }),
+    );
+
+    const itinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
+    expect(within(itinerary).getAllByRole("listitem")).toHaveLength(4);
+    expect(
+      within(itinerary).queryByText("이천 시립박물관"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "일정 편집 상태" }),
+    ).toHaveTextContent("이천 시립박물관을 일정에서 뺐습니다.");
+  });
+
+  it("selects multiple places and appends them to the active course", async () => {
+    const user = userEvent.setup();
+    render(<CourseEditor course={courseEditMock} />);
+
+    await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
+    await user.click(
+      await screen.findByRole("button", { name: "카페 온천 선택" }),
     );
     expect(
       screen.getByRole("button", { name: "선택한 장소 추가하기 1" }),
@@ -239,7 +339,9 @@ describe("CourseEditor", () => {
     render(<CourseEditor course={courseEditMock} />);
 
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
-    await user.click(screen.getByRole("button", { name: "카페 온천 선택" }));
+    await user.click(
+      await screen.findByRole("button", { name: "카페 온천 선택" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "일정 수정으로 돌아가기" }),
     );
@@ -274,7 +376,9 @@ describe("CourseEditor", () => {
 
     render(<CourseEditor course={lateCourse} />);
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
-    await user.click(screen.getByRole("button", { name: "카페 온천 선택" }));
+    await user.click(
+      await screen.findByRole("button", { name: "카페 온천 선택" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "선택한 장소 추가하기 1" }),
     );
@@ -294,7 +398,9 @@ describe("CourseEditor", () => {
 
     await user.click(screen.getByRole("tab", { name: "내가 만든 코스" }));
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
-    await user.click(screen.getByRole("button", { name: "카페 온천 선택" }));
+    await user.click(
+      await screen.findByRole("button", { name: "카페 온천 선택" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "선택한 장소 추가하기 1" }),
     );
@@ -311,14 +417,86 @@ describe("CourseEditor", () => {
     expect(within(aiItinerary).queryByText("카페 온천")).not.toBeInTheDocument();
   });
 
-  it("opens the saved course after saving the active draft", async () => {
+  it("persists the active draft and returns to the trips list on success", async () => {
     const user = userEvent.setup();
+    savedCourseApiMocks.updateSavedCourse.mockResolvedValue({
+      id: courseEditMock.id,
+      title: courseEditMock.title,
+      savedAt: "2026-09-01T00:00:00.000Z",
+      stops: [],
+    });
     render(<CourseEditor course={courseEditMock} />);
 
     await user.click(screen.getByRole("tab", { name: "내가 만든 코스" }));
     await user.click(screen.getByRole("button", { name: "저장하기" }));
 
-    expect(routerMocks.push).toHaveBeenCalledWith("/courses/icheon-day-trip");
+    await waitFor(() => {
+      expect(routerMocks.push).toHaveBeenCalledWith("/trips");
+    });
+    expect(savedCourseApiMocks.updateSavedCourse).toHaveBeenCalledWith(
+      courseEditMock.id,
+      expect.objectContaining({
+        title: courseEditMock.title,
+        stops: expect.arrayContaining([
+          expect.objectContaining({ role: "anchor", sequence: 1 }),
+        ]),
+      }),
+    );
+  });
+
+  it("shows a status message and does not navigate when saving fails", async () => {
+    const user = userEvent.setup();
+    savedCourseApiMocks.updateSavedCourse.mockRejectedValue(
+      new Error("network down"),
+    );
+    render(<CourseEditor course={courseEditMock} />);
+
+    await user.click(screen.getByRole("button", { name: "저장하기" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "코스를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(routerMocks.push).not.toHaveBeenCalled();
+  });
+
+  it("creates a new saved course when saving a blank draft", async () => {
+    const user = userEvent.setup();
+    const blankCourse: CourseEditFixture = {
+      id: "new",
+      title: "새 일정",
+      courses: {
+        ai: { source: "ai", slots: [], places: [], recommendedOrder: [] },
+        custom: {
+          source: "custom",
+          slots: [{ id: "custom-slot-1", time: "09:00" }],
+          places: [courseEditMock.courses.custom.places[0]!],
+          recommendedOrder: [],
+        },
+      },
+    };
+    savedCourseApiMocks.saveCourse.mockResolvedValue({
+      id: "10000000-0000-4000-8000-000000000001",
+      title: blankCourse.title,
+      savedAt: "2026-09-01T00:00:00.000Z",
+      stops: [],
+    });
+    render(
+      <CourseEditor course={blankCourse} mode="create" initialSource="custom" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "저장하기" }));
+
+    await waitFor(() => {
+      expect(routerMocks.push).toHaveBeenCalledWith("/trips");
+    });
+    expect(savedCourseApiMocks.saveCourse.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ title: "새 일정" }),
+    );
+    expect(savedCourseApiMocks.updateSavedCourse).not.toHaveBeenCalled();
   });
 
   it("moves the focused card with the keyboard and announces its new slot", async () => {
