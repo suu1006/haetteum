@@ -107,6 +107,18 @@ export {
   type PlacesPage,
 } from "./places.js";
 export {
+  MySavedCoursesResponseSchema,
+  SaveCourseRequestSchema,
+  SavedCourseIdParamsSchema,
+  SavedCourseItemSchema,
+  UpdateSavedCourseRequestSchema,
+  type MySavedCoursesResponse,
+  type SaveCourseRequest,
+  type SavedCourseIdParams,
+  type SavedCourseItem,
+  type UpdateSavedCourseRequest,
+} from "./saved-courses.js";
+export {
   CreateReviewRequestSchema,
   MyReviewsResponseSchema,
   PlaceReviewAuthorSchema,

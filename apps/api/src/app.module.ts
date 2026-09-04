@@ -13,6 +13,7 @@ import { PlaceReelsModule } from "./place-reels/place-reels.module.js";
 import { PlacesModule } from "./places/places.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
 import { ReviewsModule } from "./reviews/reviews.module.js";
+import { SavedCoursesModule } from "./saved-courses/saved-courses.module.js";
 import { TourismModule } from "./tourism/tourism.module.js";
 
 @Module({
@@ -34,6 +35,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     PlaceReelsModule,
     PlacesModule,
     ReviewsModule,
+    SavedCoursesModule,
     TourismModule,
   ],
 })
