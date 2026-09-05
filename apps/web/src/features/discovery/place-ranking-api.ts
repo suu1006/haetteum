@@ -11,7 +11,10 @@ export type PlaceRankingLoadState =
 export async function loadPlaceRankings(
   audience: PlaceRankingAudience,
 ): Promise<PlaceRankingLoadState> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+  const baseUrl =
+    typeof window === "undefined"
+      ? (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
+      : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "");
   if (!baseUrl.trim()) return { status: "error" };
 
   try {
