@@ -72,6 +72,10 @@ jobs:
 
             pnpm --filter @haetteum/web build
 
+            echo "===== pm2 확인 ====="
+
+            command -v pm2 >/dev/null 2>&1 || npm install -g pm2
+
             echo "===== pm2 restart ====="
 
             pm2 startOrReload ecosystem.config.js
