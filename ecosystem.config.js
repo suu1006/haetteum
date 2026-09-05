@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "haetteum-web",
       cwd: "/home/ubuntu/haetteum",
-      script: "pnpm",
+      script: "/usr/bin/pnpm",
       args: "--filter @haetteum/web start",
       interpreter: "none",
       env: {
@@ -18,7 +18,7 @@ module.exports = {
     {
       name: "haetteum-api",
       cwd: "/home/ubuntu/haetteum",
-      script: "pnpm",
+      script: "/usr/bin/pnpm",
       args: "--filter @haetteum/api start",
       interpreter: "none",
       env: {
