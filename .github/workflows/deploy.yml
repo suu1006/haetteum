@@ -5,57 +5,83 @@ on:
     branches:
       - main
 
+concurrency:
+  group: haetteum-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: test ec2 ssh connection
+      - name: deploy to ec2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          echo "===== 1. secret 확인 ====="
+          set -e
 
-          if [ -z "$EC2_HOST" ]; then
-            echo "EC2_HOST가 없습니다."
-            exit 1
-          fi
-
-          if [ -z "$EC2_SSH_KEY" ]; then
-            echo "EC2_SSH_KEY가 없습니다."
-            exit 1
-          fi
-
-          echo "secrets 정상"
-
-          echo "===== 2. pem 파일 생성 ====="
+          echo "===== ssh 설정 ====="
 
           mkdir -p ~/.ssh
+
           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2.pem
           chmod 600 ~/.ssh/ec2.pem
 
-          echo "===== 3. pem 파일 검증 ====="
-
-          if ! ssh-keygen -y -f ~/.ssh/ec2.pem > /dev/null; then
-            echo "EC2_SSH_KEY의 private key 형식이 잘못되었습니다."
-            exit 1
-          fi
-
-          echo "pem 정상"
-
-          echo "===== 4. EC2 22번 포트 확인 ====="
-
-          nc -vz -w 10 "$EC2_HOST" 22
-
-          echo "===== 5. EC2 host key 확인 ====="
-
           ssh-keyscan -T 10 -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-          echo "===== 6. 실제 SSH 접속 ====="
+          echo "===== ec2 배포 시작 ====="
 
           ssh \
             -o ConnectTimeout=10 \
             -i ~/.ssh/ec2.pem \
-            ubuntu@"$EC2_HOST" \
-            'echo "SSH CONNECTION SUCCESS"'
+            ubuntu@"$EC2_HOST" << 'EOF'
+
+            set -e
+
+            echo "===== nvm 로드 ====="
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+            echo "===== node 버전 설정 ====="
+
+            nvm use 24.19.0
+
+            echo "node: $(node -v)"
+            echo "pnpm: $(pnpm -v)"
+
+            echo "===== 프로젝트 이동 ====="
+
+            cd /home/ubuntu/haetteum
+
+            echo "===== git pull ====="
+
+            git pull --ff-only origin main
+
+            echo "===== dependency install ====="
+
+            pnpm install --frozen-lockfile
+
+            echo "===== api build ====="
+
+            pnpm --filter @haetteum/api build
+
+            echo "===== web build ====="
+
+            pnpm --filter @haetteum/web build
+
+            echo "===== pm2 restart ====="
+
+            pm2 startOrReload ecosystem.config.js
+
+            pm2 save
+
+            echo "===== pm2 status ====="
+
+            pm2 status
+
+            echo "===== deployment complete ====="
+
+          EOF
