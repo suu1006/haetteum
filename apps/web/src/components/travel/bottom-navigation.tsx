@@ -59,6 +59,7 @@ function BottomNavigation({
               {item.href ? (
                 <Link
                   href={item.href}
+                  prefetch={false}
                   aria-current={item.current ? "page" : undefined}
                   className={cn(
                     itemClassName,

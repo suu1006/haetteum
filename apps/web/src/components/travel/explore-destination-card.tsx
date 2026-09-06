@@ -19,6 +19,7 @@ function ExploreDestinationCard({
     <article aria-label={`${rankLabel}${destination.title}`} className="min-w-0">
       <Link
         href={destination.href}
+        prefetch={false}
         className="group grid min-h-11 gap-2 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
       >
         <div

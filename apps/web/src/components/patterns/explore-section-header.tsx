@@ -23,6 +23,7 @@ function ExploreSectionHeader({
       </h2>
       <Link
         href={moreHref}
+        prefetch={false}
         className="type-body-md inline-flex min-h-11 items-center gap-0.5 rounded-lg px-1 text-muted-foreground outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/25"
       >
         더보기
