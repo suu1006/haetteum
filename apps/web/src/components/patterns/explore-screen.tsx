@@ -150,6 +150,7 @@ function ExploreScreen({
                 <Link
                   href={buildExploreRegionHref(item.id)}
                   scroll={false}
+                  prefetch={false}
                   aria-current={item.id === region ? "page" : undefined}
                   className={cn(
                     "type-label relative flex min-h-11 items-center justify-center px-1 text-muted-foreground outline-none after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/25",

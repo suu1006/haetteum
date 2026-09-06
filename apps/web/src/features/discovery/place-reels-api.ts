@@ -47,7 +47,7 @@ export async function loadPopularReels(
       url.searchParams.set("cursor", String(page.cursor));
     }
 
-    const response = await fetchImpl(url.href, { cache: "no-store" });
+    const response = await fetchImpl(url.href, { next: { revalidate: 30 } });
     if (!response.ok) return { status: "error" };
 
     const parsed = PopularReelsResponseSchema.safeParse(await response.json());

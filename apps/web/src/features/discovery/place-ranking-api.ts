@@ -22,7 +22,7 @@ export async function loadPlaceRankings(
     url.searchParams.set("audience", audience);
     url.searchParams.set("limit", "10");
 
-    const response = await fetch(url.href, { cache: "no-store" });
+    const response = await fetch(url.href, { next: { revalidate: 30 } });
     if (!response.ok) return { status: "error" };
 
     const parsed = PlaceRankingResponseSchema.safeParse(await response.json());
