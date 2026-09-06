@@ -22,6 +22,8 @@ import { TourismModule } from "./tourism/tourism.module.js";
       isGlobal: true,
       cache: true,
       ignoreEnvFile: process.env.NODE_ENV === "test",
+      envFilePath:
+        process.env.NODE_ENV === "production" ? ".env.production" : ".env",
       validate: validateEnvironment,
     }),
     PrismaModule,
