@@ -44,12 +44,20 @@ export class AuthController {
     @Query("returnTo") returnTo: string | undefined,
     @Res() response: Response,
   ): void {
+    const redirectUri = this.config.get("KAKAO_REDIRECT_URI", {
+      infer: true,
+    });
+    if (!redirectUri) {
+      response.redirect(this.webLocation("/login?error=provider_unavailable"));
+      return;
+    }
+
     const attempt = this.oauthState.create(returnTo);
     const location = new URL(KAKAO_AUTHORIZE_URL);
     location.search = new URLSearchParams({
       response_type: "code",
       client_id: this.config.get("KAKAO_REST_API_KEY", { infer: true }),
-      redirect_uri: this.config.get("KAKAO_REDIRECT_URI", { infer: true }),
+      redirect_uri: redirectUri,
       state: attempt.state,
     }).toString();
 

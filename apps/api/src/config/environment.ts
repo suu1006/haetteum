@@ -45,7 +45,10 @@ const ApiEnvironmentSchema = z
     SERVICE_KEY: providerSecret,
     KAKAO_REST_API_KEY: z.string().trim().min(1),
     KAKAO_CLIENT_SECRET: z.string().trim().min(1),
-    KAKAO_REDIRECT_URI: z.string().url(),
+    KAKAO_REDIRECT_URI: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().url().optional(),
+    ),
     TOURISM_SYNC_ENABLED: booleanFromString,
     YOUTUBE_API_KEY: providerSecret,
     PLACE_REELS_ENABLED: booleanFromString,

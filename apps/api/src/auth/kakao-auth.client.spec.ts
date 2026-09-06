@@ -44,13 +44,22 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function createClient(fetch: typeof globalThis.fetch) {
+function createClient(
+  fetch: typeof globalThis.fetch,
+  overrides: Partial<
+    Pick<
+      ApiEnvironment,
+      "KAKAO_REST_API_KEY" | "KAKAO_CLIENT_SECRET" | "KAKAO_REDIRECT_URI"
+    >
+  > = {},
+) {
   const config = {
     get: jest.fn((key: keyof ApiEnvironment) => {
       const values = {
         KAKAO_REST_API_KEY: "kakao-rest-test-key",
         KAKAO_CLIENT_SECRET: "kakao-client-secret-for-test",
         KAKAO_REDIRECT_URI: "http://localhost:4000/api/v1/auth/kakao/callback",
+        ...overrides,
       } satisfies Pick<
         ApiEnvironment,
         "KAKAO_REST_API_KEY" | "KAKAO_CLIENT_SECRET" | "KAKAO_REDIRECT_URI"
@@ -256,6 +265,16 @@ describe("KakaoAuthClient", () => {
       });
     },
   );
+
+  it("rejects exchanging a code when no redirect URI is configured", async () => {
+    const fetch = jest.fn<typeof globalThis.fetch>();
+    const client = createClient(fetch, { KAKAO_REDIRECT_URI: undefined });
+
+    await expect(client.exchangeCode("authorization-code")).rejects.toThrow(
+      "KAKAO_AUTH_NOT_CONFIGURED",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
   it("converts an aborted provider request into a non-sensitive timeout error", async () => {
     const fetch = jest

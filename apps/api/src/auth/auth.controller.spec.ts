@@ -43,11 +43,15 @@ function createController(options?: {
   revokeError?: Error;
   completedUser?: AuthUser;
   stateReturnTo?: string;
+  kakaoRedirectUri?: string | undefined;
 }) {
   const configValues = {
     WEB_ORIGIN: "http://localhost:3000",
     KAKAO_REST_API_KEY: "kakao-rest-test-key",
-    KAKAO_REDIRECT_URI: "http://localhost:4000/api/v1/auth/kakao/callback",
+    KAKAO_REDIRECT_URI:
+      "kakaoRedirectUri" in (options ?? {})
+        ? options?.kakaoRedirectUri
+        : "http://localhost:4000/api/v1/auth/kakao/callback",
   };
   const config = {
     get: jest.fn(
@@ -127,6 +131,19 @@ describe("AuthController", () => {
       redirect_uri: "http://localhost:4000/api/v1/auth/kakao/callback",
       state: "S".repeat(43),
     });
+  });
+
+  it("redirects to a provider-unavailable login error when no redirect URI is configured", () => {
+    const { controller, response, redirect, createState } = createController({
+      kakaoRedirectUri: undefined,
+    });
+
+    controller.start("/reviews?tab=written", response);
+
+    expect(createState).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith(
+      "http://localhost:3000/login?error=provider_unavailable",
+    );
   });
 
   it("completes a matching callback, issues the Haetteum cookie, and redirects to the validated web path", async () => {

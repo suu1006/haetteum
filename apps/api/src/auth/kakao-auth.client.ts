@@ -66,11 +66,16 @@ export class KakaoAuthClient {
   ) {}
 
   async exchangeCode(code: string): Promise<string> {
+    const redirectUri = this.config.get("KAKAO_REDIRECT_URI", {
+      infer: true,
+    });
+    if (!redirectUri) throw new KakaoAuthError("NOT_CONFIGURED");
+
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       client_id: this.config.get("KAKAO_REST_API_KEY", { infer: true }),
       client_secret: this.config.get("KAKAO_CLIENT_SECRET", { infer: true }),
-      redirect_uri: this.config.get("KAKAO_REDIRECT_URI", { infer: true }),
+      redirect_uri: redirectUri,
       code,
     });
     const token = await this.request(

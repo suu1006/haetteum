@@ -45,15 +45,23 @@ describe("validateEnvironment", () => {
     });
   });
 
-  it.each([
-    "KAKAO_REST_API_KEY",
-    "KAKAO_CLIENT_SECRET",
-    "KAKAO_REDIRECT_URI",
-  ] as const)("rejects a missing %s", (key) => {
-    const invalid = { ...validEnvironment };
-    delete invalid[key];
+  it.each(["KAKAO_REST_API_KEY", "KAKAO_CLIENT_SECRET"] as const)(
+    "rejects a missing %s",
+    (key) => {
+      const invalid = { ...validEnvironment };
+      delete invalid[key];
 
-    expect(() => validateEnvironment(invalid)).toThrow(key);
+      expect(() => validateEnvironment(invalid)).toThrow(key);
+    },
+  );
+
+  it("allows the API to boot without a Kakao redirect URI configured", () => {
+    const { KAKAO_REDIRECT_URI: _removed, ...withoutRedirectUri } =
+      validEnvironment;
+
+    expect(
+      validateEnvironment(withoutRedirectUri).KAKAO_REDIRECT_URI,
+    ).toBeUndefined();
   });
 
   it.each([
