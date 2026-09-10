@@ -656,7 +656,9 @@ describe("reviews contracts", () => {
     placeTitle: "에버랜드",
     location: "경기 용인",
     rating: 5,
+    title: "가족과 함께한 즐거운 하루",
     content: "다시 방문하고 싶은 곳이에요.",
+    images: [],
     primaryImageUrl: null,
     createdAt: "2026-08-26T03:00:00.000Z",
     updatedAt: "2026-08-26T03:00:00.000Z",
@@ -667,12 +669,15 @@ describe("reviews contracts", () => {
       CreateReviewRequestSchema.parse({
         placeId: review.placeId,
         rating: 5,
+        title: "  가족과 함께한 즐거운 하루  ",
         content: "  다시 방문하고 싶은 곳이에요.  ",
       }),
     ).toEqual({
       placeId: review.placeId,
       rating: 5,
+      title: "가족과 함께한 즐거운 하루",
       content: "다시 방문하고 싶은 곳이에요.",
+      images: [],
     });
   });
 

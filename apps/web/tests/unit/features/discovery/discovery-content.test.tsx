@@ -124,7 +124,7 @@ describe("DiscoveryContent", () => {
     expect(screen.getByRole("article", { name: "1위 장릉" })).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
@@ -151,7 +151,7 @@ describe("DiscoveryContent", () => {
     ).toHaveAttribute("aria-current", "true");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=30s&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
@@ -188,7 +188,7 @@ describe("DiscoveryContent", () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
   });
 
@@ -248,7 +248,7 @@ describe("DiscoveryContent", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=all&region=all&limit=12",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     const reelLink = screen.getByRole("link", {
       name: /성산일출봉 릴스 미리보기/,
@@ -283,7 +283,7 @@ describe("DiscoveryContent", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=all&region=jeju&limit=12",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     const regionNav = screen.getByRole("navigation", { name: "릴스 지역 필터" });
     expect(

@@ -264,7 +264,7 @@ describe("MyReviewsScreen", () => {
     const createLink = screen.getByRole("link", { name: "후기 작성하기" });
 
     expect(createLink).toHaveAttribute("href", "/reviews/new");
-    expect(createLink).toHaveTextContent("+");
+    expect(createLink.querySelector("svg")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "작성하기" }),
     ).not.toBeInTheDocument();

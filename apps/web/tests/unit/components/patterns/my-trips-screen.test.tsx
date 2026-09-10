@@ -316,24 +316,22 @@ describe("MyTripsScreen", () => {
       />,
     );
 
-    expect(screen.getByText("예술의전당")).toBeVisible();
-
     const toggle = screen.getByRole("button", {
-      name: "예술의전당 근처 코스 접기",
+      name: "예술의전당 근처 코스 펼치기",
     });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
 
     await user.click(toggle);
 
-    expect(screen.queryByText("예술의전당")).not.toBeInTheDocument();
+    expect(screen.getByText("예술의전당")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "예술의전당 근처 코스 펼치기" }),
-    ).toHaveAttribute("aria-expanded", "false");
+      screen.getByRole("button", { name: "예술의전당 근처 코스 접기" }),
+    ).toHaveAttribute("aria-expanded", "true");
 
     await user.click(
-      screen.getByRole("button", { name: "예술의전당 근처 코스 펼치기" }),
+      screen.getByRole("button", { name: "예술의전당 근처 코스 접기" }),
     );
 
-    expect(screen.getByText("예술의전당")).toBeVisible();
+    expect(screen.queryByText("예술의전당")).not.toBeInTheDocument();
   });
 });
