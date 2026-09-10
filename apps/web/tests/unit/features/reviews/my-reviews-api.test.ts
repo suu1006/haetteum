@@ -19,6 +19,18 @@ const review = {
   updatedAt: "2026-08-26T01:30:00.000Z",
 } as const satisfies ReviewItem;
 
+describe("review thumbnail source", () => {
+  it("normalizes HTTP tourism images before requesting Next image optimization", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ items: [{ ...review,
+        primaryImageUrl: "http://tong.visitkorea.or.kr/cms/resource/photo.jpg",
+      }] }), { status: 200 }),
+    );
+    const result = await loadMyReviews(null, fetchImpl, "http://api.test/api/v1");
+    expect(result).toMatchObject({ status: "ready", data: { written: [{ image: { src: "https://tong.visitkorea.or.kr/cms/resource/photo.jpg" } }] } });
+  });
+});
+
 describe("loadMyReviews", () => {
   it("forwards the incoming cookie without caching and maps actual reviews", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
