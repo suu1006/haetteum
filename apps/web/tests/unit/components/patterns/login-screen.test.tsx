@@ -1,20 +1,57 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const routerMocks = vi.hoisted(() => ({
   back: vi.fn(),
   replace: vi.fn(),
+  push: vi.fn(),
+}));
+const authMocks = vi.hoisted(() => ({
+  loginWithEmail: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
 }));
+vi.mock("@/features/auth/auth-client", () => ({
+  loginWithEmail: authMocks.loginWithEmail,
+}));
 
 import { LoginScreen } from "@/components/patterns/login-screen";
+import { AuthStoreProvider, useAuthStore } from "@/features/auth/auth-store";
 
 const loginHref =
   "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2Freviews";
+const user = {
+  id: "10000000-0000-4000-8000-000000000001",
+  displayName: "traveler",
+  profileImageUrl: null,
+};
+
+function AuthStateProbe() {
+  const status = useAuthStore((state) => state.status);
+  return <span data-testid="auth-status">{status}</span>;
+}
+
+function renderScreen(props: Partial<ComponentProps<typeof LoginScreen>> = {}) {
+  return render(
+    <AuthStoreProvider>
+      <LoginScreen canGoBack={false} loginHref={loginHref} {...props} />
+      <AuthStateProbe />
+    </AuthStoreProvider>,
+  );
+}
+
+async function fillCredentials(email: string, password: string) {
+  fireEvent.change(screen.getByPlaceholderText("이메일 주소 또는 아이디"), {
+    target: { value: email },
+  });
+  fireEvent.change(screen.getByPlaceholderText("비밀번호"), {
+    target: { value: password },
+  });
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -22,34 +59,116 @@ afterEach(() => {
 });
 
 describe("LoginScreen", () => {
-  it("renders the approved minimal login content without invented legal links", () => {
-    render(<LoginScreen canGoBack={false} loginHref={loginHref} />);
+  it("renders the email/password form alongside the kakao and google actions", () => {
+    renderScreen();
 
     expect(screen.getByText("해뜸")).toBeVisible();
     expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: "여행 기록을 이어서 관리해보세요",
-      }),
+      screen.getByRole("heading", { level: 1, name: "로그인" }),
+    ).toBeVisible();
+
+    expect(
+      screen.getByPlaceholderText("이메일 주소 또는 아이디"),
+    ).toBeVisible();
+    expect(screen.getByPlaceholderText("비밀번호")).toBeVisible();
+    expect(
+      screen.getByRole("checkbox", { name: "로그인 상태 유지" }),
     ).toBeVisible();
     expect(
-      screen.getByText(
-        "카카오 계정의 식별자, 닉네임과 프로필 이미지만 사용합니다.",
-      ),
+      screen.getByRole("button", { name: "비밀번호를 잊으셨나요?" }),
     ).toBeVisible();
-    expect(screen.queryByText("로그인 후 내 후기로 돌아가요")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /약관|개인정보처리방침/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "로그인" })).toBeVisible();
 
-    expect(screen.getByRole("link", { name: "카카오로 계속하기" })).toHaveAttribute(
-      "href",
-      loginHref,
+    expect(
+      screen.getByRole("link", { name: "카카오로 로그인하기" }),
+    ).toHaveAttribute("href", loginHref);
+    expect(
+      screen.getByRole("button", { name: "구글로 로그인하기" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "회원가입하기" }),
+    ).toBeVisible();
+  });
+
+  it("toggles password visibility", () => {
+    renderScreen();
+
+    const passwordInput = screen.getByPlaceholderText("비밀번호");
+    expect(passwordInput).toHaveAttribute("type", "password");
+
+    fireEvent.click(screen.getByRole("button", { name: "비밀번호 표시" }));
+    expect(passwordInput).toHaveAttribute("type", "text");
+
+    fireEvent.click(screen.getByRole("button", { name: "비밀번호 숨기기" }));
+    expect(passwordInput).toHaveAttribute("type", "password");
+  });
+
+  it("logs in with email/password, authenticates the store, and redirects to returnTo", async () => {
+    authMocks.loginWithEmail.mockResolvedValue({ ok: true, user });
+    renderScreen({ returnTo: "/reviews?tab=written" });
+
+    await fillCredentials("traveler@haetteum.kr", "Password1!");
+    fireEvent.click(screen.getByRole("button", { name: "로그인" }));
+
+    await waitFor(() => {
+      expect(authMocks.loginWithEmail).toHaveBeenCalledWith(
+        "traveler@haetteum.kr",
+        "Password1!",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-status")).toHaveTextContent(
+        "authenticated",
+      );
+    });
+    expect(routerMocks.push).toHaveBeenCalledWith("/reviews?tab=written");
+  });
+
+  it("shows the server error message and does not authenticate on failed login", async () => {
+    authMocks.loginWithEmail.mockResolvedValue({
+      ok: false,
+      message: "이메일 또는 비밀번호가 올바르지 않아요.",
+    });
+    renderScreen();
+
+    await fillCredentials("traveler@haetteum.kr", "wrong-password");
+    fireEvent.click(screen.getByRole("button", { name: "로그인" }));
+
+    expect(
+      await screen.findByRole("status"),
+    ).toHaveTextContent("이메일 또는 비밀번호가 올바르지 않아요.");
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("unknown");
+    expect(routerMocks.push).not.toHaveBeenCalled();
+  });
+
+  it("shows a coming-soon notice for google login and forgot password", () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByRole("button", { name: "구글로 로그인하기" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "구글 로그인은 아직 준비 중이에요",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "비밀번호를 잊으셨나요?" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "비밀번호 재설정은 아직 준비 중이에요",
     );
   });
 
+  it("navigates to the signup flow from both entry points", () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByRole("button", { name: "회원가입" }));
+    expect(routerMocks.push).toHaveBeenCalledWith("/signup");
+
+    fireEvent.click(screen.getByRole("button", { name: "회원가입하기" }));
+    expect(routerMocks.push).toHaveBeenCalledWith("/signup");
+  });
+
   it("marks the ON-toggle brand track as decorative while keeping visible brand text", () => {
-    const { container } = render(
-      <LoginScreen canGoBack={false} loginHref={loginHref} />,
-    );
+    const { container } = renderScreen();
 
     const mark = container.querySelector('[data-testid="brand-toggle-mark"]');
     expect(mark).toHaveAttribute("aria-hidden", "true");
@@ -59,7 +178,7 @@ describe("LoginScreen", () => {
   });
 
   it("uses a full mobile surface and a centered desktop card", () => {
-    render(<LoginScreen canGoBack={false} loginHref={loginHref} />);
+    renderScreen();
 
     expect(screen.getByTestId("login-surface")).toHaveClass(
       "min-h-svh",
@@ -75,7 +194,7 @@ describe("LoginScreen", () => {
 
   it("uses router history only when the server verified an internal predecessor", () => {
     vi.spyOn(window.history, "length", "get").mockReturnValue(1);
-    render(<LoginScreen canGoBack loginHref={loginHref} />);
+    renderScreen({ canGoBack: true });
 
     fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
 
@@ -85,7 +204,7 @@ describe("LoginScreen", () => {
 
   it("falls back to home for a direct load even when unrelated history exists", () => {
     vi.spyOn(window.history, "length", "get").mockReturnValue(8);
-    render(<LoginScreen canGoBack={false} loginHref={loginHref} />);
+    renderScreen();
 
     fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
 
@@ -95,16 +214,20 @@ describe("LoginScreen", () => {
 
   it("renders the approved error and retry action only when an error exists", () => {
     const { rerender } = render(
-      <LoginScreen canGoBack={false} loginHref={loginHref} />,
+      <AuthStoreProvider>
+        <LoginScreen canGoBack={false} loginHref={loginHref} />
+      </AuthStoreProvider>,
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     rerender(
-      <LoginScreen
-        canGoBack={false}
-        errorMessage="카카오 로그인이 취소되었어요. 다시 시도해 주세요."
-        loginHref={loginHref}
-      />,
+      <AuthStoreProvider>
+        <LoginScreen
+          canGoBack={false}
+          errorMessage="카카오 로그인이 취소되었어요. 다시 시도해 주세요."
+          loginHref={loginHref}
+        />
+      </AuthStoreProvider>,
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -117,9 +240,7 @@ describe("LoginScreen", () => {
   });
 
   it("has no detectable accessibility violations", async () => {
-    const { container } = render(
-      <LoginScreen canGoBack={false} loginHref={loginHref} />,
-    );
+    const { container } = renderScreen();
 
     expect(
       (

@@ -7,13 +7,18 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
 import type { ApiEnvironment } from "./config/environment.js";
 import { configureApp } from "./configure-app.js";
+import { PROFILE_PHOTO_UPLOADS_DIR } from "./profile/profile-photo.constants.js";
 import { REVIEW_UPLOADS_DIR } from "./reviews/review-images.constants.js";
 
 async function bootstrap(): Promise<void> {
   mkdirSync(REVIEW_UPLOADS_DIR, { recursive: true });
+  mkdirSync(PROFILE_PHOTO_UPLOADS_DIR, { recursive: true });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(REVIEW_UPLOADS_DIR, { prefix: "/uploads/reviews" });
+  app.useStaticAssets(PROFILE_PHOTO_UPLOADS_DIR, {
+    prefix: "/uploads/profile-photos",
+  });
   configureApp(app);
 
   const config = app.get(ConfigService<ApiEnvironment, true>);

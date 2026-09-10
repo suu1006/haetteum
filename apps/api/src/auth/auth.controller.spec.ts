@@ -40,6 +40,7 @@ function handler(method: keyof AuthController): (...args: never[]) => unknown {
 function createController(options?: {
   consumeError?: Error;
   loginError?: Error;
+  emailLoginError?: Error;
   revokeError?: Error;
   completedUser?: AuthUser;
   stateReturnTo?: string;
@@ -78,7 +79,17 @@ function createController(options?: {
         sessionToken: "A".repeat(43),
         expiresAt,
       });
-  const auth = { completeKakaoLogin } as unknown as AuthService;
+  const completeEmailLogin = options?.emailLoginError
+    ? jest.fn().mockRejectedValue(options.emailLoginError)
+    : jest.fn().mockResolvedValue({
+        user: options?.completedUser ?? user,
+        sessionToken: "A".repeat(43),
+        expiresAt,
+      });
+  const auth = {
+    completeKakaoLogin,
+    completeEmailLogin,
+  } as unknown as AuthService;
   const setOAuthState = jest.fn();
   const clearOAuthState = jest.fn();
   const setSession = jest.fn();
@@ -104,6 +115,7 @@ function createController(options?: {
     createState,
     consumeState,
     completeKakaoLogin,
+    completeEmailLogin,
     setOAuthState,
     clearOAuthState,
     setSession,
@@ -344,6 +356,42 @@ describe("AuthController", () => {
     expect(clearSession).not.toHaveBeenCalled();
   });
 
+  it("logs in with email/password, sets the session cookie, and returns only public user fields", async () => {
+    const { controller, response, setSession, completeEmailLogin } =
+      createController();
+
+    await expect(
+      controller.login(
+        { email: "traveler@haetteum.kr", password: "Password1!" },
+        response,
+      ),
+    ).resolves.toEqual(user);
+
+    expect(completeEmailLogin).toHaveBeenCalledWith(
+      "traveler@haetteum.kr",
+      "Password1!",
+    );
+    expect(setSession).toHaveBeenCalledWith(
+      response,
+      "A".repeat(43),
+      expiresAt,
+    );
+  });
+
+  it("does not set a session cookie when the email/password login fails", async () => {
+    const { controller, response, setSession } = createController({
+      emailLoginError: new Error("INVALID_CREDENTIALS"),
+    });
+
+    await expect(
+      controller.login(
+        { email: "traveler@haetteum.kr", password: "wrong-password" },
+        response,
+      ),
+    ).rejects.toThrow("INVALID_CREDENTIALS");
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
   it("registers exact versioned routes, guards, status codes, and response ownership", () => {
     expect(Reflect.getMetadata(PATH_METADATA, AuthController)).toBe("auth");
     expect(Reflect.getMetadata(VERSION_METADATA, AuthController)).toBe("1");
@@ -379,6 +427,15 @@ describe("AuthController", () => {
         "callback",
       ),
     ).toBeUndefined();
+
+    expect(Reflect.getMetadata(PATH_METADATA, handler("login"))).toBe("login");
+    expect(Reflect.getMetadata(METHOD_METADATA, handler("login"))).toBe(
+      RequestMethod.POST,
+    );
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler("login"))).toBe(200);
+    expect(Reflect.getMetadata(GUARDS_METADATA, handler("login"))).toEqual([
+      SameOriginGuard,
+    ]);
 
     expect(Reflect.getMetadata(PATH_METADATA, handler("me"))).toBe("me");
     expect(Reflect.getMetadata(METHOD_METADATA, handler("me"))).toBe(

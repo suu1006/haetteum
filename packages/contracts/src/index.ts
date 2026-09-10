@@ -9,6 +9,28 @@ export {
   type ChatRequest,
   type ChatResponse,
 } from "./chat.js";
+export {
+  EmailLoginRequestSchema,
+  EmailSignupStartRequestSchema,
+  EmailSignupStartResponseSchema,
+  EmailSignupVerifyRequestSchema,
+  EmailSignupVerifyResponseSchema,
+  type EmailLoginRequest,
+  type EmailSignupStartRequest,
+  type EmailSignupStartResponse,
+  type EmailSignupVerifyRequest,
+  type EmailSignupVerifyResponse,
+} from "./email-signup.js";
+export {
+  ProfilePhotoResponseSchema,
+  ProfilePreferencesResponseSchema,
+  TravelStyleSchema,
+  UpdateProfilePreferencesRequestSchema,
+  type ProfilePhotoResponse,
+  type ProfilePreferencesResponse,
+  type TravelStyle,
+  type UpdateProfilePreferencesRequest,
+} from "./profile.js";
 export { HealthResponseSchema, type HealthResponse } from "./health.js";
 export {
   ListPlaceRankingsQuerySchema,

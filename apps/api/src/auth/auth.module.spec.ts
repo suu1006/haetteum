@@ -4,12 +4,19 @@ import { Test } from "@nestjs/testing";
 
 import { AppModule } from "../app.module.js";
 import { AuthCookieService } from "./auth-cookie.service.js";
-import { KAKAO_AUTH_FETCH, OAUTH_STATE_CLOCK } from "./auth.constants.js";
+import {
+  EMAIL_SIGNUP_CLOCK,
+  KAKAO_AUTH_FETCH,
+  OAUTH_STATE_CLOCK,
+} from "./auth.constants.js";
 import { AuthController } from "./auth.controller.js";
 import { AUTH_CLOCK, AuthService } from "./auth.service.js";
+import { EmailSignupController } from "./email-signup.controller.js";
+import { EmailSignupService } from "./email-signup.service.js";
 import { KakaoAuthClient } from "./kakao-auth.client.js";
 import { AuthModule } from "./auth.module.js";
 import { OAuthStateService } from "./oauth-state.service.js";
+import { PasswordHasher } from "./password-hasher.service.js";
 import { SameOriginGuard } from "./same-origin.guard.js";
 import { SessionAuthGuard } from "./session-auth.guard.js";
 import {
@@ -17,6 +24,7 @@ import {
   SessionCleanupService,
 } from "./session-cleanup.service.js";
 import { SESSION_CLOCK, SessionService } from "./session.service.js";
+import { VerificationMailService } from "./verification-mail.service.js";
 
 type ValueProvider = {
   provide: symbol;
@@ -45,7 +53,7 @@ describe("AuthModule", () => {
   it("registers the full auth flow and cleanup service without another scheduler bootstrap", () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AuthModule),
-    ).toEqual([AuthController]);
+    ).toEqual([AuthController, EmailSignupController]);
     expect(providers()).toEqual(
       expect.arrayContaining([
         AuthService,
@@ -56,6 +64,9 @@ describe("AuthModule", () => {
         SessionCleanupService,
         SessionAuthGuard,
         SameOriginGuard,
+        PasswordHasher,
+        VerificationMailService,
+        EmailSignupService,
       ]),
     );
     expect(
@@ -71,6 +82,7 @@ describe("AuthModule", () => {
     expect(valueProvider(OAUTH_STATE_CLOCK)?.useValue).toBe(Date.now);
     expect(valueProvider(SESSION_CLOCK)?.useValue).toBe(Date.now);
     expect(valueProvider(SESSION_CLEANUP_CLOCK)?.useValue).toBe(Date.now);
+    expect(valueProvider(EMAIL_SIGNUP_CLOCK)?.useValue).toBe(Date.now);
   });
 
   it("exports guards and session services for authenticated personal APIs", () => {

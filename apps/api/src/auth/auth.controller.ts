@@ -1,5 +1,11 @@
-import { AuthUserSchema, type AuthUser } from "@haetteum/contracts";
 import {
+  AuthUserSchema,
+  EmailLoginRequestSchema,
+  type AuthUser,
+  type EmailLoginRequest,
+} from "@haetteum/contracts";
+import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -15,6 +21,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 
 import type { ApiEnvironment } from "../config/environment.js";
+import { ZodValidationPipe } from "../common/http/zod-validation.pipe.js";
 import { AuthCookieService } from "./auth-cookie.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
 import { OAuthStateService } from "./oauth-state.service.js";
@@ -113,6 +120,27 @@ export class AuthController {
     } catch {
       response.redirect(this.webLocation("/login?error=provider_unavailable"));
     }
+  }
+
+  @Post("login")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SameOriginGuard)
+  async login(
+    @Body(new ZodValidationPipe(EmailLoginRequestSchema))
+    input: EmailLoginRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthUser> {
+    const completed = await this.auth.completeEmailLogin(
+      input.email,
+      input.password,
+    );
+    this.cookies.setSession(
+      response,
+      completed.sessionToken,
+      completed.expiresAt,
+    );
+
+    return AuthUserSchema.parse(completed.user);
   }
 
   @Get("me")

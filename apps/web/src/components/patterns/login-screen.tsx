@@ -1,20 +1,70 @@
 "use client";
 
-import { ChevronLeftIcon } from "lucide-react";
+import { MailIcon } from "lucide-react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { AuthDivider } from "@/components/patterns/auth/auth-divider";
+import { AuthHeader } from "@/components/patterns/auth/auth-header";
+import { AuthPasswordField } from "@/components/patterns/auth/auth-password-field";
+import { AuthPrimaryButton } from "@/components/patterns/auth/auth-primary-button";
+import { AuthShell } from "@/components/patterns/auth/auth-shell";
+import {
+  AuthSocialActionButton,
+  AuthSocialLinkButton,
+  KakaoGlyph,
+} from "@/components/patterns/auth/auth-social-button";
+import { AuthTextField } from "@/components/patterns/auth/auth-text-field";
+import { loginWithEmail } from "@/features/auth/auth-client";
+import { useAuthStore } from "@/features/auth/auth-store";
 
 type LoginScreenProps = {
   canGoBack: boolean;
   loginHref: string;
   errorMessage?: string | null;
+  returnTo?: string;
 };
+
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5">
+      <path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.82-.07-1.6-.2-2.35H12v4.45h6.47a5.53 5.53 0 0 1-2.4 3.63v3.02h3.88c2.27-2.09 3.57-5.17 3.57-8.75Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3.02c-1.08.72-2.46 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.11A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.27a7.2 7.2 0 0 1 0-4.54V6.62H1.26a12 12 0 0 0 0 10.76l4.01-3.11Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.77c1.76 0 3.35.6 4.6 1.8l3.44-3.44C17.95 1.19 15.23 0 12 0A12 12 0 0 0 1.26 6.62l4.01 3.11C6.22 6.88 8.87 4.77 12 4.77Z"
+      />
+    </svg>
+  );
+}
 
 function LoginScreen({
   canGoBack,
   loginHref,
   errorMessage = null,
+  returnTo = "/",
 }: LoginScreenProps) {
   const router = useRouter();
+  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
+  const emailId = useId();
+  const passwordId = useId();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
 
   function goBack() {
     if (canGoBack) {
@@ -25,87 +75,191 @@ function LoginScreen({
     router.replace("/");
   }
 
+  function announceComingSoon(message: string) {
+    setNotice(`${message} 아직 준비 중이에요. 카카오로 로그인해 주세요.`);
+  }
+
+  async function handleEmailLoginSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setNotice(null);
+    setSigningIn(true);
+    const result = await loginWithEmail(email, password);
+    setSigningIn(false);
+
+    if (!result.ok) {
+      setNotice(result.message);
+      return;
+    }
+
+    setAuthenticated(result.user);
+    router.push(returnTo);
+  }
+
   return (
-    <main
-      data-testid="login-surface"
-      className="min-h-svh bg-background md:grid md:place-items-center md:bg-muted/50 md:p-8"
+    <AuthShell
+      surfaceTestId="login-surface"
+      cardTestId="login-card"
+      ariaLabelledBy="login-title"
+      className="relative overflow-hidden"
     >
-      <section
-        data-testid="login-card"
-        aria-labelledby="login-title"
-        className="safe-area-top safe-area-bottom flex min-h-svh w-full flex-col bg-card px-5 pb-6 md:min-h-[33.125rem] md:max-w-[26.875rem] md:rounded-[1.75rem] md:border md:border-border/80 md:px-8 md:pb-8 md:shadow-overlay"
-      >
-        <header className="flex h-16 items-center">
+      <AuthHeader
+        onBack={goBack}
+        end={
           <button
             type="button"
-            aria-label="뒤로가기"
-            onClick={goBack}
-            className="-ml-2 inline-flex size-10 items-center justify-center rounded-full bg-muted text-foreground outline-none transition-colors hover:bg-primary-subtle focus-visible:ring-3 focus-visible:ring-ring/25"
+            onClick={() => router.push("/signup")}
+            className="type-caption font-semibold text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
           >
-            <ChevronLeftIcon aria-hidden="true" className="size-6" />
+            회원가입
           </button>
-        </header>
+        }
+      />
 
-        <div className="pt-14 md:pt-8">
-          <div className="flex items-center gap-3 text-primary">
-            <span
-              data-testid="brand-toggle-mark"
-              aria-hidden="true"
-              className="relative h-7 w-12 shrink-0 rounded-full bg-primary shadow-card ring-4 ring-primary-subtle"
-            >
-              <span className="absolute top-1 right-1 size-5 rounded-full bg-white shadow-card" />
-            </span>
-            <span className="type-title-md font-bold tracking-[-0.04em]">해뜸</span>
-          </div>
+      <div className="flex items-center gap-3 pt-2 text-primary">
+        <span
+          data-testid="brand-toggle-mark"
+          aria-hidden="true"
+          className="relative h-7 w-12 shrink-0 rounded-full bg-primary shadow-card ring-4 ring-primary-subtle"
+        >
+          <span className="absolute top-1 right-1 size-5 rounded-full bg-white shadow-card" />
+        </span>
+        <span className="type-title-md font-bold tracking-[-0.04em]">해뜸</span>
+      </div>
 
-          <div className="mt-7 max-w-sm">
-            <h1
-              id="login-title"
-              className="break-keep text-[2rem] leading-[1.25] font-bold tracking-[-0.04em] text-foreground"
-            >
-              여행 기록을 이어서 관리해보세요
-            </h1>
-            <p className="mt-3 break-keep type-body-md leading-7 text-muted-foreground">
-              저장한 일정과 후기, 나만의 추천을 한곳에서 안전하게 관리할 수
-              있어요.
-            </p>
-          </div>
+      <h1
+        id="login-title"
+        className="mt-8 text-[1.75rem] font-bold tracking-[-0.04em] text-foreground"
+      >
+        로그인
+      </h1>
 
-          {errorMessage ? (
-            <div
-              role="alert"
-              className="mt-5 rounded-2xl bg-primary-subtle px-4 py-3 type-caption text-foreground"
-            >
-              <p>{errorMessage}</p>
-              <a
-                href={loginHref}
-                className="mt-2 inline-flex min-h-9 items-center font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
-              >
-                다시 시도하기
-              </a>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-auto pt-8">
-          <a
-            href={loginHref}
-            className="flex min-h-14 w-full items-center justify-center rounded-xl bg-[#fee500] px-5 text-[0.95rem] font-bold text-[#191919] shadow-card outline-none transition-[box-shadow,transform] focus-visible:ring-3 focus-visible:ring-ring/30 active:translate-y-px"
+      <div aria-live="polite" className="empty:hidden">
+        {errorMessage ? (
+          <div
+            role="alert"
+            className="mt-5 rounded-2xl bg-primary-subtle px-4 py-3 type-caption text-foreground"
           >
-            <span
-              aria-hidden="true"
-              className="mr-2.5 inline-flex h-4 w-5 items-center justify-center rounded-[50%] bg-[#191919] text-[0.45rem] text-[#fee500]"
+            <p>{errorMessage}</p>
+            <a
+              href={loginHref}
+              className="mt-2 inline-flex min-h-9 items-center font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
             >
-              ●
-            </span>
-            카카오로 계속하기
-          </a>
-          <p className="mx-2 mt-3 text-center text-[0.72rem] leading-5 text-muted-foreground">
-            카카오 계정의 식별자, 닉네임과 프로필 이미지만 사용합니다.
+              다시 시도하기
+            </a>
+          </div>
+        ) : null}
+        {notice ? (
+          <p
+            role="status"
+            className="mt-5 rounded-2xl bg-muted px-4 py-3 type-caption text-muted-foreground"
+          >
+            {notice}
           </p>
+        ) : null}
+      </div>
+
+      <form onSubmit={handleEmailLoginSubmit} className="mt-6 space-y-3">
+        <AuthTextField
+          id={emailId}
+          label="이메일 주소 또는 아이디"
+          icon={MailIcon}
+          type="text"
+          autoComplete="username"
+          placeholder="이메일 주소 또는 아이디"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+
+        <AuthPasswordField
+          id={passwordId}
+          label="비밀번호"
+          show={showPassword}
+          onToggleShow={() => setShowPassword((value) => !value)}
+          showAriaPressed
+          autoComplete="current-password"
+          placeholder="비밀번호"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+
+        <div className="flex items-center justify-between pt-1">
+          <label className="inline-flex items-center gap-2 type-caption text-foreground">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) => setRememberMe(event.target.checked)}
+              className="size-4 rounded border-border text-primary outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
+            />
+            로그인 상태 유지
+          </label>
+          <button
+            type="button"
+            onClick={() => announceComingSoon("비밀번호 재설정은")}
+            className="type-caption font-semibold text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
+          >
+            비밀번호를 잊으셨나요?
+          </button>
         </div>
-      </section>
-    </main>
+
+        <AuthPrimaryButton type="submit" loading={signingIn} loadingLabel="로그인 중...">
+          로그인
+        </AuthPrimaryButton>
+      </form>
+
+      <AuthDivider />
+
+      <div className="mt-6 space-y-3">
+        <AuthSocialLinkButton href={loginHref} icon={<KakaoGlyph />}>
+          카카오로 로그인하기
+        </AuthSocialLinkButton>
+        <AuthSocialActionButton
+          icon={<GoogleIcon />}
+          onClick={() => announceComingSoon("구글 로그인은")}
+        >
+          구글로 로그인하기
+        </AuthSocialActionButton>
+      </div>
+
+      <p className="mt-6 text-center type-caption text-muted-foreground">
+        계정이 없으신가요?{" "}
+        <button
+          type="button"
+          onClick={() => router.push("/signup")}
+          className="font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
+        >
+          회원가입하기
+        </button>
+      </p>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none relative mt-auto -mx-5 h-16 md:-mx-8"
+      >
+        <svg
+          viewBox="0 0 400 80"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full text-primary-subtle"
+        >
+          <path
+            fill="currentColor"
+            d="M0 80V38l40-20 35 14 45-26 50 22 40-16 45 20 50-14 45 18 50-16v60Z"
+          />
+        </svg>
+        <svg viewBox="0 0 32 40" className="absolute right-7 bottom-5 h-9 w-7">
+          <ellipse cx="16" cy="14" rx="12" ry="14" fill="var(--color-primary)" />
+          <path
+            d="M11 26 8 32h16l-3-6"
+            fill="none"
+            stroke="var(--color-primary)"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <rect x="12" y="32" width="8" height="5" rx="1.5" fill="var(--color-foreground)" />
+        </svg>
+      </div>
+    </AuthShell>
   );
 }
 

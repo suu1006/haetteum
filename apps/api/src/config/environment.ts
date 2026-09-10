@@ -52,12 +52,30 @@ const ApiEnvironmentSchema = z
     TOURISM_SYNC_ENABLED: booleanFromString,
     YOUTUBE_API_KEY: providerSecret,
     PLACE_REELS_ENABLED: booleanFromString,
+    // SMTP 미설정 시 인증번호 발송은 로그 출력으로 대체되고, 서버 부팅은 계속 허용된다.
+    SMTP_HOST: providerSecret,
+    SMTP_PORT: z.preprocess(
+      (value) => (value === "" || value === undefined ? undefined : value),
+      z.coerce.number().int().min(1).max(65535).optional(),
+    ),
+    SMTP_USER: providerSecret,
+    SMTP_PASS: providerSecret,
+    SMTP_FROM: providerSecret,
     CHAT_ENABLED: booleanFromString,
     // Bedrock 자격증명 자체는 AWS 기본 자격증명 체인(env/역할/프로필)에서 읽으며 여기서 검증하지 않는다.
     CHAT_AWS_REGION: providerSecret,
     CHAT_BEDROCK_MODEL_ID: providerSecret,
   })
   .superRefine((value, context) => {
+    if (value.SMTP_HOST && (!value.SMTP_PORT || !value.SMTP_FROM)) {
+      context.addIssue({
+        code: "custom",
+        path: ["SMTP_PORT"],
+        message:
+          "SMTP_HOST 설정 시 SMTP_PORT와 SMTP_FROM도 함께 설정해야 합니다",
+      });
+    }
+
     if (value.PLACE_REELS_ENABLED && !value.YOUTUBE_API_KEY) {
       context.addIssue({
         code: "custom",
