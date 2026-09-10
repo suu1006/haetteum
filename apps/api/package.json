@@ -33,6 +33,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.33.4",
     "@haetteum/contracts": "workspace:*",
     "@nestjs/common": "11.2.1",
     "@nestjs/config": "4.0.4",

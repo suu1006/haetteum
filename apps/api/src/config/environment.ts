@@ -52,6 +52,10 @@ const ApiEnvironmentSchema = z
     TOURISM_SYNC_ENABLED: booleanFromString,
     YOUTUBE_API_KEY: providerSecret,
     PLACE_REELS_ENABLED: booleanFromString,
+    CHAT_ENABLED: booleanFromString,
+    // Bedrock 자격증명 자체는 AWS 기본 자격증명 체인(env/역할/프로필)에서 읽으며 여기서 검증하지 않는다.
+    CHAT_AWS_REGION: providerSecret,
+    CHAT_BEDROCK_MODEL_ID: providerSecret,
   })
   .superRefine((value, context) => {
     if (value.PLACE_REELS_ENABLED && !value.YOUTUBE_API_KEY) {
@@ -59,6 +63,14 @@ const ApiEnvironmentSchema = z
         code: "custom",
         path: ["YOUTUBE_API_KEY"],
         message: "YOUTUBE_API_KEY is required when place reels are enabled",
+      });
+    }
+
+    if (value.CHAT_ENABLED && !value.CHAT_AWS_REGION) {
+      context.addIssue({
+        code: "custom",
+        path: ["CHAT_AWS_REGION"],
+        message: "CHAT_AWS_REGION is required when chat is enabled",
       });
     }
 

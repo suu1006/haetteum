@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
 import { AuthModule } from "./auth/auth.module.js";
+import { ChatModule } from "./chat/chat.module.js";
 import { validateEnvironment } from "./config/environment.js";
 import { FestivalsModule } from "./festivals/festivals.module.js";
 import { HealthModule } from "./health/health.module.js";
@@ -12,6 +13,7 @@ import { PlaceFavoritesModule } from "./place-favorites/place-favorites.module.j
 import { PlaceReelsModule } from "./place-reels/place-reels.module.js";
 import { PlacesModule } from "./places/places.module.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
+import { ProfileModule } from "./profile/profile.module.js";
 import { ReviewsModule } from "./reviews/reviews.module.js";
 import { SavedCoursesModule } from "./saved-courses/saved-courses.module.js";
 import { TourismModule } from "./tourism/tourism.module.js";
@@ -28,6 +30,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     }),
     PrismaModule,
     AuthModule,
+    ChatModule,
     HealthModule,
     FestivalsModule,
     HotPlaceRankingsModule,
@@ -36,6 +39,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     PlaceFavoritesModule,
     PlaceReelsModule,
     PlacesModule,
+    ProfileModule,
     ReviewsModule,
     SavedCoursesModule,
     TourismModule,

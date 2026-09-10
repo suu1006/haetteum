@@ -1,4 +1,14 @@
 export { AuthUserSchema, type AuthUser } from "./auth.js";
+export {
+  ChatMessageRoleSchema,
+  ChatMessageSchema,
+  ChatRequestSchema,
+  ChatResponseSchema,
+  type ChatMessage,
+  type ChatMessageRole,
+  type ChatRequest,
+  type ChatResponse,
+} from "./chat.js";
 export { HealthResponseSchema, type HealthResponse } from "./health.js";
 export {
   ListPlaceRankingsQuerySchema,
