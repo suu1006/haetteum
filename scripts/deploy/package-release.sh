@@ -103,7 +103,8 @@ fs.writeFileSync(path.join(root, 'release.json'), JSON.stringify({ sha, toolingS
 NODE
 ARCHIVE="release-$SHA.tar.gz"
 [[ ! -e "$OUTPUT/$ARCHIVE" ]] || { echo 'Refusing to overwrite existing artifact' >&2; exit 1; }
-tar -C "$RELEASE" -czf "$OUTPUT/$ARCHIVE" .
+tar --hard-dereference -C "$RELEASE" -czf "$OUTPUT/$ARCHIVE" .
+python3 scripts/deploy/validate-archive.py "$OUTPUT/$ARCHIVE"
 (cd "$OUTPUT" && sha256sum "$ARCHIVE" > "$ARCHIVE.sha256")
 du -sb "$RELEASE"
 stat -c '%s %n' "$OUTPUT/$ARCHIVE"
