@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
   deploymentId: process.env.GITHUB_SHA,
+  outputFileTracingIncludes: {
+    "/*": [
+      "../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*",
+      "../../node_modules/.pnpm/tslib@*/node_modules/tslib/**/*",
+    ],
+  },
   images: {
     // 72px 프로필·80px 장소 썸네일의 2x 화면에서 256px까지 커지지 않도록 한다.
     imageSizes: [32, 48, 64, 96, 128, 160, 192, 256, 384],
