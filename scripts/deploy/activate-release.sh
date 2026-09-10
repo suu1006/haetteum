@@ -19,7 +19,9 @@ bytes=$(python3 "$DEPLOY_DIR/validate-archive.py" "$archive")
 reserve=${BACKUP_REQUIRED_BYTES:-0}
 [[ $reserve =~ ^[0-9]+$ ]] || fail 'Invalid backup reserve'
 free=$(df -Pk "$HAETTEUM_RELEASES" | awk 'END {print $4 * 1024}')
-required=$((bytes + reserve + 536870912))
+unpack_bytes=$bytes
+[[ ! -e $release ]] || unpack_bytes=0
+required=$((unpack_bytes + reserve + 536870912))
 [[ $(awk -v f="$free" -v r="$required" 'BEGIN {print (f >= r)}') = 1 ]] || fail "Insufficient space: need $required bytes free for unpacking, backup and headroom"
 check_shared
 staging=''; api_pid=''; web_pid=''; switched=false; rollback=''

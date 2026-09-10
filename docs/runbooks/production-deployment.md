@@ -31,7 +31,7 @@ PM2의 haetteum-api/haetteum-web이 실제 release의 Node 진입점을 실행�
 
 ## 최초 복구
 
-이전 `.next`는 빌드 실패로 손상되었으므로 rollback 원본으로 사용하지 않는다. 복구 브랜치의 CI는 이메일 로그인 추가 전 커밋 c44ad14 코드도 현재 pinned dependencies·standalone tooling으로 재빌드한다. 이는 당시의 바이너리와 동일한 artifact는 아니며 새 환경에서 테스트한 복구 후보이다.
+이전 `.next`는 빌드 실패로 손상되었으므로 rollback 원본으로 사용하지 않는다. 복구 브랜치의 CI는 배포 개선 전 커밋 d8e3f98 코드도 현재 pinned dependencies·standalone tooling으로 재빌드한다. 과거 커밋에는 누락된 ProfileModule과 오래된 테스트가 있어 그대로 실행할 수 없었다. 따라서 이 baseline은 과거 운영 바이너리가 아니라 최신 로그인 코드를 포함하여 CI와 후보 포트에서 검증하는 최초 복구 기준이다. 최초 복구 이후에는 실제 직전 정상 release를 rollback 대상으로 사용한다.
 
 검증한 baseline archive를 먼저 stage하고 후보 포트에서 검사한다. 이후 최신 archive 활성화에 baseline SHA를 명시한다. 데이터는 기존 DB·uploads를 사용한다.
 
