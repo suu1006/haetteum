@@ -43,6 +43,19 @@ mkdir -p "$RELEASE/web"
 
 # pnpm's pack rules can omit ignored build output; explicitly add built files below.
 pnpm --filter @haetteum/api deploy --legacy --prod "$RELEASE/api"
+# Legacy pnpm deploy emits a hoisted self-reference to its source workspace.
+# The isolated package must resolve its own name to its packaged root.
+node --input-type=module - "$RELEASE/api" <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+const api = path.resolve(process.argv[2]);
+const self = path.join(api, 'node_modules/.pnpm/node_modules/@haetteum/api');
+if (fs.existsSync(self) || fs.lstatSync(path.dirname(self)).isDirectory()) {
+  try { fs.unlinkSync(self); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  fs.mkdirSync(path.dirname(self), {recursive:true});
+  fs.symlinkSync(path.relative(path.dirname(self), api), self);
+}
+NODE
 mkdir -p "$RELEASE/api/dist"
 cp -a apps/api/dist/. "$RELEASE/api/dist/"
 mkdir -p "$RELEASE/api/prisma"
