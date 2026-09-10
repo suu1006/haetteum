@@ -17,7 +17,11 @@ import { TourismSyncService } from "./tourism-sync.service.js";
 import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
+  imports: [ScheduleModule.forRoot({
+    cronJobs: process.env.SCHEDULERS_ENABLED !== "false",
+    intervals: process.env.SCHEDULERS_ENABLED !== "false",
+    timeouts: process.env.SCHEDULERS_ENABLED !== "false",
+  })],
   providers: [
     TourismSyncService,
     FestivalSyncService,

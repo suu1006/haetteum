@@ -2,90 +2,156 @@ name: deploy to ec2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, codex/production-deployment-recovery]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the tested release to production
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 concurrency:
-  group: haetteum-production
-  cancel-in-progress: true
+  group: haetteum-production-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        source: ${{ fromJSON(github.ref == 'refs/heads/codex/production-deployment-recovery' && '["current","baseline"]' || '["current"]') }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: haetteum
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: haetteum
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://haetteum:ci-only-password@127.0.0.1:5432/haetteum
+      API_PORT: '4000'
+      WEB_ORIGIN: https://haetteum.kr
+      API_BASE_URL: http://127.0.0.1:4000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_KAKAO_JS_KEY: ${{ vars.NEXT_PUBLIC_KAKAO_JS_KEY }}
+      KAKAO_REST_API_KEY: ci-placeholder
+      KAKAO_CLIENT_SECRET: ci-placeholder
+      TOURISM_SYNC_ENABLED: 'false'
+      PLACE_REELS_ENABLED: 'false'
+      SCHEDULERS_ENABLED: 'false'
+      CHAT_ENABLED: 'false'
     steps:
-      - name: deploy to ec2
+      - uses: actions/checkout@v4
+        with:
+          path: tooling
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          ref: ${{ matrix.source == 'baseline' && '3aa8523096e47d440562e2629104f94430e19565' || github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - name: Prepare pinned deployment tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NEXT_PUBLIC_API_BASE_URL"
+          test -n "$NEXT_PUBLIC_KAKAO_JS_KEY"
+          if [[ '${{ matrix.source }}' == baseline ]]; then
+            for file in package.json pnpm-lock.yaml pnpm-workspace.yaml apps/api/package.json apps/web/package.json packages/contracts/package.json apps/web/next.config.ts ecosystem.config.js; do
+              cp "tooling/$file" "source/$file"
+            done
+            mkdir -p source/scripts/deploy
+            cp tooling/scripts/deploy/* source/scripts/deploy/
+            # Disable scheduled mutations in the baseline candidate as well.
+            python3 - <<'PY'
+          from pathlib import Path
+          p = Path('source/apps/api/src/tourism/tourism.module.ts')
+          p.write_text(p.read_text().replace('ScheduleModule.forRoot()', "ScheduleModule.forRoot({ cronJobs: process.env.SCHEDULERS_ENABLED !== 'false', intervals: process.env.SCHEDULERS_ENABLED !== 'false', timeouts: process.env.SCHEDULERS_ENABLED !== 'false' })"))
+          PY
+          fi
+          echo "RELEASE_SHA=$(git -C source rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "TOOLING_SHA=$(git -C tooling rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Install and test
+        working-directory: source
+        run: |
+          pnpm install --frozen-lockfile
+          node --test scripts/deploy/*.test.mjs
+          python3 scripts/deploy/test_activation.py
+          pnpm test
+      - name: Build on CI
+        working-directory: source
+        run: |
+          export GITHUB_SHA="$RELEASE_SHA"
+          pnpm build
+      - name: Package and isolate runtime
+        working-directory: source
+        run: |
+          export GITHUB_SHA="$RELEASE_SHA"
+          bash scripts/deploy/package-release.sh "$RUNNER_TEMP/artifacts"
+          mkdir "$RUNNER_TEMP/runtime"
+          tar -xzf "$RUNNER_TEMP/artifacts/release-$RELEASE_SHA.tar.gz" -C "$RUNNER_TEMP/runtime"
+          # Prevent accidentally resolving dependencies or files from the checkout.
+          mv node_modules node_modules.hidden
+          bash scripts/deploy/ci-smoke.sh "$RUNNER_TEMP/runtime" '${{ matrix.source }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.source }}-${{ github.sha }}
+          path: ${{ runner.temp }}/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: haetteum-production-activation
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-current-${{ github.sha }}
+          path: artifact
+      - name: Transfer and activate validated release
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SHA: ${{ github.sha }}
+        shell: bash
         run: |
-          set -e
-
-          echo "===== ssh 설정 ====="
-
+          set -euo pipefail
           mkdir -p ~/.ssh
-
           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2.pem
           chmod 600 ~/.ssh/ec2.pem
-
           ssh-keyscan -T 10 -H "$EC2_HOST" >> ~/.ssh/known_hosts
-
-          echo "===== ec2 배포 시작 ====="
-
-          ssh \
-            -o ConnectTimeout=10 \
-            -i ~/.ssh/ec2.pem \
-            ubuntu@"$EC2_HOST" << 'EOF'
-
-            set -e
-
-            echo "===== nvm 로드 ====="
-
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-
-            echo "===== node 버전 설정 ====="
-
-            nvm use 24.19.0
-
-            echo "node: $(node -v)"
-            echo "pnpm: $(pnpm -v)"
-
-            echo "===== 프로젝트 이동 ====="
-
-            cd /home/ubuntu/haetteum
-
-            echo "===== git pull ====="
-
-            git pull --ff-only origin main
-
-            echo "===== dependency install ====="
-
-            pnpm install --frozen-lockfile
-
-            echo "===== api build ====="
-
-            pnpm --filter @haetteum/api build
-
-            echo "===== web build ====="
-
-            pnpm --filter @haetteum/web build
-
-            echo "===== pm2 확인 ====="
-
-            command -v pm2 >/dev/null 2>&1 || npm install -g pm2
-
-            echo "===== pm2 restart ====="
-
-            pm2 startOrReload ecosystem.config.js
-
-            pm2 save
-
-            echo "===== pm2 status ====="
-
-            pm2 status
-
-            echo "===== deployment complete ====="
-
-          EOF
+          cd artifact
+          sha256sum -c "release-$SHA.tar.gz.sha256"
+          ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'test -L /home/ubuntu/haetteum-current && mkdir -p /home/ubuntu/haetteum-incoming'
+          scp -i ~/.ssh/ec2.pem "release-$SHA.tar.gz" "release-$SHA.tar.gz.sha256" ubuntu@"$EC2_HOST":/home/ubuntu/haetteum-incoming/
+          ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "bash -s -- '$SHA'" <<'REMOTE'
+          set -euo pipefail
+          SHA=$1
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+          nvm use 24.19.0
+          cd /home/ubuntu/haetteum-incoming
+          sha256sum -c "release-$SHA.tar.gz.sha256"
+          # Run trusted activator from the currently validated release.
+          export BACKUP_REQUIRED_BYTES=134217728
+          export MIGRATIONS_BACKWARD_COMPATIBLE=true
+          bash /home/ubuntu/haetteum-current/scripts/deploy/activate-release.sh "release-$SHA.tar.gz" "$SHA"
+          REMOTE
