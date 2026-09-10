@@ -50,6 +50,7 @@ cp -a apps/api/prisma/. "$RELEASE/api/prisma/"
 cp apps/api/prisma.config.ts "$RELEASE/api/"
 CONTRACTS=$(realpath "$RELEASE/api/node_modules/@haetteum/contracts")
 [[ $CONTRACTS == "$RELEASE/api/"* ]] || { echo 'Contracts escaped isolated deployment' >&2; exit 1; }
+rm -rf "$CONTRACTS/dist"
 mkdir -p "$CONTRACTS/dist"
 cp -a packages/contracts/dist/. "$CONTRACTS/dist/"
 # Explicitly remove template env files, never silently discard real credentials.
@@ -98,7 +99,7 @@ node --input-type=module - "$RELEASE" "$SHA" <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 const [root, sha] = process.argv.slice(2);
-fs.writeFileSync(path.join(root, 'release.json'), JSON.stringify({ sha, node: process.version, platform: process.platform, arch: process.arch, createdAt: new Date().toISOString() }, null, 2) + '\n');
+fs.writeFileSync(path.join(root, 'release.json'), JSON.stringify({ sha, toolingSha: process.env.TOOLING_SHA || sha, node: process.version, platform: process.platform, arch: process.arch, createdAt: new Date().toISOString() }, null, 2) + '\n');
 NODE
 ARCHIVE="release-$SHA.tar.gz"
 [[ ! -e "$OUTPUT/$ARCHIVE" ]] || { echo 'Refusing to overwrite existing artifact' >&2; exit 1; }
