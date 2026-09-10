@@ -27,3 +27,6 @@ agent/
 skills-lock.json
 /CLAUDE.md
 /artifacts/
+
+**/__pycache__/
+.superpowers/

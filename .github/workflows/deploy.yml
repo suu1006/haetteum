@@ -131,6 +131,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           SHA: ${{ github.sha }}
+          REVIEWED: ${{ vars.ROLLBACK_COMPATIBLE_SHA == github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -142,16 +143,17 @@ jobs:
           sha256sum -c "release-$SHA.tar.gz.sha256"
           ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'test -L /home/ubuntu/haetteum-current && mkdir -p /home/ubuntu/haetteum-incoming'
           scp -i ~/.ssh/ec2.pem "release-$SHA.tar.gz" "release-$SHA.tar.gz.sha256" ubuntu@"$EC2_HOST":/home/ubuntu/haetteum-incoming/
-          ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "bash -s -- '$SHA'" <<'REMOTE'
+          ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "bash -s -- '$SHA' '$REVIEWED'" <<'REMOTE'
           set -euo pipefail
           SHA=$1
           export NVM_DIR="$HOME/.nvm"
           . "$NVM_DIR/nvm.sh"
           nvm use 24.19.0
+          export NODE_BIN=$(command -v node)
           cd /home/ubuntu/haetteum-incoming
           sha256sum -c "release-$SHA.tar.gz.sha256"
           # Run trusted activator from the currently validated release.
           export BACKUP_REQUIRED_BYTES=134217728
-          export MIGRATIONS_BACKWARD_COMPATIBLE=true
+          export MIGRATIONS_BACKWARD_COMPATIBLE=$2
           bash /home/ubuntu/haetteum-current/scripts/deploy/activate-release.sh "release-$SHA.tar.gz" "$SHA"
           REMOTE
