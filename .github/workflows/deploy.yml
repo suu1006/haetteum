@@ -142,6 +142,12 @@ jobs:
           ssh-keyscan -T 10 -H "$EC2_HOST" >> ~/.ssh/known_hosts
           cd artifact
           sha256sum -c "release-$SHA.tar.gz.sha256"
+          active_release=$(ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'readlink -f /home/ubuntu/haetteum-current || true')
+          if [[ "$active_release" == "/home/ubuntu/haetteum-releases/$SHA" ]] && ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "test -f /home/ubuntu/haetteum-shared/verified/$SHA"; then
+            # A rebuild can have different timestamps/checksums. Preserve the validated immutable release.
+            ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'bash /home/ubuntu/haetteum-current/scripts/deploy/smoke-release.sh'
+            exit 0
+          fi
           ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'test -L /home/ubuntu/haetteum-current && mkdir -p /home/ubuntu/haetteum-incoming'
           scp -i ~/.ssh/ec2.pem "release-$SHA.tar.gz" "release-$SHA.tar.gz.sha256" ubuntu@"$EC2_HOST":/home/ubuntu/haetteum-incoming/
           ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "bash -s -- '$SHA' '$REVIEWED'" <<'REMOTE'
