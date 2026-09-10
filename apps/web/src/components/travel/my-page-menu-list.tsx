@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2Icon } from "lucide-react";
 import type { IconType } from "react-icons";
 import {
   TbBell,
@@ -63,11 +64,19 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
                 !isLast && "border-b border-border/80",
               )}
             >
-              <Icon
-                aria-hidden="true"
-                className="size-6 shrink-0 text-muted-foreground"
-                strokeWidth={1.65}
-              />
+              {item.id === "logout" && logoutStatus === "pending" ? (
+                <Loader2Icon
+                  aria-hidden="true"
+                  className="size-6 shrink-0 animate-spin text-muted-foreground"
+                  strokeWidth={1.65}
+                />
+              ) : (
+                <Icon
+                  aria-hidden="true"
+                  className="size-6 shrink-0 text-muted-foreground"
+                  strokeWidth={1.65}
+                />
+              )}
               {item.id === "logout" ? (
                 <button
                   type="button"
@@ -78,7 +87,7 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
                   onClick={handleLogout}
                   className="flex min-h-11 flex-1 items-center text-left text-[0.9rem] font-semibold text-foreground outline-none disabled:opacity-60 focus-visible:ring-3 focus-visible:ring-ring/25"
                 >
-                  {logoutStatus === "pending" ? "로그아웃 중" : item.label}
+                  {item.label}
                 </button>
               ) : (
                 <span className="text-[0.9rem] font-semibold text-foreground">
