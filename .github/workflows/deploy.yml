@@ -90,7 +90,8 @@ jobs:
           pnpm install --frozen-lockfile
           node --test scripts/deploy/*.test.mjs
           python3 scripts/deploy/test_activation.py
-          pnpm test
+          pnpm --filter @haetteum/contracts build
+          env -u NEXT_PUBLIC_API_BASE_URL -u API_BASE_URL -u NEXT_PUBLIC_KAKAO_JS_KEY pnpm test
       - name: Build on CI
         working-directory: source
         run: |
