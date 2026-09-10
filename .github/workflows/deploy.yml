@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: source
-          ref: ${{ matrix.source == 'baseline' && '3aa8523096e47d440562e2629104f94430e19565' || github.sha }}
+          ref: ${{ matrix.source == 'baseline' && 'c44ad1450c4c900ea78df24da3d5866080f980ce' || github.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
