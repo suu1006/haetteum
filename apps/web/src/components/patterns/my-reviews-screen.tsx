@@ -132,7 +132,7 @@ function MyReviewsScreen({
                   <li key={review.id}>
                     <MyReviewCard
                       review={review}
-                      eager={index === 0}
+                      eager={index < 3}
                       onEdit={editReview}
                       onDelete={removeReview}
                       deleting={deletingId === review.id}

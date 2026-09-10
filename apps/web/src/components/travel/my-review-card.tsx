@@ -32,6 +32,7 @@ function MyReviewCard({
           fill
           sizes="(max-width: 359px) 104px, 120px"
           loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
           className="object-cover"
         />
       </div>

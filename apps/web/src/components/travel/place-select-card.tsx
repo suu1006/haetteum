@@ -44,6 +44,7 @@ function PlaceSelectCard({
           alt={place.title}
           fill
           loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
           sizes="80px"
           className="object-cover"
         />
