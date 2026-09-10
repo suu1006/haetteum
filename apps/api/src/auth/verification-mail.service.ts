@@ -44,8 +44,9 @@ export class VerificationMailService {
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
-      auth: user && pass ? { user, pass } : undefined,
+      secure: false,
+      requireTLS: true,
+      auth: { user, pass },
     });
 
     return this.transporter;
