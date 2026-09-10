@@ -10,7 +10,7 @@ import type {
   MyReviewsData,
 } from "@/features/profile/my-reviews-model";
 
-const fallbackImage = "/images/explore/categories/popular-attraction.png";
+import { resolveOfficialImageSource } from "@/lib/official-image";
 
 export type MyReviewsLoadResult =
   | { status: "ready"; data: MyReviewsData }
@@ -57,7 +57,7 @@ function mapReviewItem(item: ReviewItem): MyReviewItem {
     likeCount: 0,
     commentCount: 0,
     image: {
-      src: item.primaryImageUrl ?? fallbackImage,
+      src: resolveOfficialImageSource(item.primaryImageUrl),
       alt: `${item.placeTitle} 대표 이미지`,
     },
   };

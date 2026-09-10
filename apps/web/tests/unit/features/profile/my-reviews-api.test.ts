@@ -60,6 +60,18 @@ const place = {
 const mutationErrorMessage =
   "후기를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
 
+describe("review thumbnail source", () => {
+  it("normalizes HTTP tourism images before requesting Next image optimization", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ items: [{ ...review,
+        primaryImageUrl: "http://tong.visitkorea.or.kr/cms/resource/photo.jpg",
+      }] }), { status: 200 }),
+    );
+    const result = await loadMyReviews(null, fetchImpl, "http://api.test/api/v1");
+    expect(result).toMatchObject({ status: "ready", items: [{ image: { src: "https://tong.visitkorea.or.kr/cms/resource/photo.jpg" } }] });
+  });
+});
+
 describe("loadMyReviews", () => {
   it("fetches the written reviews without caching, validates the contract, and maps the fallback image", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
@@ -99,11 +111,11 @@ describe("loadMyReviews", () => {
     expect(
       mapReviewItem({
         ...review,
-        primaryImageUrl: "https://images.example.test/everland.jpg",
+        primaryImageUrl: "https://tong.visitkorea.or.kr/everland.jpg",
       }),
     ).toMatchObject({
       image: {
-        src: "https://images.example.test/everland.jpg",
+        src: "https://tong.visitkorea.or.kr/everland.jpg",
         alt: "에버랜드 대표 이미지",
       },
     });

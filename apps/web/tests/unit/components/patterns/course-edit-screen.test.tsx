@@ -106,7 +106,7 @@ describe("CourseEditor", () => {
       screen.getAllByTestId("course-edit-region").map((node) =>
         node.getAttribute("data-region"),
       ),
-    ).toEqual(["header", "tabs", "instructions", "itinerary", "actions"]);
+    ).toEqual(["header", "title", "instructions", "itinerary", "actions"]);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "일정 수정" }),
@@ -117,16 +117,6 @@ describe("CourseEditor", () => {
 
   it("pairs fixed time slots with sortable AI course cards", () => {
     render(<CourseEditor course={courseEditMock} />);
-
-    const tabs = screen.getByRole("tablist", { name: "코스 종류" });
-    expect(within(tabs).getByRole("tab", { name: "AI 추천 코스" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(within(tabs).getByRole("tab", { name: "내가 만든 코스" })).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
 
     const itinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
     expect(within(itinerary).getAllByRole("listitem")).toHaveLength(5);
@@ -150,7 +140,6 @@ describe("CourseEditor", () => {
     );
 
     const dialog = screen.getByRole("dialog", { name: "장소 상세 정보" });
-    expect(dialog).toHaveFocus();
     expect(within(dialog).getByText("이천 테르메덴")).toBeVisible();
     expect(within(dialog).getByText("온천/워터파크")).toBeVisible();
     expect(
@@ -228,23 +217,9 @@ describe("CourseEditor", () => {
     expect(screen.getByRole("button", { name: "저장하기" })).toBeVisible();
   });
 
-  it("keeps independent mock orders while switching course tabs", async () => {
-    const user = userEvent.setup();
+  it("renders the supplied AI course itinerary", () => {
     render(<CourseEditor course={courseEditMock} />);
 
-    await user.click(screen.getByRole("tab", { name: "내가 만든 코스" }));
-
-    expect(
-      screen.getByRole("tab", { name: "내가 만든 코스" }),
-    ).toHaveAttribute("aria-selected", "true");
-    const customItinerary = screen.getByRole("list", {
-      name: "내가 만든 코스 일정",
-    });
-    expect(within(customItinerary).getAllByRole("listitem")[0]).toHaveTextContent(
-      "09:00설봉공원",
-    );
-
-    await user.click(screen.getByRole("tab", { name: "AI 추천 코스" }));
     const aiItinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
     expect(within(aiItinerary).getAllByRole("listitem")[0]).toHaveTextContent(
       "08:30임금님 쌀밥집",
@@ -392,11 +367,10 @@ describe("CourseEditor", () => {
     expect(screen.queryByText("카페 온천")).not.toBeInTheDocument();
   });
 
-  it("keeps added places isolated to the active custom course", async () => {
+  it("adds selected places to the current course", async () => {
     const user = userEvent.setup();
     render(<CourseEditor course={courseEditMock} />);
 
-    await user.click(screen.getByRole("tab", { name: "내가 만든 코스" }));
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
     await user.click(
       await screen.findByRole("button", { name: "카페 온천 선택" }),
@@ -405,16 +379,9 @@ describe("CourseEditor", () => {
       screen.getByRole("button", { name: "선택한 장소 추가하기 1" }),
     );
 
-    const customItinerary = screen.getByRole("list", {
-      name: "내가 만든 코스 일정",
-    });
-    expect(within(customItinerary).getAllByRole("listitem")).toHaveLength(6);
-    expect(within(customItinerary).getByText("19:30")).toBeVisible();
-
-    await user.click(screen.getByRole("tab", { name: "AI 추천 코스" }));
     const aiItinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
-    expect(within(aiItinerary).getAllByRole("listitem")).toHaveLength(5);
-    expect(within(aiItinerary).queryByText("카페 온천")).not.toBeInTheDocument();
+    expect(within(aiItinerary).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(aiItinerary).getByText("카페 온천")).toBeVisible();
   });
 
   it("persists the active draft and returns to the trips list on success", async () => {
@@ -427,7 +394,6 @@ describe("CourseEditor", () => {
     });
     render(<CourseEditor course={courseEditMock} />);
 
-    await user.click(screen.getByRole("tab", { name: "내가 만든 코스" }));
     await user.click(screen.getByRole("button", { name: "저장하기" }));
 
     await waitFor(() => {

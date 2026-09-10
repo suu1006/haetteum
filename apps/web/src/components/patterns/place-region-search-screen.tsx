@@ -172,7 +172,7 @@ function PlaceRegionSearchScreen({
                     place={place}
                     selected={selectedIds.has(place.id)}
                     unavailable={unavailableIds.has(place.id)}
-                    eager={index === 0}
+                    eager={index < 4}
                     onSelectedChange={(selected) =>
                       onSelectedChange(place.id, selected)
                     }

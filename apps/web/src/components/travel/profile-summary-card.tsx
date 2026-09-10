@@ -17,7 +17,8 @@ function ProfileSummaryCard({ profile }: ProfileSummaryCardProps) {
         alt={profile.image.alt}
         width={144}
         height={144}
-        priority
+        loading="eager"
+        fetchPriority="high"
         sizes="72px"
         className="size-18 rounded-full object-cover max-[359px]:size-15"
       />

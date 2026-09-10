@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    // 72px 프로필·80px 장소 썸네일의 2x 화면에서 256px까지 커지지 않도록 한다.
+    imageSizes: [32, 48, 64, 96, 128, 160, 192, 256, 384],
     // 로컬 개발용 후기 사진 업로드(localhost:4000)를 위해 사설 IP 최적화 허용
     dangerouslyAllowLocalIP: true,
     remotePatterns: [

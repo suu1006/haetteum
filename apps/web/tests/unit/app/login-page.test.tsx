@@ -5,16 +5,30 @@ const mocks = vi.hoisted(() => ({
   back: vi.fn(),
   headers: vi.fn(),
   replace: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ back: mocks.back, replace: mocks.replace }),
+  useRouter: () => ({
+    back: mocks.back,
+    replace: mocks.replace,
+    push: mocks.push,
+  }),
 }));
 
 import LoginPage from "@/app/login/page";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
 
 const previousApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+async function renderPage(
+  searchParams: Parameters<typeof LoginPage>[0]["searchParams"],
+) {
+  return render(
+    <AuthStoreProvider>{await LoginPage({ searchParams })}</AuthStoreProvider>,
+  );
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,44 +46,35 @@ afterAll(() => {
 
 describe("login page", () => {
   it("builds the Kakao start URL from an approved internal return path", async () => {
-    render(
-      await LoginPage({
-        searchParams: Promise.resolve({ returnTo: "/reviews?source=kakao" }),
-      }),
-    );
+    await renderPage(Promise.resolve({ returnTo: "/reviews?source=kakao" }));
 
     expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: "여행 기록을 이어서 관리해보세요",
-      }),
+      screen.getByRole("heading", { level: 1, name: "로그인" }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "카카오로 계속하기" })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: "카카오로 로그인하기" }),
+    ).toHaveAttribute(
       "href",
       "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2Freviews%3Fsource%3Dkakao",
     );
   });
 
   it("falls back to public home for an unsafe return path", async () => {
-    render(
-      await LoginPage({
-        searchParams: Promise.resolve({ returnTo: "https://evil.example" }),
-      }),
-    );
+    await renderPage(Promise.resolve({ returnTo: "https://evil.example" }));
 
-    expect(screen.getByRole("link", { name: "카카오로 계속하기" })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: "카카오로 로그인하기" }),
+    ).toHaveAttribute(
       "href",
       "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2F",
     );
   });
 
   it("shows only approved provider errors and keeps the same safe retry URL", async () => {
-    render(
-      await LoginPage({
-        searchParams: Promise.resolve({
-          error: "provider_unavailable",
-          returnTo: "/mypage",
-        }),
+    await renderPage(
+      Promise.resolve({
+        error: "provider_unavailable",
+        returnTo: "/mypage",
       }),
     );
 
@@ -90,11 +95,7 @@ describe("login page", () => {
         Referer: "https://haetteum.test/reviews?tab=written",
       }),
     );
-    render(
-      await LoginPage({
-        searchParams: Promise.resolve({ returnTo: "/reviews" }),
-      }),
-    );
+    await renderPage(Promise.resolve({ returnTo: "/reviews" }));
 
     fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
 
@@ -110,10 +111,8 @@ describe("login page", () => {
         Referer: "https://external.example/private?secret=value",
       }),
     );
-    const { container } = render(
-      await LoginPage({
-        searchParams: Promise.resolve({ returnTo: "/mypage" }),
-      }),
+    const { container } = await renderPage(
+      Promise.resolve({ returnTo: "/mypage" }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));

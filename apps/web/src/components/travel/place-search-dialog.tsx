@@ -37,13 +37,15 @@ function PlaceSearchDialog({
     ? places.filter((place) => !excludedPlaceIds.has(place.id))
     : places;
 
-  useEffect(() => {
-    if (!open) return;
-    searchRequestIdRef.current += 1;
-    setQuery("");
-    setPlaces([]);
-    setSearchState("idle");
-  }, [open]);
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      searchRequestIdRef.current += 1;
+      setQuery("");
+      setPlaces([]);
+      setSearchState("idle");
+    }
+    onOpenChange(nextOpen);
+  }
 
   useEffect(() => {
     if (!open || query.trim() === "") return;
@@ -69,7 +71,7 @@ function PlaceSearchDialog({
   }, [open, query, region]);
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-[2px] transition-opacity duration-180 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Viewport className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto sm:items-center sm:p-4">

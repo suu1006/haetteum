@@ -49,7 +49,7 @@ describe("ThemeCourseExplorer", () => {
     await user.click(
       screen.getByRole("combobox", { name: "추천 코스 정렬" }),
     );
-    await user.click(screen.getByRole("option", { name: "평점순" }));
+    await user.click(await screen.findByRole("option", { name: "평점순" }));
 
     const courseList = screen.getByRole("list", {
       name: "테마별 추천 여행 코스",

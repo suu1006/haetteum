@@ -20,7 +20,7 @@ import type {
 
 export type { MyWrittenReviewsLoadState } from "@/features/profile/my-reviews-model";
 
-const fallbackImage = "/images/explore/categories/popular-attraction.png";
+import { resolveOfficialImageSource } from "@/lib/official-image";
 const reviewMutationErrorMessage =
   "후기를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
 
@@ -175,7 +175,7 @@ export function mapReviewItem(item: ReviewItem): MyReviewItem {
     likeCount: 0,
     commentCount: 0,
     image: {
-      src: item.primaryImageUrl ?? fallbackImage,
+      src: resolveOfficialImageSource(item.primaryImageUrl),
       alt: `${item.placeTitle} 대표 이미지`,
     },
   };

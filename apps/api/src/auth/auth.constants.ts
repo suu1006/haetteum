@@ -1,3 +1,11 @@
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1_000;
 export const KAKAO_AUTH_FETCH = Symbol("KAKAO_AUTH_FETCH");
 export const OAUTH_STATE_CLOCK = Symbol("OAUTH_STATE_CLOCK");
+
+export const EMAIL_SIGNUP_CODE_TTL_MS = 3 * 60 * 1_000;
+export const EMAIL_SIGNUP_RESEND_COOLDOWN_MS = 30 * 1_000;
+export const EMAIL_SIGNUP_MAX_CODE_ATTEMPTS = 5;
+export const EMAIL_SIGNUP_CLOCK = Symbol("EMAIL_SIGNUP_CLOCK");
+export const EMAIL_SIGNUP_CODE_GENERATOR = Symbol(
+  "EMAIL_SIGNUP_CODE_GENERATOR",
+);

@@ -2,6 +2,7 @@
   color-scheme: light;
 
   --purple-50: oklch(0.9707 0.0164 301.22);
+  --purple-200: oklch(0.855 0.08 289.26);
   --purple-600: oklch(0.5249 0.2351 289.26);
   --purple-700: oklch(0.4625 0.2141 289.12);
 
@@ -23,12 +24,12 @@
   --theme-activity: var(--purple-600);
   --theme-family: oklch(0.663 0.17 19.72);
 
-  --rank-gold: #d18b00;
-  --rank-silver: #7a8797;
-  --rank-bronze: #a84b16;
-  --rank-gold-foreground: var(--neutral-950);
-  --rank-silver-foreground: var(--neutral-950);
-  --rank-bronze-foreground: var(--neutral-0);
+  --rank-gold: var(--purple-200);
+  --rank-silver: var(--purple-200);
+  --rank-bronze: var(--purple-200);
+  --rank-gold-foreground: var(--purple-700);
+  --rank-silver-foreground: var(--purple-700);
+  --rank-bronze-foreground: var(--purple-700);
 
   --welcome-ranking: oklch(0.756 0.148 296.14);
   --welcome-course: oklch(0.775 0.142 151.32);

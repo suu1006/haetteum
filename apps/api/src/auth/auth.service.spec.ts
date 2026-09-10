@@ -3,6 +3,7 @@ import { jest } from "@jest/globals";
 import type { PrismaService } from "../prisma/prisma.service.js";
 import type { KakaoAuthClient } from "./kakao-auth.client.js";
 import { AuthService } from "./auth.service.js";
+import type { PasswordHasher } from "./password-hasher.service.js";
 import type { SessionService } from "./session.service.js";
 
 const now = new Date("2026-08-26T12:00:00.000Z");
@@ -35,6 +36,9 @@ function createService(options?: {
   upsertError?: Error;
   sessionError?: Error;
   persistedUser?: ReturnType<typeof userRow>;
+  findUniqueUser?: ReturnType<typeof userRow> | null;
+  verifyPassword?: boolean;
+  updateUser?: ReturnType<typeof userRow>;
 }) {
   const exchangeCode = options?.exchangeError
     ? jest.fn().mockRejectedValue(options.exchangeError)
@@ -51,16 +55,32 @@ function createService(options?: {
         sessionToken: "A".repeat(43),
         expiresAt,
       });
+  const findUnique = jest
+    .fn()
+    .mockResolvedValue(
+      options?.findUniqueUser === undefined ? null : options.findUniqueUser,
+    );
+  const update = jest.fn().mockResolvedValue(options?.updateUser ?? userRow());
+  const verify = jest.fn().mockResolvedValue(options?.verifyPassword ?? true);
+
   const kakao = { exchangeCode, getUser } as unknown as KakaoAuthClient;
-  const prisma = { user: { upsert } } as unknown as PrismaService;
+  const prisma = {
+    user: { upsert, findUnique, update },
+  } as unknown as PrismaService;
   const sessions = { create } as unknown as SessionService;
+  const passwords = { verify } as unknown as PasswordHasher;
 
   return {
-    service: new AuthService(prisma, kakao, sessions, () => now.getTime()),
+    service: new AuthService(prisma, kakao, sessions, passwords, () =>
+      now.getTime(),
+    ),
     exchangeCode,
     getUser,
     upsert,
     create,
+    findUnique,
+    update,
+    verify,
   };
 }
 
@@ -173,6 +193,75 @@ describe("AuthService", () => {
     await failure.catch((error: unknown) => {
       expect(String(error)).not.toContain("raw-secret");
       expect(Object.keys(error as object)).not.toContain("sessionToken");
+    });
+  });
+
+  describe("completeEmailLogin", () => {
+    const emailUser = userRow({
+      provider: "EMAIL",
+      providerUserId: "traveler@haetteum.kr",
+      email: "traveler@haetteum.kr",
+      passwordHash: "$2b$12$stored-hash",
+      displayName: "traveler",
+    });
+
+    it("logs in with a matching email and password, refreshing lastLoginAt", async () => {
+      const { service, findUnique, update, verify, create } = createService({
+        findUniqueUser: emailUser,
+      });
+
+      const result = await service.completeEmailLogin(
+        "traveler@haetteum.kr",
+        "correct-password",
+      );
+
+      expect(findUnique).toHaveBeenCalledWith({
+        where: { email: "traveler@haetteum.kr" },
+      });
+      expect(verify).toHaveBeenCalledWith(
+        "correct-password",
+        "$2b$12$stored-hash",
+      );
+      expect(update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { lastLoginAt: now },
+      });
+      expect(create).toHaveBeenCalledWith(userId);
+      expect(result.user).toEqual({
+        id: userId,
+        displayName: "traveler",
+        profileImageUrl: identity.profileImageUrl,
+      });
+    });
+
+    it("rejects when no user exists for the email", async () => {
+      const { service } = createService({ findUniqueUser: null });
+
+      await expect(
+        service.completeEmailLogin("nobody@haetteum.kr", "any-password"),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+
+    it("rejects a kakao-only account that has no password set", async () => {
+      const { service } = createService({
+        findUniqueUser: userRow({ email: null, passwordHash: null }),
+      });
+
+      await expect(
+        service.completeEmailLogin("traveler@haetteum.kr", "any-password"),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+
+    it("rejects a wrong password without touching the session", async () => {
+      const { service, create } = createService({
+        findUniqueUser: emailUser,
+        verifyPassword: false,
+      });
+
+      await expect(
+        service.completeEmailLogin("traveler@haetteum.kr", "wrong-password"),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(create).not.toHaveBeenCalled();
     });
   });
 });

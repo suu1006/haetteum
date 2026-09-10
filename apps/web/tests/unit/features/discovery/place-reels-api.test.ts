@@ -51,7 +51,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("loadPopularReels", () => {
-  it("requests the aggregate feed for the audience without caching", async () => {
+  it("requests the aggregate feed for the audience with a 30-second revalidation window", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValue(jsonResponse(popularResponse));
@@ -60,7 +60,7 @@ describe("loadPopularReels", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=30s&region=all&limit=12",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(result).toEqual({ status: "ready", data: popularResponse });
   });
@@ -74,7 +74,7 @@ describe("loadPopularReels", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=all&region=jeju&limit=12",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
   });
 
@@ -89,7 +89,7 @@ describe("loadPopularReels", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=30s&region=all&limit=12&cursor=12",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(result).toEqual({ status: "ready", data: nextPage });
   });

@@ -38,6 +38,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       canGoBack={hasSameOriginReferrer(requestHeaders)}
       errorMessage={loginErrorMessage(error)}
       loginHref={kakaoLoginHref(returnTo)}
+      returnTo={returnTo}
     />
   );
 }

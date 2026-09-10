@@ -68,7 +68,9 @@ function PopularReelFeed({ audience, region, initialPage }: PopularReelFeedProps
   // itself be created exactly once yet still react correctly to fetch state
   // that changes after mount.
   const maybeFetchNextPageRef = useRef(maybeFetchNextPage);
-  maybeFetchNextPageRef.current = maybeFetchNextPage;
+  useEffect(() => {
+    maybeFetchNextPageRef.current = maybeFetchNextPage;
+  }, [maybeFetchNextPage]);
 
   // The observer itself is created once and only reacts to real intersection
   // changes.

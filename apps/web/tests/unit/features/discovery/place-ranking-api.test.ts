@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 describe("loadPlaceRankings", () => {
-  it("fetches the requested audience ranking without caching and validates the contract", async () => {
+  it("fetches the requested audience ranking with a 30-second revalidation window and validates the contract", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify(response), {
@@ -51,7 +51,7 @@ describe("loadPlaceRankings", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=20s&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(result).toEqual({ status: "ready", data: response });
   });

@@ -209,8 +209,8 @@ describe("tourism Prisma generated TypeScript contract", () => {
 
   it("stores Kakao profile fields and revocable sessions", () => {
     expect(approvedDelegateKeys).toContain("session");
-    expect(prismaSchema).toContain("profileImageUrl String?");
-    expect(prismaSchema).toContain("lastLoginAt     DateTime?");
+    expect(prismaSchema).toContain("profileImageUrl   String?");
+    expect(prismaSchema).toContain("lastLoginAt       DateTime?");
     expect(prismaSchema).toContain("sessions     Session[]");
     expect(prismaSchema).toContain("model Session {");
     expect(prismaSchema).toContain("tokenHash  String   @unique");
