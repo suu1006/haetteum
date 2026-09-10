@@ -118,7 +118,7 @@ describe("EmailSignupScreen", () => {
     renderScreen();
 
     expect(screen.queryByText("8자 이상, 영문, 숫자, 특수문자를 포함해주세요.")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "회원가입", exact: true })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "회원가입" })).toBeVisible();
 
     fillCredentials("traveler@haetteum.kr", "short", "short");
     expect(screen.queryByText("8자 이상, 영문, 숫자, 특수문자를 포함해주세요.")).not.toBeInTheDocument();

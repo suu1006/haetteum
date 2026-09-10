@@ -170,7 +170,7 @@ describe("LoginScreen", () => {
     expect(homeLink).toHaveAttribute("href", "/");
     expect(screen.getByRole("img", { name: "해뜸" })).toHaveAttribute("src", "/images/login_logo.svg");
     expect(screen.queryByRole("button", { name: "뒤로가기" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "회원가입", exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "회원가입" })).not.toBeInTheDocument();
   });
 
   it("renders the approved error and retry action only when an error exists", () => {
