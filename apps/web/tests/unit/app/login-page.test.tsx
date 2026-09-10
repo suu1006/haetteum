@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -87,39 +87,8 @@ describe("login page", () => {
     );
   });
 
-  it("allows browser back only for a same-host server Referer", async () => {
-    vi.spyOn(window.history, "length", "get").mockReturnValue(1);
-    mocks.headers.mockResolvedValue(
-      new Headers({
-        Host: "haetteum.test",
-        Referer: "https://haetteum.test/reviews?tab=written",
-      }),
-    );
+  it("links the logo directly to home regardless of the login return path", async () => {
     await renderPage(Promise.resolve({ returnTo: "/reviews" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
-
-    expect(mocks.back).toHaveBeenCalledOnce();
-    expect(mocks.replace).not.toHaveBeenCalled();
-  });
-
-  it("does not trust or expose an external Referer even with preexisting history", async () => {
-    vi.spyOn(window.history, "length", "get").mockReturnValue(7);
-    mocks.headers.mockResolvedValue(
-      new Headers({
-        Host: "haetteum.test",
-        Referer: "https://external.example/private?secret=value",
-      }),
-    );
-    const { container } = await renderPage(
-      Promise.resolve({ returnTo: "/mypage" }),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
-
-    expect(mocks.replace).toHaveBeenCalledWith("/");
-    expect(mocks.back).not.toHaveBeenCalled();
-    expect(container.innerHTML).not.toContain("external.example");
-    expect(container.innerHTML).not.toContain("secret=value");
+    expect(screen.getByRole("link", { name: "해뜸 메인페이지로 이동" })).toHaveAttribute("href", "/");
   });
 });

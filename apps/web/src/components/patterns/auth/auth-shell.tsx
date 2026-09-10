@@ -7,6 +7,7 @@ type AuthShellProps = {
   cardTestId: string;
   ariaLabelledBy: string;
   className?: string;
+  surfaceClassName?: string;
   children: ReactNode;
 };
 
@@ -15,12 +16,16 @@ function AuthShell({
   cardTestId,
   ariaLabelledBy,
   className,
+  surfaceClassName,
   children,
 }: AuthShellProps) {
   return (
     <main
       data-testid={surfaceTestId}
-      className="min-h-svh bg-background md:grid md:place-items-center md:bg-muted/50 md:p-8"
+      className={cn(
+        "min-h-svh bg-background md:grid md:place-items-center md:bg-muted/50 md:p-8",
+        surfaceClassName,
+      )}
     >
       <section
         data-testid={cardTestId}

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 
 import { LoginScreen } from "@/components/patterns/login-screen";
 import {
@@ -29,13 +28,11 @@ function kakaoLoginHref(returnTo: string): string {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const query = await searchParams;
-  const requestHeaders = await headers();
   const returnTo = safeReturnTo(query.returnTo);
   const error = typeof query.error === "string" ? query.error : undefined;
 
   return (
     <LoginScreen
-      canGoBack={hasSameOriginReferrer(requestHeaders)}
       errorMessage={loginErrorMessage(error)}
       loginHref={kakaoLoginHref(returnTo)}
       returnTo={returnTo}

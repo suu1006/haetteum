@@ -245,6 +245,8 @@ function EmailSignupScreen({
       surfaceTestId="email-signup-surface"
       cardTestId="email-signup-card"
       ariaLabelledBy={EMAIL_SIGNUP_TITLE_ID}
+      surfaceClassName={step === "credentials" ? "grid place-items-center bg-muted/50 p-4 sm:p-8" : undefined}
+      className={step === "credentials" ? "min-h-0 max-w-[26.875rem] rounded-[1.75rem] border border-border/80 px-5 pt-4! pb-6! shadow-overlay min-[480px]:px-8 md:min-h-0" : undefined}
     >
       {step !== "complete" ? (
         <AuthHeader
@@ -259,17 +261,19 @@ function EmailSignupScreen({
             }
             goBack();
           }}
-          end={
+          title={step === "credentials" ? (
+            <h1 id={EMAIL_SIGNUP_TITLE_ID} className="text-2xl font-bold tracking-[-0.04em] text-foreground">회원가입</h1>
+          ) : undefined}
+          end={step !== "credentials" ? (
             <span className="type-caption font-semibold text-muted-foreground">
               회원가입
             </span>
-          }
+          ) : undefined}
         />
       ) : null}
 
       {step === "credentials" ? (
         <EmailCredentialsStep
-          headingId={EMAIL_SIGNUP_TITLE_ID}
           emailId={emailId}
           passwordId={passwordId}
           passwordConfirmId={passwordConfirmId}
@@ -280,7 +284,6 @@ function EmailSignupScreen({
           showPasswordConfirm={showPasswordConfirm}
           error={credentialsError}
           submitting={submittingCredentials}
-          passwordHint={PASSWORD_HINT}
           kakaoSignupHref={kakaoSignupHref}
           onEmailChange={(event) => setEmail(event.target.value)}
           onPasswordChange={(event) => setPassword(event.target.value)}

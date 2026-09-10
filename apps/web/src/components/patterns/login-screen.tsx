@@ -1,11 +1,12 @@
 "use client";
 
 import { MailIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AuthDivider } from "@/components/patterns/auth/auth-divider";
-import { AuthHeader } from "@/components/patterns/auth/auth-header";
 import { AuthPasswordField } from "@/components/patterns/auth/auth-password-field";
 import { AuthPrimaryButton } from "@/components/patterns/auth/auth-primary-button";
 import { AuthShell } from "@/components/patterns/auth/auth-shell";
@@ -19,7 +20,6 @@ import { loginWithEmail } from "@/features/auth/auth-client";
 import { useAuthStore } from "@/features/auth/auth-store";
 
 type LoginScreenProps = {
-  canGoBack: boolean;
   loginHref: string;
   errorMessage?: string | null;
   returnTo?: string;
@@ -49,7 +49,6 @@ function GoogleIcon() {
 }
 
 function LoginScreen({
-  canGoBack,
   loginHref,
   errorMessage = null,
   returnTo = "/",
@@ -65,15 +64,6 @@ function LoginScreen({
   const [rememberMe, setRememberMe] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
-
-  function goBack() {
-    if (canGoBack) {
-      router.back();
-      return;
-    }
-
-    router.replace("/");
-  }
 
   function announceComingSoon(message: string) {
     setNotice(`${message} 아직 준비 중이에요. 카카오로 로그인해 주세요.`);
@@ -102,38 +92,24 @@ function LoginScreen({
       surfaceTestId="login-surface"
       cardTestId="login-card"
       ariaLabelledBy="login-title"
-      className="relative overflow-hidden"
+      surfaceClassName="grid place-items-center bg-muted/50 p-4 sm:p-8"
+      className="relative min-h-0 max-w-[26.875rem] overflow-hidden rounded-[1.75rem] border border-border/80 px-5 pt-8! pb-0! shadow-overlay sm:px-8 md:min-h-0 md:pb-0"
     >
-      <AuthHeader
-        onBack={goBack}
-        end={
-          <button
-            type="button"
-            onClick={() => router.push("/signup")}
-            className="type-caption font-semibold text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
-          >
-            회원가입
-          </button>
-        }
-      />
-
-      <div className="flex items-center gap-3 pt-2 text-primary">
-        <span
-          data-testid="brand-toggle-mark"
-          aria-hidden="true"
-          className="relative h-7 w-12 shrink-0 rounded-full bg-primary shadow-card ring-4 ring-primary-subtle"
-        >
-          <span className="absolute top-1 right-1 size-5 rounded-full bg-white shadow-card" />
-        </span>
-        <span className="type-title-md font-bold tracking-[-0.04em]">해뜸</span>
-      </div>
-
-      <h1
-        id="login-title"
-        className="mt-8 text-[1.75rem] font-bold tracking-[-0.04em] text-foreground"
+      <Link
+        href="/"
+        aria-label="해뜸 메인페이지로 이동"
+        className="mx-auto inline-flex shrink-0 items-center justify-center rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/25"
       >
-        로그인
-      </h1>
+        <Image
+          src="/images/login_logo.svg"
+          alt="해뜸"
+          width={1672}
+          height={941}
+          unoptimized
+          className="h-auto w-[6.5rem]"
+        />
+      </Link>
+      <h1 id="login-title" className="sr-only">로그인</h1>
 
       <div aria-live="polite" className="empty:hidden">
         {errorMessage ? (
@@ -160,7 +136,7 @@ function LoginScreen({
         ) : null}
       </div>
 
-      <form onSubmit={handleEmailLoginSubmit} className="mt-6 space-y-3">
+      <form onSubmit={handleEmailLoginSubmit} className="mt-4 space-y-3">
         <AuthTextField
           id={emailId}
           label="이메일 주소 또는 아이디"
@@ -235,7 +211,7 @@ function LoginScreen({
 
       <div
         aria-hidden="true"
-        className="pointer-events-none relative mt-auto -mx-5 h-16 md:-mx-8"
+        className="pointer-events-none relative -mx-5 h-16 shrink-0 sm:-mx-8"
       >
         <svg
           viewBox="0 0 400 80"

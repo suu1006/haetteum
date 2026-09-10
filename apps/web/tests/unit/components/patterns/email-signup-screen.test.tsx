@@ -117,7 +117,11 @@ describe("EmailSignupScreen", () => {
   it("shows an inline error and does not call the API for a weak or mismatched password", () => {
     renderScreen();
 
+    expect(screen.queryByText("8자 이상, 영문, 숫자, 특수문자를 포함해주세요.")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "회원가입", exact: true })).toBeVisible();
+
     fillCredentials("traveler@haetteum.kr", "short", "short");
+    expect(screen.queryByText("8자 이상, 영문, 숫자, 특수문자를 포함해주세요.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
     expect(screen.getByRole("alert")).toHaveTextContent("8자 이상");
     expect(signupMocks.startEmailSignup).not.toHaveBeenCalled();

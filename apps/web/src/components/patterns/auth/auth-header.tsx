@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 type AuthHeaderProps = {
   onBack: () => void;
   end?: ReactNode;
+  title?: ReactNode;
 };
 
-function AuthHeader({ onBack, end }: AuthHeaderProps) {
+function AuthHeader({ onBack, end, title }: AuthHeaderProps) {
   return (
-    <header className="flex h-14 items-center justify-between">
+    <header className="relative flex h-14 shrink-0 items-center justify-between">
       <button
         type="button"
         aria-label="뒤로가기"
@@ -17,6 +18,7 @@ function AuthHeader({ onBack, end }: AuthHeaderProps) {
       >
         <ChevronLeftIcon aria-hidden="true" className="size-6" />
       </button>
+      {title ? <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-12">{title}</div> : null}
       {end}
     </header>
   );

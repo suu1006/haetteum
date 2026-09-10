@@ -11,7 +11,6 @@ import {
 import { AuthTextField } from "@/components/patterns/auth/auth-text-field";
 
 type EmailCredentialsStepProps = {
-  headingId: string;
   emailId: string;
   passwordId: string;
   passwordConfirmId: string;
@@ -22,7 +21,6 @@ type EmailCredentialsStepProps = {
   showPasswordConfirm: boolean;
   error: string | null;
   submitting: boolean;
-  passwordHint: string;
   kakaoSignupHref: string;
   onEmailChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onPasswordChange: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -33,7 +31,6 @@ type EmailCredentialsStepProps = {
 };
 
 function EmailCredentialsStep({
-  headingId,
   emailId,
   passwordId,
   passwordConfirmId,
@@ -44,7 +41,6 @@ function EmailCredentialsStep({
   showPasswordConfirm,
   error,
   submitting,
-  passwordHint,
   kakaoSignupHref,
   onEmailChange,
   onPasswordChange,
@@ -54,25 +50,7 @@ function EmailCredentialsStep({
   onSubmit,
 }: EmailCredentialsStepProps) {
   return (
-    <div className="pt-2">
-      <h1
-        id={headingId}
-        className="max-w-[19rem] break-keep text-[1.5rem] leading-[1.35] font-bold tracking-[-0.04em] text-foreground"
-      >
-        회원가입을 위해
-        <br />
-        정보를 입력해주세요.
-      </h1>
-      <p className="mt-3 max-w-sm break-keep type-body-md leading-6 text-muted-foreground">
-        간단한 정보만으로 해뜸의 모든 서비스를 이용할 수 있어요.
-      </p>
-
-      {error ? (
-        <p role="alert" className="mt-4 type-caption text-destructive">
-          {error}
-        </p>
-      ) : null}
-
+    <div>
       <form onSubmit={onSubmit} className="mt-5 space-y-3">
         <AuthTextField
           id={emailId}
@@ -91,7 +69,6 @@ function EmailCredentialsStep({
           label="비밀번호"
           show={showPassword}
           onToggleShow={onToggleShowPassword}
-          required
           autoComplete="new-password"
           placeholder="비밀번호"
           value={password}
@@ -103,14 +80,17 @@ function EmailCredentialsStep({
           label="비밀번호 확인"
           show={showPasswordConfirm}
           onToggleShow={onToggleShowPasswordConfirm}
-          required
           autoComplete="new-password"
           placeholder="비밀번호 확인"
           value={passwordConfirm}
           onChange={onPasswordConfirmChange}
         />
 
-        <p className="type-caption text-muted-foreground">{passwordHint}</p>
+        {error ? (
+          <p role="alert" className="type-caption text-destructive">
+            {error}
+          </p>
+        ) : null}
 
         <AuthPrimaryButton type="submit" loading={submitting} loadingLabel="확인 중...">
           다음

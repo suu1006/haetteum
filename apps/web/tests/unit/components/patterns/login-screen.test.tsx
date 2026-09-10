@@ -38,7 +38,7 @@ function AuthStateProbe() {
 function renderScreen(props: Partial<ComponentProps<typeof LoginScreen>> = {}) {
   return render(
     <AuthStoreProvider>
-      <LoginScreen canGoBack={false} loginHref={loginHref} {...props} />
+      <LoginScreen loginHref={loginHref} {...props} />
       <AuthStateProbe />
     </AuthStoreProvider>,
   );
@@ -62,7 +62,7 @@ describe("LoginScreen", () => {
   it("renders the email/password form alongside the kakao and google actions", () => {
     renderScreen();
 
-    expect(screen.getByText("해뜸")).toBeVisible();
+    expect(screen.getByRole("img", { name: "해뜸" })).toBeVisible();
     expect(
       screen.getByRole("heading", { level: 1, name: "로그인" }),
     ).toBeVisible();
@@ -157,65 +157,26 @@ describe("LoginScreen", () => {
     );
   });
 
-  it("navigates to the signup flow from both entry points", () => {
+  it("navigates to the signup flow from the footer", () => {
     renderScreen();
-
-    fireEvent.click(screen.getByRole("button", { name: "회원가입" }));
-    expect(routerMocks.push).toHaveBeenCalledWith("/signup");
 
     fireEvent.click(screen.getByRole("button", { name: "회원가입하기" }));
     expect(routerMocks.push).toHaveBeenCalledWith("/signup");
   });
 
-  it("marks the ON-toggle brand track as decorative while keeping visible brand text", () => {
-    const { container } = renderScreen();
-
-    const mark = container.querySelector('[data-testid="brand-toggle-mark"]');
-    expect(mark).toHaveAttribute("aria-hidden", "true");
-    expect(mark).toHaveClass("rounded-full", "bg-primary");
-    expect(mark?.firstElementChild).toHaveClass("right-1", "rounded-full", "bg-white");
-    expect(screen.getByText("해뜸")).toBeVisible();
-  });
-
-  it("uses a full mobile surface and a centered desktop card", () => {
+  it("links the supplied brand logo to home without the old header actions", () => {
     renderScreen();
-
-    expect(screen.getByTestId("login-surface")).toHaveClass(
-      "min-h-svh",
-      "md:grid",
-      "md:place-items-center",
-    );
-    expect(screen.getByTestId("login-card")).toHaveClass(
-      "min-h-svh",
-      "md:min-h-[33.125rem]",
-      "md:max-w-[26.875rem]",
-    );
-  });
-
-  it("uses router history only when the server verified an internal predecessor", () => {
-    vi.spyOn(window.history, "length", "get").mockReturnValue(1);
-    renderScreen({ canGoBack: true });
-
-    fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
-
-    expect(routerMocks.back).toHaveBeenCalledOnce();
-    expect(routerMocks.replace).not.toHaveBeenCalled();
-  });
-
-  it("falls back to home for a direct load even when unrelated history exists", () => {
-    vi.spyOn(window.history, "length", "get").mockReturnValue(8);
-    renderScreen();
-
-    fireEvent.click(screen.getByRole("button", { name: "뒤로가기" }));
-
-    expect(routerMocks.replace).toHaveBeenCalledWith("/");
-    expect(routerMocks.back).not.toHaveBeenCalled();
+    const homeLink = screen.getByRole("link", { name: "해뜸 메인페이지로 이동" });
+    expect(homeLink).toHaveAttribute("href", "/");
+    expect(screen.getByRole("img", { name: "해뜸" })).toHaveAttribute("src", "/images/login_logo.svg");
+    expect(screen.queryByRole("button", { name: "뒤로가기" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "회원가입", exact: true })).not.toBeInTheDocument();
   });
 
   it("renders the approved error and retry action only when an error exists", () => {
     const { rerender } = render(
       <AuthStoreProvider>
-        <LoginScreen canGoBack={false} loginHref={loginHref} />
+        <LoginScreen loginHref={loginHref} />
       </AuthStoreProvider>,
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -223,7 +184,6 @@ describe("LoginScreen", () => {
     rerender(
       <AuthStoreProvider>
         <LoginScreen
-          canGoBack={false}
           errorMessage="카카오 로그인이 취소되었어요. 다시 시도해 주세요."
           loginHref={loginHref}
         />
