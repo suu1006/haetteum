@@ -45,8 +45,8 @@ afterAll(() => {
 });
 
 describe("login page", () => {
-  it("builds the Kakao start URL from an approved internal return path", async () => {
-    await renderPage(Promise.resolve({ returnTo: "/reviews?source=kakao" }));
+  it.each([undefined, "/mypage", "/reviews?source=kakao"])("lands on home after Kakao login regardless of returnTo (%s)", async (returnTo) => {
+    await renderPage(Promise.resolve({ returnTo }));
 
     expect(
       screen.getByRole("heading", { level: 1, name: "로그인" }),
@@ -55,7 +55,7 @@ describe("login page", () => {
       screen.getByRole("link", { name: "카카오로 로그인하기" }),
     ).toHaveAttribute(
       "href",
-      "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2Freviews%3Fsource%3Dkakao",
+      "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2F",
     );
   });
 
@@ -83,7 +83,7 @@ describe("login page", () => {
     );
     expect(screen.getByRole("link", { name: "다시 시도하기" })).toHaveAttribute(
       "href",
-      "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2Fmypage",
+      "http://localhost:4000/api/v1/auth/kakao/start?returnTo=%2F",
     );
   });
 

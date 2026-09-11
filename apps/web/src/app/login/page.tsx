@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 
 import { LoginScreen } from "@/components/patterns/login-screen";
-import {
-  loginErrorMessage,
-  safeReturnTo,
-} from "@/features/auth/auth-model";
+import { loginErrorMessage } from "@/features/auth/auth-model";
 
 export const metadata: Metadata = {
   title: "로그인 | 해뜸",
@@ -28,7 +25,7 @@ function kakaoLoginHref(returnTo: string): string {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const query = await searchParams;
-  const returnTo = safeReturnTo(query.returnTo);
+  const returnTo = "/";
   const error = typeof query.error === "string" ? query.error : undefined;
 
   return (
