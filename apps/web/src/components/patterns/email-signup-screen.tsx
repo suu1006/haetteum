@@ -240,13 +240,15 @@ function EmailSignupScreen({
     setStep("complete");
   }
 
+  const isEmailStep = step === "credentials" || step === "verify";
+
   return (
     <AuthShell
       surfaceTestId="email-signup-surface"
       cardTestId="email-signup-card"
       ariaLabelledBy={EMAIL_SIGNUP_TITLE_ID}
-      surfaceClassName={step === "credentials" ? "grid place-items-center bg-muted/50 p-4 sm:p-8" : undefined}
-      className={step === "credentials" ? "min-h-0 max-w-[26.875rem] rounded-[1.75rem] border border-border/80 px-5 pt-4! pb-6! shadow-overlay min-[480px]:px-8 md:min-h-0" : undefined}
+      surfaceClassName={isEmailStep ? "grid place-items-center bg-muted/50 p-4 sm:p-8" : undefined}
+      className={isEmailStep ? "min-h-0 max-w-[26.875rem] rounded-[1.75rem] border border-border/80 px-5 pt-4! pb-6! shadow-overlay min-[480px]:px-8 md:min-h-0" : undefined}
     >
       {step !== "complete" ? (
         <AuthHeader
@@ -261,10 +263,10 @@ function EmailSignupScreen({
             }
             goBack();
           }}
-          title={step === "credentials" ? (
+          title={isEmailStep ? (
             <h1 id={EMAIL_SIGNUP_TITLE_ID} className="text-2xl font-bold tracking-[-0.04em] text-foreground">회원가입</h1>
           ) : undefined}
-          end={step !== "credentials" ? (
+          end={!isEmailStep ? (
             <span className="type-caption font-semibold text-muted-foreground">
               회원가입
             </span>
@@ -300,7 +302,7 @@ function EmailSignupScreen({
 
       {step === "verify" ? (
         <EmailVerifyStep
-          headingId={EMAIL_SIGNUP_TITLE_ID}
+          headingId="email-signup-verify-title"
           email={email}
           onEditEmail={() => setStep("credentials")}
           codeLength={CODE_LENGTH}

@@ -30,15 +30,13 @@ function EmailVerifyStep({
   onResend,
 }: EmailVerifyStepProps) {
   return (
-    <div className="pt-2">
-      <h1
+    <div className="pt-5">
+      <h2
         id={headingId}
-        className="max-w-[19rem] break-keep text-[1.5rem] leading-[1.35] font-bold tracking-[-0.04em] text-foreground"
+        className="break-keep text-xl leading-[1.35] font-bold tracking-[-0.04em] text-foreground"
       >
-        이메일 주소를
-        <br />
-        확인해주세요.
-      </h1>
+        이메일 주소를 확인해주세요.
+      </h2>
       <p className="mt-3 max-w-sm break-keep type-body-md leading-6 text-muted-foreground">
         입력하신 이메일로 인증번호가 전송되었습니다.
         <br />
