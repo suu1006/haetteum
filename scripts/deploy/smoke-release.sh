@@ -18,3 +18,6 @@ for ext in ('js', 'css'):
     print(assets[0])
 PY
 done
+
+# Cover authenticated dynamic routes that anonymous home-page smoke misses.
+bash "$(dirname "$0")/smoke-course-edit.sh" "$web"

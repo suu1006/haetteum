@@ -32,7 +32,6 @@ vi.mock("@/features/trips/my-saved-courses-api", () => ({
 import CourseEditNotFound from "@/app/courses/[courseId]/edit/not-found";
 import CourseEditPage, {
   generateMetadata,
-  generateStaticParams,
 } from "@/app/courses/[courseId]/edit/page";
 
 const user = {
@@ -80,13 +79,6 @@ beforeEach(() => {
 });
 
 describe("course edit page", () => {
-  it("prebuilds only the approved mock and blank courses", () => {
-    expect(generateStaticParams()).toEqual([
-      { courseId: "icheon-day-trip" },
-      { courseId: "new" },
-    ]);
-  });
-
   it("builds course-specific metadata", async () => {
     await expect(
       generateMetadata({

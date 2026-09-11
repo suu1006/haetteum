@@ -6,7 +6,6 @@ import { requireCurrentUser } from "@/features/auth/auth-server";
 import { CourseEditor } from "@/features/courses/course-editor";
 import {
   blankCourseMock,
-  courseEditMock,
   getEditableCourseById,
 } from "@/features/courses/course-edit.mock";
 import {
@@ -19,9 +18,8 @@ type CourseEditPageProps = {
   params: Promise<{ courseId: string }>;
 };
 
-export function generateStaticParams() {
-  return [{ courseId: courseEditMock.id }, { courseId: blankCourseMock.id }];
-}
+// Saved schedules require the current request's session, including metadata.
+export const dynamic = "force-dynamic";
 
 async function resolveCourse(
   courseId: string,

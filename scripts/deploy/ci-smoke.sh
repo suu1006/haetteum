@@ -28,3 +28,8 @@ for (const url of new Set(urls)) {
  if (!response.ok) throw new Error(`Missing asset ${url}: ${response.status}`);
 }
 NODE
+
+# Cover authenticated dynamic routes that anonymous home-page smoke misses.
+if [[ $SOURCE == current ]]; then
+  bash "$(dirname "$0")/smoke-course-edit.sh" http://127.0.0.1:3000
+fi
