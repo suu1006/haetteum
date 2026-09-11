@@ -8,13 +8,13 @@ import {
 import { loadHotPlaceRankings } from "@/features/discovery/hot-place-ranking-api";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 import { loadPlaceRankings } from "@/features/discovery/place-ranking-api";
-import { loadPopularReels } from "@/features/discovery/place-reels-api";
 import { searchPlaces } from "@/features/places/place-search-api";
 import {
   festivalBrowseRegion,
   loadFestivalDiscovery,
-  loadMonthlyFestivals,
 } from "@/features/festivals/festival-discovery-api";
+
+import { loadWeeklyPlaces } from "@/features/places/weekly-places";
 
 type DiscoveryContentProps = {
   searchParams: Promise<DiscoverySearchParams>;
@@ -23,7 +23,7 @@ type DiscoveryContentProps = {
 async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
   const query = parseDiscoveryQuery(await searchParams);
   const data =
-    query.tab === "festivals"
+    query.tab === "festivals" || (query.tab === "recommended" && !query.q.trim())
       ? {
           ...mainDiscoveryMock,
           festivalDiscovery: await loadFestivalDiscovery(
@@ -32,14 +32,13 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
         }
       : mainDiscoveryMock;
   const view = selectDiscoveryView(data, query);
-  const [ranking, hotRanking, monthlyFestivals, popularReels, searchResults] =
+  const [ranking, hotRanking, weeklyPlaces, searchResults] =
     await Promise.all([
-      view.showRankedPlaces ? loadPlaceRankings(query.audience) : null,
-      view.showRankedPlaces ? loadHotPlaceRankings(query.hotAudience) : null,
-      view.showRankedPlaces
-        ? loadMonthlyFestivals(festivalBrowseRegion(query.region))
+      view.showRankedPlaces || view.showAiCourse ? loadPlaceRankings(query.audience) : null,
+      view.showRankedPlaces || view.showAiCourse ? loadHotPlaceRankings(query.hotAudience) : null,
+      view.showFestivals
+        ? loadWeeklyPlaces(query.region)
         : null,
-      view.showPopularPlaces ? loadPopularReels("all", query.reelRegion) : null,
       view.showSearchResults && isPlaceSearchRegion(query.region)
         ? searchPlaces(query.region, query.q)
         : null,
@@ -52,8 +51,7 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
       view={view}
       ranking={ranking}
       hotRanking={hotRanking}
-      monthlyFestivals={monthlyFestivals}
-      popularReels={popularReels}
+      weeklyPlaces={weeklyPlaces}
       searchResults={searchResults}
     />
   );

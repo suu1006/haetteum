@@ -126,7 +126,7 @@ describe("MainDiscovery", () => {
         view={view}
         ranking={readyRanking}
         hotRanking={readyHotRanking}
-        monthlyFestivals={readyMonthlyFestivals}
+        weeklyPlaces={{ status: "ready", items: [{ id: "9f0c1e2a-1111-4aaa-8bbb-000000000001", title: "이천 도자기 마을", region: "gyeonggi", address: "경기 이천시", district: null, latitude: null, longitude: null, primaryImageUrl: null, imageCopyrightType: null }] }}
       />,
     );
 
@@ -139,11 +139,15 @@ describe("MainDiscovery", () => {
       "navigation",
     ]);
     expect(
-      screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
+      screen.getByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
     ).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "어디로 떠나볼까요?" }),
     ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "세대별 인기관광지 순위" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "세대별 핫플레이스" })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "지금 만날 수 있는 축제 순위" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "지역별 축제 둘러보기" })).not.toBeInTheDocument();
     expect(screen.getByText("여행자님, 반가워요")).toBeVisible();
     expect(screen.getByRole("button", { name: "알림" })).toBeVisible();
     const appHeader = screen
@@ -155,18 +159,18 @@ describe("MainDiscovery", () => {
       screen.queryByRole("img", { name: /풍경|해안|여행지/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "이번 달 인기 축제" }),
+      screen.getByRole("heading", { name: "이번 주 가볼만한 곳" }),
     ).toBeVisible();
     expect(
-      within(screen.getByRole("list", { name: "축제 일정" })).getAllByRole(
+      within(screen.getByRole("list", { name: "이번 주 추천 장소" })).getAllByRole(
         "listitem",
       ),
     ).toHaveLength(1);
     expect(
-      screen.getByRole("link", { name: "이천 도자기 축제" }),
+      screen.getByRole("link", { name: "이천 도자기 마을" }),
     ).toHaveAttribute(
       "href",
-      "/festivals/9f0c1e2a-1111-4aaa-8bbb-000000000001",
+      "/places/9f0c1e2a-1111-4aaa-8bbb-000000000001?tab=introduction",
     );
     expect(screen.getByRole("navigation", { name: "주요 메뉴" })).toBeVisible();
     expect(screen.getByRole("link", { name: "탐색" })).toHaveAttribute(
@@ -183,7 +187,7 @@ describe("MainDiscovery", () => {
     );
   });
 
-  it("places the AI banner between ranked places and festivals inside the list region", () => {
+  it("places the moved festival slider before the AI banner and monthly festivals", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
 
     renderWithQueryClient(
@@ -206,7 +210,7 @@ describe("MainDiscovery", () => {
         (node) =>
           node.getAttribute("data-section") ?? node.getAttribute("data-region"),
       ),
-    ).toEqual(["places", "hot-places", "banner", "festivals"]);
+    ).toEqual(["festival-ranking", "banner", "weekly-places"]);
   });
 
   it("falls back to recommendations when the disabled theme URL is requested", () => {
@@ -226,7 +230,7 @@ describe("MainDiscovery", () => {
       screen.queryByRole("heading", { name: "테마로 떠나는 여행" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "세대별 인기관광지 순위" }),
+      screen.getByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
     ).toBeVisible();
   });
 
@@ -258,8 +262,8 @@ describe("MainDiscovery", () => {
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
     expect(
-      screen.getByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
-    ).toBeVisible();
+      screen.queryByRole("heading", { name: "지금 만날 수 있는 축제 ✨" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "어디로 떠나볼까요?" }),
     ).toBeVisible();
@@ -275,20 +279,7 @@ describe("MainDiscovery", () => {
     expect(
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("list", { name: "지금 만날 수 있는 축제 순위" }),
-    ).toBeVisible();
-    expect(
-      within(
-        screen.getByRole("list", { name: "지금 만날 수 있는 축제 순위" }),
-      )
-        .getAllByRole("listitem")
-        .map((item) => item.textContent?.match(/[123]/)?.[0]),
-    ).toEqual([
-      "3",
-      "1",
-      "2",
-    ]);
+    expect(screen.queryByRole("list", { name: "지금 만날 수 있는 축제 순위" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "지역별 축제 둘러보기" }),
     ).toBeVisible();
@@ -342,13 +333,15 @@ describe("MainDiscovery", () => {
     ).toHaveClass("max-w-[30rem]");
   });
 
-  it("replaces the ranking feed only on the popular-place tab", () => {
+  it("shows both rankings without reels on the popular-place tab", () => {
     const query = parseDiscoveryQuery({ q: "", region: "jeju", tab: "places" });
     const view = selectDiscoveryView(mainDiscoveryMock, query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
-    expect(screen.getByRole("heading", { name: "릴스형 인기 관광지" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "릴스형 인기 관광지" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "세대별 인기관광지 순위" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "세대별 핫플레이스" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "지역별 인기 관광지 TOP 3" }),
     ).not.toBeInTheDocument();

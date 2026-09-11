@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import ExplorePage from "@/app/explore/page";
 import { DiscoveryContent } from "@/features/discovery/discovery-content";
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -105,13 +106,35 @@ afterEach(() => {
 });
 
 describe("DiscoveryContent", () => {
-  it("loads the default all-audience rankings for the recommended page", async () => {
+  it("replaces monthly festivals with weekly place cards on home", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/places")) {
+        return new Response(JSON.stringify({
+          items: [{ id: "84549352-0c20-4e11-af50-2d4f278f41ef", title: "성산일출봉", region: "jeju", address: "제주 서귀포시", district: null, latitude: null, longitude: null, primaryImageUrl: null, imageCopyrightType: null }],
+          page: 1, pageSize: 100, totalCount: 1,
+        }));
+      }
+      return new Response("", { status: 503 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithQueryClient(await DiscoveryContent({ searchParams: Promise.resolve({ region: "jeju" }) }));
+    expect(screen.getByRole("heading", { name: "이번 주 가볼만한 곳" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "이번 달 인기 축제" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "성산일출봉" })).toHaveAttribute("href", "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction");
+    expect(screen.getByText("제주 서귀포시")).toBeVisible();
+    expect(screen.getByText("이번 주 추천")).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("pageSize=40"))).toBe(false);
+  });
+
+  it("loads the default all-audience rankings for the popular-place tab", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const fetchMock = rankingFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     renderWithQueryClient(
-      await DiscoveryContent({ searchParams: Promise.resolve({}) }),
+      await DiscoveryContent({ searchParams: Promise.resolve({ tab: "places" }) }),
     );
 
     expect(
@@ -141,7 +164,7 @@ describe("DiscoveryContent", () => {
 
     renderWithQueryClient(
       await DiscoveryContent({
-        searchParams: Promise.resolve({ audience: "30s" }),
+        searchParams: Promise.resolve({ tab: "places", audience: "30s" }),
       }),
     );
 
@@ -168,7 +191,7 @@ describe("DiscoveryContent", () => {
 
     renderWithQueryClient(
       await DiscoveryContent({
-        searchParams: Promise.resolve({ hotAudience: "40s" }),
+        searchParams: Promise.resolve({ tab: "places", hotAudience: "40s" }),
       }),
     );
 
@@ -205,11 +228,27 @@ describe("DiscoveryContent", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("heading", { name: "릴스형 인기 관광지" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "세대별 인기관광지 순위" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "세대별 핫플레이스" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "릴스형 인기 관광지" })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("renders the live YouTube reel rail on the popular-place tab", async () => {
+  it("loads only both rankings for the home popular-place tab", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+    const fetchMock = rankingFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithQueryClient(await DiscoveryContent({ searchParams: Promise.resolve({ tab: "places" }) }));
+    expect(screen.getByRole("list", { name: "세대별 인기관광지 순위" })).toBeVisible();
+    expect(screen.getByRole("list", { name: "세대별 핫플레이스" })).toBeVisible();
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).sort()).toEqual([
+      "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
+      "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
+    ]);
+    expect(screen.getByRole("link", { name: "인기 관광지" })).toHaveAttribute("href", "/?region=jeju&tab=places");
+  });
+
+  it("renders the live YouTube reel rail on the explore tab", async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const reelsResponse = {
       source: "YOUTUBE",
@@ -241,11 +280,12 @@ describe("DiscoveryContent", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderWithQueryClient(
-      await DiscoveryContent({
-        searchParams: Promise.resolve({ tab: "places", region: "jeju" }),
+      await ExplorePage({
+        searchParams: Promise.resolve({}),
       }),
     );
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=all&region=all&limit=12",
       { next: { revalidate: 30 } },
@@ -276,11 +316,12 @@ describe("DiscoveryContent", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderWithQueryClient(
-      await DiscoveryContent({
+      await ExplorePage({
         searchParams: Promise.resolve({ tab: "places", reelRegion: "jeju" }),
       }),
     );
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-reels?audience=all&region=jeju&limit=12",
       { next: { revalidate: 30 } },
@@ -291,7 +332,7 @@ describe("DiscoveryContent", () => {
     ).toHaveAttribute("aria-current", "true");
   });
 
-  it("loads live festival discovery data only for the festival tab", async () => {
+  it.each(["recommended", "festivals"])("loads live festival discovery data for %s", async (tab) => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
@@ -312,7 +353,7 @@ describe("DiscoveryContent", () => {
               primaryImageUrl: null,
             },
           ],
-          items: [],
+          items: [{ id: "84549352-0c20-4e11-af50-2d4f278f41ef", externalId: "141268", title: "제주 DB 실데이터 축제", status: "ONGOING", eventStartDate: "2026-08-22", eventEndDate: "2026-09-06", address: "제주특별자치도 제주시", categoryLabel: "문화관광축제", primaryImageUrl: null }],
           page: 1,
           pageSize: 20,
           totalCount: 1,
@@ -322,9 +363,9 @@ describe("DiscoveryContent", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithQueryClient(
       await DiscoveryContent({
-        searchParams: Promise.resolve({ tab: "festivals", region: "jeju" }),
+        searchParams: Promise.resolve({ tab, region: "jeju" }),
       }),
     );
 

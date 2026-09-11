@@ -3,9 +3,9 @@ import type { CSSProperties } from "react";
 import { DiscoveryAppHeader } from "@/components/patterns/discovery-app-header";
 import { DiscoverySearchPanel } from "@/components/patterns/discovery-search-panel";
 import { FestivalDiscovery } from "@/components/patterns/festival-discovery";
-import { FestivalSection } from "@/components/patterns/festival-section";
+import { FestivalRankingSection } from "@/components/patterns/festival-ranking-section";
+import { WeeklyPlacesSection } from "@/components/patterns/weekly-places-section";
 import { HotPlaceSection } from "@/components/patterns/hot-place-section";
-import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { RankedPlaceSection } from "@/components/patterns/ranked-place-section";
 import { SearchResultsSection } from "@/components/patterns/search-results-section";
 import {
@@ -20,7 +20,7 @@ import type {
 } from "@/features/discovery/discovery-model";
 import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
-import type { MonthlyFestivalsLoadState } from "@/features/festivals/festival-discovery-api";
+import type { WeeklyPlacesLoadState } from "@/features/places/weekly-places";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
 import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
@@ -31,7 +31,7 @@ export type MainDiscoveryProps = {
   view: DiscoveryView;
   ranking?: PlaceRankingLoadState | null;
   hotRanking?: HotPlaceRankingLoadState | null;
-  monthlyFestivals?: MonthlyFestivalsLoadState | null;
+  weeklyPlaces?: WeeklyPlacesLoadState | null;
   popularReels?: PopularReelsLoadState | null;
   searchResults?: PlaceSearchLoadState | null;
 };
@@ -48,12 +48,9 @@ function MainDiscovery({
   view,
   ranking = { status: "error" },
   hotRanking = { status: "error" },
-  monthlyFestivals = { status: "error" },
-  popularReels = null,
+  weeklyPlaces = { status: "error" },
   searchResults = null,
 }: MainDiscoveryProps) {
-  const festivalItems =
-    monthlyFestivals?.status === "ready" ? monthlyFestivals.items : [];
   return (
     <div
       className={`mx-auto min-h-screen w-full max-w-[30rem] pb-[var(--main-navigation-reserve)] ${
@@ -64,12 +61,17 @@ function MainDiscovery({
       <div data-testid="main-region" data-region="hero">
         <DiscoveryAppHeader compact={view.showThemeTravel} />
       </div>
-      <div data-testid="main-region" data-region="tabs">
-        <DiscoverySearchPanel query={query} compact={view.showThemeTravel} />
-      </div>
+      {!view.showSearchResults ? (
+        <div data-testid="main-region" data-region="tabs">
+          <DiscoverySearchPanel query={query} compact={view.showThemeTravel} />
+        </div>
+      ) : null}
       <div data-testid="main-region" data-region="list">
         {view.showSearchResults ? (
           <SearchResultsSection results={searchResults} query={query} />
+        ) : null}
+        {view.showFestivals ? (
+          <FestivalRankingSection data={data.festivalDiscovery} />
         ) : null}
         {view.showRankedPlaces ? (
           <RankedPlaceSection
@@ -81,13 +83,6 @@ function MainDiscovery({
           <HotPlaceSection
             ranking={hotRanking}
             query={query}
-          />
-        ) : null}
-        {view.showPopularPlaces ? (
-          <PopularPlacesTab
-            videos={view.popularVideos}
-            query={query}
-            popularReels={popularReels}
           />
         ) : null}
         {view.showThemeTravel ? (
@@ -109,7 +104,7 @@ function MainDiscovery({
           </div>
         ) : null}
         {view.showFestivals ? (
-          <FestivalSection festivals={festivalItems} />
+          <WeeklyPlacesSection results={weeklyPlaces} />
         ) : null}
         {view.showFestivalDiscovery ? (
           <FestivalDiscovery

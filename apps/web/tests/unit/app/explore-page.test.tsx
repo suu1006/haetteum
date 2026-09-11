@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
 import type {
   PlaceRankingResponse,
   PopularReelsResponse,
@@ -93,20 +94,15 @@ describe("explore page", () => {
     vi.stubGlobal("fetch", explorePageFetchMock());
 
     render(
-      await ExplorePage({
+      <QueryClientProvider client={new QueryClient()}>{await ExplorePage({
         searchParams: Promise.resolve({ region: "jeju" }),
-      }),
+      })}</QueryClientProvider>,
     );
 
     expect(screen.getByRole("link", { name: "제주" })).toHaveAttribute(
       "aria-current",
-      "page",
+      "true",
     );
-    expect(
-      within(screen.getByRole("list", { name: "제주 추천 여행지" })).getByRole(
-        "article",
-        { name: "성산일출봉" },
-      ),
-    ).toBeVisible();
+    expect(screen.getByRole("list", { name: "릴스형 인기 관광지 목록" })).toBeVisible();
   });
 });

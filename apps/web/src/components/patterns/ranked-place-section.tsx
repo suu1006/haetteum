@@ -10,6 +10,7 @@ import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-a
 type RankedPlaceSectionProps = {
   ranking: PlaceRankingLoadState | null;
   query?: DiscoveryQuery;
+  explore?: boolean;
 };
 
 function formatPeriod(start: string, end: string) {
@@ -21,6 +22,7 @@ function formatPeriod(start: string, end: string) {
 function RankedPlaceSection({
   ranking,
   query = defaultDiscoveryQuery,
+  explore = false,
 }: RankedPlaceSectionProps) {
   const rankingData =
     ranking?.status === "ready" && ranking.data.items.length === 10
@@ -45,7 +47,7 @@ function RankedPlaceSection({
         ) : null}
       </div>
 
-      <RankedPlaceAudienceFilter query={query} />
+      <RankedPlaceAudienceFilter query={query} explore={explore} />
 
       {rankingData ? (
         <ol

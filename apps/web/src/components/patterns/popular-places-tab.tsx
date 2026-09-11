@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FlameIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
+import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { PopularReelFeed } from "@/components/travel/popular-reel-feed";
 import { PopularReelRegionFilter } from "@/components/travel/popular-reel-region-filter";
 import { PopularVideoRail } from "@/components/travel/popular-video-rail";
@@ -13,6 +14,7 @@ import {
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 
 type PopularPlacesTabProps = {
+  explore?: boolean;
   videos: readonly PopularVideoItem[];
   query: DiscoveryQuery;
   popularReels?: PopularReelsLoadState | null;
@@ -42,6 +44,7 @@ function SectionHeading({ id, title, description, icon }: SectionHeadingProps) {
 }
 
 function PopularPlacesTab({
+  explore = false,
   videos,
   query,
   popularReels,
@@ -52,7 +55,11 @@ function PopularPlacesTab({
   const popularVideosTitleId = `${headingIdPrefix}-popular-videos-title`;
 
   return (
-    <div id="places" aria-label="인기 관광지" className="space-y-4 pt-4">
+    <div
+      id={explore ? undefined : "places"}
+      aria-label="인기 관광지"
+      className={explore ? "space-y-4" : "space-y-4 pt-4"}
+    >
       <section
         aria-labelledby={popularVideosTitleId}
         data-testid="popular-place-section"
@@ -70,7 +77,7 @@ function PopularPlacesTab({
             />
           }
         />
-        <PopularReelRegionFilter query={query} />
+        <PopularReelRegionFilter query={query} explore={explore} />
         {liveReelsPage ? (
           <PopularReelFeed
             key={query.reelRegion}
@@ -85,12 +92,12 @@ function PopularPlacesTab({
             <p className="type-body-md text-muted-foreground">
               조건에 맞는 인기 관광지를 찾지 못했어요.
             </p>
-            <Link
+            {explore ? <PlaceRankingRetryButton /> : <Link
               href={buildDiscoveryHref(query, { q: "" }, "places")}
               className="type-label mt-3 inline-flex text-primary underline-offset-4 hover:underline"
             >
               검색어 지우기
-            </Link>
+            </Link>}
           </div>
         )}
       </section>

@@ -1,7 +1,6 @@
-import { MapPinIcon, SparklesIcon } from "lucide-react";
+import { MapPinIcon } from "lucide-react";
 
 import { FestivalDiscoveryListItem } from "@/components/travel/festival-discovery-list-item";
-import { FestivalRankingShowcase } from "@/components/travel/festival-ranking-showcase";
 import { FestivalRegionFilter } from "@/components/travel/festival-region-filter";
 import type {
   DiscoveryQuery,
@@ -14,38 +13,15 @@ type FestivalDiscoveryProps = {
 };
 
 function FestivalDiscovery({ data, query }: FestivalDiscoveryProps) {
-  const hasRanking = data.loadState === "ready" && data.ranking.length > 0;
 
   return (
     <section
       id="festivals"
       data-section="festival-discovery"
-      aria-labelledby="festival-discovery-title"
+      aria-labelledby="festival-region-title"
       className="px-[0.8rem] pt-[1.55rem]"
     >
-      <header className="px-2">
-        <hr className="mb-2.5 w-7 border-t-2 border-foreground" />
-        <h1
-          id="festival-discovery-title"
-          aria-label="지금 만날 수 있는 축제 ✨"
-          className="flex items-center gap-1.5 text-[1.45rem] leading-7 font-bold tracking-[-0.035em] text-foreground"
-        >
-          지금 만날 수 있는 축제
-          <SparklesIcon aria-hidden="true" className="size-5 text-amber-500" />
-          <span className="sr-only">✨</span>
-        </h1>
-      </header>
-
-      {hasRanking ? (
-        <div className="mt-2.5">
-          <FestivalRankingShowcase festivals={data.ranking} />
-        </div>
-      ) : null}
-
-      <section
-        aria-labelledby="festival-region-title"
-        className={hasRanking ? "mt-[1.15rem] px-2" : "mt-8 px-2"}
-      >
+      <div className="px-2">
         <h2
           id="festival-region-title"
           className="flex items-center gap-1 text-[1.05rem] leading-6 font-semibold tracking-[-0.025em] text-foreground"
@@ -58,7 +34,7 @@ function FestivalDiscovery({ data, query }: FestivalDiscoveryProps) {
         <div className="mt-2">
           <FestivalRegionFilter query={query} regions={data.regions} />
         </div>
-      </section>
+      </div>
 
       {data.loadState === "error" ? (
         <div

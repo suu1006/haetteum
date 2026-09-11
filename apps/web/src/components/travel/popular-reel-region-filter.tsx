@@ -6,12 +6,14 @@ import { useEffect } from "react";
 
 import {
   buildDiscoveryHref,
+  buildExploreHref,
   type DiscoveryQuery,
 } from "@/features/discovery/discovery-model";
 import { cn } from "@/lib/utils";
 
 type PopularReelRegionFilterProps = {
   query: DiscoveryQuery;
+  explore?: boolean;
 };
 
 type ScrollSnapshot = {
@@ -33,7 +35,7 @@ const regionFilters: ReadonlyArray<{
 
 const scrollSnapshotKey = "haetteum:popular-reel-region:scroll";
 
-function PopularReelRegionFilter({ query }: PopularReelRegionFilterProps) {
+function PopularReelRegionFilter({ query, explore = false }: PopularReelRegionFilterProps) {
   useEffect(() => {
     try {
       const rawSnapshot = window.sessionStorage.getItem(scrollSnapshotKey);
@@ -72,7 +74,9 @@ function PopularReelRegionFilter({ query }: PopularReelRegionFilterProps) {
     <nav aria-label="릴스 지역 필터" className="mt-2 overflow-x-auto">
       <ul className="flex gap-2">
         {regionFilters.map((region) => {
-          const href = buildDiscoveryHref(query, { reelRegion: region.id });
+          const href = explore
+            ? buildExploreHref(query, { reelRegion: region.id })
+            : buildDiscoveryHref(query, { reelRegion: region.id });
           return (
             <li key={region.id}>
               <Link

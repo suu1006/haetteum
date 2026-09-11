@@ -6,12 +6,14 @@ import { useEffect } from "react";
 
 import {
   buildDiscoveryHref,
+  buildExploreHref,
   type DiscoveryQuery,
 } from "@/features/discovery/discovery-model";
 import { cn } from "@/lib/utils";
 
 type RankedPlaceAudienceFilterProps = {
   query: DiscoveryQuery;
+  explore?: boolean;
 };
 
 type ScrollSnapshot = {
@@ -35,6 +37,7 @@ const scrollSnapshotKey = "haetteum:ranked-place-audience:scroll";
 
 function RankedPlaceAudienceFilter({
   query,
+  explore = false,
 }: RankedPlaceAudienceFilterProps) {
   useEffect(() => {
     try {
@@ -74,7 +77,9 @@ function RankedPlaceAudienceFilter({
     <nav aria-label="세대 필터" className="mt-3 overflow-x-auto">
       <ul className="flex gap-2">
         {audienceFilters.map((audience) => {
-          const href = buildDiscoveryHref(query, { audience: audience.id });
+          const href = explore
+            ? buildExploreHref(query, { audience: audience.id })
+            : buildDiscoveryHref(query, { audience: audience.id });
           return (
             <li key={audience.id}>
               <Link

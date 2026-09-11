@@ -33,7 +33,7 @@ type FestivalRankingMotionState = {
   compactScale: number;
 };
 
-const AUTOPLAY_DELAY_MS = 3_000;
+const AUTOPLAY_DELAY_MS = 5_000;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -378,7 +378,7 @@ function FestivalRankingShowcase({
       opts={{
         align: "center",
         containScroll: false,
-        duration: 34,
+        duration: 50,
         loop: festivals.length > 1,
         startIndex: initialIndex,
       }}

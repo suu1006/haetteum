@@ -10,6 +10,7 @@ import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ra
 type HotPlaceSectionProps = {
   ranking: HotPlaceRankingLoadState | null;
   query?: DiscoveryQuery;
+  explore?: boolean;
 };
 
 function formatBaseYearMonth(baseYearMonth: string) {
@@ -19,6 +20,7 @@ function formatBaseYearMonth(baseYearMonth: string) {
 function HotPlaceSection({
   ranking,
   query = defaultDiscoveryQuery,
+  explore = false,
 }: HotPlaceSectionProps) {
   const rankingData =
     ranking?.status === "ready" && ranking.data.items.length === 10
@@ -43,7 +45,7 @@ function HotPlaceSection({
         ) : null}
       </div>
 
-      <HotPlaceRankingAudienceFilter query={query} />
+      <HotPlaceRankingAudienceFilter query={query} explore={explore} />
 
       {rankingData ? (
         <ol

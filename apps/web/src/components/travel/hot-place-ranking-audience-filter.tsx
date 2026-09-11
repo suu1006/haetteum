@@ -6,12 +6,14 @@ import { useEffect } from "react";
 
 import {
   buildDiscoveryHref,
+  buildExploreHref,
   type DiscoveryQuery,
 } from "@/features/discovery/discovery-model";
 import { cn } from "@/lib/utils";
 
 type HotPlaceRankingAudienceFilterProps = {
   query: DiscoveryQuery;
+  explore?: boolean;
 };
 
 type ScrollSnapshot = {
@@ -35,6 +37,7 @@ const scrollSnapshotKey = "haetteum:hot-place-audience:scroll";
 
 function HotPlaceRankingAudienceFilter({
   query,
+  explore = false,
 }: HotPlaceRankingAudienceFilterProps) {
   useEffect(() => {
     try {
@@ -74,9 +77,9 @@ function HotPlaceRankingAudienceFilter({
     <nav aria-label="핫플레이스 세대 필터" className="mt-3 overflow-x-auto">
       <ul className="flex gap-2">
         {audienceFilters.map((audience) => {
-          const href = buildDiscoveryHref(query, {
-            hotAudience: audience.id,
-          });
+          const href = explore
+            ? buildExploreHref(query, { hotAudience: audience.id })
+            : buildDiscoveryHref(query, { hotAudience: audience.id });
           return (
             <li key={audience.id}>
               <Link

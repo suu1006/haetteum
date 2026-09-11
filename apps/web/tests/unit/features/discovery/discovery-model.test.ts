@@ -152,12 +152,12 @@ describe("selectDiscoveryView", () => {
     });
 
     expect(view.places.map((place) => place.title)).toEqual(["성산일출봉"]);
-    expect(view.showRankedPlaces).toBe(false);
-    expect(view.showPopularPlaces).toBe(true);
+    expect(view.showRankedPlaces).toBe(true);
+    expect(view.showPopularPlaces).toBe(false);
     expect(view.showFestivals).toBe(false);
   });
 
-  it("selects only the popular-place feed for the places tab", () => {
+  it("selects rankings without reels or festivals for the places tab", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, {
       q: "  성산  ",
       region: "jeju",
@@ -168,8 +168,8 @@ describe("selectDiscoveryView", () => {
       festivalFilters: defaultFestivalFilters,
     });
 
-    expect(view.showRankedPlaces).toBe(false);
-    expect(view.showPopularPlaces).toBe(true);
+    expect(view.showRankedPlaces).toBe(true);
+    expect(view.showPopularPlaces).toBe(false);
     expect(view.showAiCourse).toBe(false);
     expect(view.showFestivals).toBe(false);
     expect(view.popularVideos.map((item) => item.title)).toEqual([
@@ -192,7 +192,7 @@ describe("selectDiscoveryView", () => {
       festivalFilters: defaultFestivalFilters,
     });
 
-    expect(view.showRankedPlaces).toBe(true);
+    expect(view.showRankedPlaces).toBe(false);
     expect(view.showPopularPlaces).toBe(false);
     expect(view.showAiCourse).toBe(true);
     expect(view.showFestivals).toBe(true);

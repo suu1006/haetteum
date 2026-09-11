@@ -323,6 +323,28 @@ export function buildDiscoveryHref(
   return `/?${params.toString()}${fragment ? `#${fragment}` : ""}`;
 }
 
+/** 탐색탭(/explore)에서는 홈과 무관한 region/tab을 URL에 싣지 않고 릴스 지역·세대 필터만 보존한다. */
+export function buildExploreHref(
+  current: DiscoveryQuery,
+  changes: Partial<
+    Pick<DiscoveryQuery, "reelRegion" | "audience" | "hotAudience">
+  >,
+) {
+  const next = { ...current, ...changes };
+  const params = new URLSearchParams();
+  if (next.reelRegion !== defaultDiscoveryQuery.reelRegion) {
+    params.set("reelRegion", next.reelRegion);
+  }
+  if (next.audience !== defaultDiscoveryQuery.audience) {
+    params.set("audience", next.audience);
+  }
+  if (next.hotAudience !== defaultDiscoveryQuery.hotAudience) {
+    params.set("hotAudience", next.hotAudience);
+  }
+  const qs = params.toString();
+  return `/explore${qs ? `?${qs}` : ""}`;
+}
+
 export function buildFestivalFilterHref(
   query: DiscoveryQuery,
   filter: FestivalFilterKey,
@@ -401,8 +423,8 @@ export function selectDiscoveryView(
     popularVideos,
     travelThemes: data.popularPlaces.themes,
     videoCourses,
-    showRankedPlaces: query.tab === "recommended" && !isSearchingRecommended,
-    showPopularPlaces: query.tab === "places",
+    showRankedPlaces: query.tab === "places",
+    showPopularPlaces: false,
     showAiCourse: query.tab === "recommended" && !isSearchingRecommended,
     // TODO: 테마 여행 데이터 연동 후 query.tab 조건을 다시 활성화한다.
     showThemeTravel: false,

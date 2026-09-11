@@ -72,7 +72,7 @@ function SearchResultsSection({ results, query }: SearchResultsSectionProps) {
       ) : (
         <ul
           aria-label={`'${query.q}' 검색 결과`}
-          className="mt-4 grid grid-cols-3 gap-3"
+          className="mt-4 grid grid-cols-2 gap-3"
         >
           {items.map((destination) => (
             <li key={destination.id} className="min-w-0">

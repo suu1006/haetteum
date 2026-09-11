@@ -1,28 +1,15 @@
 import type { CSSProperties } from "react";
-import { BellIcon, FlameIcon, SearchIcon } from "lucide-react";
-import Link from "next/link";
+import { BellIcon, SearchIcon } from "lucide-react";
 
-import { ExploreSectionHeader } from "@/components/patterns/explore-section-header";
-import { ExploreDestinationCard } from "@/components/travel/explore-destination-card";
+import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { BottomNavigation } from "@/components/travel/bottom-navigation";
-import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { createMainNavigationItems } from "@/components/travel/main-navigation-items";
-import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
+import type { DiscoveryQuery } from "@/features/discovery/discovery-model";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
-import {
-  buildExploreRegionHref,
-  mapRegionalDestinations,
-  mapTrendingDestinations,
-  type ExploreData,
-  type ExploreRegionId,
-} from "@/features/explore/explore-model";
-import { cn } from "@/lib/utils";
 
 type ExploreScreenProps = {
-  data: ExploreData;
-  region: ExploreRegionId;
-  trendingRanking: PlaceRankingLoadState | null;
-  regionalReels: PopularReelsLoadState | null;
+  query: DiscoveryQuery;
+  popularReels: PopularReelsLoadState | null;
 };
 
 const exploreScreenStyle = {
@@ -32,21 +19,9 @@ const exploreScreenStyle = {
 } as CSSProperties;
 
 function ExploreScreen({
-  data,
-  region,
-  trendingRanking,
-  regionalReels,
+  query,
+  popularReels,
 }: ExploreScreenProps) {
-  const selectedRegion = data.regions.find((item) => item.id === region);
-  const trending =
-    trendingRanking?.status === "ready"
-      ? mapTrendingDestinations(trendingRanking.data)
-      : [];
-  const regionalDestinations =
-    regionalReels?.status === "ready"
-      ? mapRegionalDestinations(regionalReels.data)
-      : [];
-
   return (
     <div
       className="mx-auto min-h-screen w-full max-w-[30rem] bg-card pb-[var(--main-navigation-reserve)]"
@@ -67,7 +42,7 @@ function ExploreScreen({
 
       <section aria-label="여행지 검색" className="px-5">
         <form action="/" method="get" role="search" className="relative">
-          <input type="hidden" name="region" value={region} />
+          <input type="hidden" name="region" value={query.region} />
           <input type="hidden" name="tab" value="recommended" />
           <label htmlFor="explore-search" className="sr-only">
             여행지 검색
@@ -89,109 +64,10 @@ function ExploreScreen({
         </form>
       </section>
 
-      <section
-        aria-labelledby="trending-destinations-title"
-        className="px-5 pt-5"
-      >
-        <ExploreSectionHeader
-          headingId="trending-destinations-title"
-          title={
-            <>
-              지금 뜨는 여행지
-              <FlameIcon
-                className="size-5 fill-amber-400 text-red-500"
-                aria-hidden="true"
-              />
-            </>
-          }
-          moreHref="/?region=jeju&tab=places"
-        />
-        {trending.length > 0 ? (
-          <ol
-            aria-label="지금 뜨는 여행지"
-            className="mt-3 grid grid-cols-3 gap-3"
-          >
-            {trending.map((destination) => (
-              <li key={destination.id} className="min-w-0">
-                <ExploreDestinationCard
-                  destination={destination}
-                  variant="trending"
-                />
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/45 p-4">
-            <p className="type-body-md text-muted-foreground">
-              지금 뜨는 여행지를 불러오지 못했어요.
-            </p>
-            <p className="type-caption mt-1 text-muted-foreground">
-              잠시 후 다시 시도해 주세요.
-            </p>
-            <PlaceRankingRetryButton />
-          </div>
-        )}
-      </section>
 
-      <section
-        id="regional-destinations"
-        aria-labelledby="regional-destinations-title"
-        className="px-5 pt-6"
-      >
-        <ExploreSectionHeader
-          headingId="regional-destinations-title"
-          title="지역별 추천 여행지"
-          moreHref={`/?region=${region}&tab=recommended`}
-        />
-        <nav aria-label="추천 지역" className="mt-1">
-          <ul className="grid grid-cols-5">
-            {data.regions.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={buildExploreRegionHref(item.id)}
-                  scroll={false}
-                  prefetch={false}
-                  aria-current={item.id === region ? "page" : undefined}
-                  className={cn(
-                    "type-label relative flex min-h-11 items-center justify-center px-1 text-muted-foreground outline-none after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/25",
-                    item.id === region &&
-                      "text-primary after:bg-primary",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        {regionalDestinations.length > 0 ? (
-          <ul
-            key={region}
-            aria-label={`${selectedRegion?.label ?? "선택 지역"} 추천 여행지`}
-            className="mt-4 grid grid-cols-3 gap-3"
-          >
-            {regionalDestinations.map((destination) => (
-              <li key={destination.id} className="min-w-0">
-                <ExploreDestinationCard
-                  destination={destination}
-                  variant="regional"
-                />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
-            <p className="type-body-md text-muted-foreground">
-              {selectedRegion?.label ?? "선택 지역"} 추천 여행지를 아직
-              준비하지 못했어요.
-            </p>
-            <p className="type-caption mt-1 text-muted-foreground">
-              다른 지역을 둘러보시거나 잠시 후 다시 시도해 주세요.
-            </p>
-            <PlaceRankingRetryButton />
-          </div>
-        )}
-      </section>
+      <div className="mt-6 bg-background pb-5">
+        <PopularPlacesTab videos={[]} query={query} popularReels={popularReels} explore />
+      </div>
 
       <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card">
         <BottomNavigation items={createMainNavigationItems("explore")} />

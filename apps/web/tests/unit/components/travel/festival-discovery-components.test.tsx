@@ -183,7 +183,7 @@ describe("FestivalRankingShowcase", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("automatically cycles through ranks 1, 2, 3 and back to 1 every three seconds", () => {
+  it("automatically cycles through ranks 1, 2, 3 and back to 1 every five seconds", () => {
     vi.useFakeTimers();
 
     render(
@@ -194,7 +194,7 @@ describe("FestivalRankingShowcase", () => {
 
     for (const rank of [2, 3, 1]) {
       act(() => {
-        vi.advanceTimersByTime(3_000);
+        vi.advanceTimersByTime(5_000);
       });
 
       expect(
@@ -213,7 +213,7 @@ describe("FestivalRankingShowcase", () => {
     );
 
     act(() => {
-      vi.advanceTimersByTime(3_000);
+      vi.advanceTimersByTime(5_000);
     });
 
     // 화면에 보이는 카드가 곧 링크를 받는 카드여야 한다.
@@ -236,7 +236,7 @@ describe("FestivalRankingShowcase", () => {
     }
   });
 
-  it("restarts the three-second countdown after a manual selection", () => {
+  it("restarts the five-second countdown after a manual selection", () => {
     vi.useFakeTimers();
 
     render(
@@ -255,7 +255,7 @@ describe("FestivalRankingShowcase", () => {
     );
 
     act(() => {
-      vi.advanceTimersByTime(2_999);
+      vi.advanceTimersByTime(4_999);
     });
     expect(
       screen.getByRole("article", { name: "2위 제주 바다불꽃 문화제" }),
