@@ -90,6 +90,7 @@ jobs:
           pnpm install --frozen-lockfile
           node --test scripts/deploy/*.test.mjs
           python3 scripts/deploy/test_activation.py
+          python3 scripts/deploy/test_retention.py
           pnpm --filter @haetteum/contracts build
           env -u NEXT_PUBLIC_API_BASE_URL -u API_BASE_URL -u NEXT_PUBLIC_KAKAO_JS_KEY pnpm test
       - name: Build on CI
@@ -149,6 +150,8 @@ jobs:
             exit 0
           fi
           ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'test -L /home/ubuntu/haetteum-current && mkdir -p /home/ubuntu/haetteum-incoming'
+          # Only remove expired deployment archives, before uploading this run's files.
+          ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" 'find /home/ubuntu/haetteum-incoming -maxdepth 1 -regextype posix-extended -type f -regex ".*/release-[a-f0-9]{40}\.tar\.gz(\.sha256)?" -mmin +2880 -delete'
           scp -i ~/.ssh/ec2.pem "release-$SHA.tar.gz" "release-$SHA.tar.gz.sha256" ubuntu@"$EC2_HOST":/home/ubuntu/haetteum-incoming/
           ssh -i ~/.ssh/ec2.pem ubuntu@"$EC2_HOST" "bash -s -- '$SHA' '$REVIEWED'" <<'REMOTE'
           set -euo pipefail
@@ -162,5 +165,11 @@ jobs:
           # Run trusted activator from the currently validated release.
           export BACKUP_REQUIRED_BYTES=134217728
           export MIGRATIONS_BACKWARD_COMPATIBLE=$2
+          previous_release=$(readlink -f /home/ubuntu/haetteum-current)
           bash /home/ubuntu/haetteum-current/scripts/deploy/activate-release.sh "release-$SHA.tar.gz" "$SHA"
+          # The old activator may lack retention; use newly validated tooling immediately.
+          if ! bash /home/ubuntu/haetteum-current/scripts/deploy/prune-release.sh "$previous_release"; then
+            echo '::warning::Deployment is healthy but artifact cleanup failed; inspect disk usage'
+          fi
+          rm -f -- "release-$SHA.tar.gz" "release-$SHA.tar.gz.sha256"
           REMOTE

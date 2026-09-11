@@ -54,6 +54,7 @@ class TransactionFailures(unittest.TestCase):
         self.archive=self.d/'release.tgz'
         with tarfile.open(self.archive,'w:gz') as t:
             for f in stage.rglob('*'): t.add(f, arcname=str(f.relative_to(stage)), recursive=False)
+        self.archive_bytes=self.archive.read_bytes()
         self.checksum=hashlib.sha256(self.archive.read_bytes()).hexdigest()
         pathlib.Path(str(self.archive)+'.sha256').write_text(self.checksum+'  release.tgz\n')
     def tearDown(self): self.tmp.cleanup()
@@ -73,6 +74,23 @@ class TransactionFailures(unittest.TestCase):
         r=self.activate(); self.assertIn('Checksum mismatch',r.stderr); self.unchanged(); self.assertFalse((self.d/'pm2.log').exists())
     def test_space_failure(self):
         r=self.activate(MOCK_FREE_KB='1'); self.assertIn('Insufficient space',r.stderr); self.unchanged(); self.assertFalse((self.d/'pm2.log').exists())
+    def test_backups_bounded_even_when_candidate_fails(self):
+        backups = self.shared/'backups'; backups.mkdir()
+        for day in range(1, 6):
+            (backups/f'2026090{day}T000000Z-{self.old}.dump').touch()
+        r=self.activate(MOCK_FAILURE='candidate')
+        self.assertNotEqual(r.returncode,0)
+        self.assertEqual(len(list(backups.glob('*.dump'))),3)
+        self.assertTrue((backups/f'20260905T000000Z-{self.old}.dump').exists())
+        self.unchanged()
+
+    def test_failed_release_is_removed(self):
+        r=self.activate(MOCK_FAILURE='candidate')
+        self.assertNotEqual(r.returncode,0)
+        self.assertFalse((self.releases/self.new).exists())
+        self.assertTrue(self.archive.exists())
+        self.assertTrue((self.releases/self.old).exists())
+
     def test_candidate_failure_does_not_switch(self):
         r=self.activate(MOCK_FAILURE='candidate'); self.assertNotEqual(r.returncode,0,r.stdout+r.stderr); self.unchanged(); self.assertFalse((self.d/'pm2.log').exists())
     def test_switch_failure_restores_prior_release(self):
@@ -86,7 +104,13 @@ class TransactionFailures(unittest.TestCase):
         r=self.activate(); self.assertIn('verified rollback release is required',r.stderr); self.unchanged()
     def test_success_and_immutable_retry(self):
         r=self.activate(); self.assertEqual(r.returncode,0,r.stdout+r.stderr); self.assertEqual(os.readlink(self.current),str(self.releases/self.new))
+        self.assertFalse(self.archive.exists())
+        # Re-upload the exact archive for an immutable retry.
+        self.archive.write_bytes(self.archive_bytes)
+        pathlib.Path(str(self.archive)+'.sha256').write_text(self.checksum+'  release.tgz\n')
         r=self.activate(); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        self.archive.write_bytes(self.archive_bytes)
+        pathlib.Path(str(self.archive)+'.sha256').write_text(self.checksum+'  release.tgz\n')
         (self.releases/self.new/'.artifact-sha256').write_text('other')
         r=self.activate(); self.assertIn('Immutable release already exists',r.stderr)
 if __name__ == '__main__': unittest.main()

@@ -22,8 +22,11 @@ free=$(df -Pk "$HAETTEUM_RELEASES" | awk 'END {print $4 * 1024}')
 unpack_bytes=$bytes
 [[ ! -e $release ]] || unpack_bytes=0
 required=$((unpack_bytes + reserve + 536870912))
+printf 'Disk bytes: available=%s unpack=%s backup=%s headroom=536870912 required=%s (archive already uploaded)\n' "$free" "$unpack_bytes" "$reserve" "$required"
 [[ $(awk -v f="$free" -v r="$required" 'BEGIN {print (f >= r)}') = 1 ]] || fail "Insufficient space: need $required bytes free for unpacking, backup and headroom"
 check_shared
+previous_current=$(readlink -f "$HAETTEUM_CURRENT" || true)
+created_release=false; rollback_failed=false
 staging=''; api_pid=''; web_pid=''; switched=false; rollback=''
 cleanup() {
   rc=$?
@@ -35,8 +38,13 @@ cleanup() {
     if start_release "$rollback" && link_current "$rollback" && "$DEPLOY_DIR/smoke-release.sh"; then
       "$PM2_BIN" save || true
     else
+      rollback_failed=true
       echo 'CRITICAL: rollback verification failed; operator intervention required' >&2
     fi
+  fi
+  if [[ $rc != 0 && $created_release = true && $rollback_failed = false && $(readlink -f "$HAETTEUM_CURRENT" || true) != "$release" ]]; then
+    rm -rf -- "$release"
+    rm -f -- "$HAETTEUM_SHARED/verified/$sha"
   fi
   exit "$rc"
 }
@@ -62,7 +70,7 @@ PYTHON
   ln -s "$HAETTEUM_SHARED/uploads" "$staging/api/uploads"
   ln -s "$HAETTEUM_SHARED/api.env" "$staging/api/.env.production"
   printf '%s\n' "$expected" >"$staging/.artifact-sha256"
-  mv "$staging" "$release"; staging=''
+  mv "$staging" "$release"; staging=''; created_release=true
 fi
 verify_release "$release"
 [[ $mode != --stage-only ]] || exit 0
@@ -76,6 +84,8 @@ if [[ $mode = activate ]]; then
   # Do not pass DATABASE_URL in shell logs or command-line arguments.
   backup=$HAETTEUM_SHARED/backups/$(date -u +%Y%m%dT%H%M%SZ)-$sha.dump
   (cd "$release/api"; "$NODE_BIN" --env-file="$HAETTEUM_SHARED/api.env" "$DEPLOY_DIR/backup-db.cjs" "$backup")
+  # Bound verified backups even when later migration/candidate checks fail.
+  python3 "$DEPLOY_DIR/prune-artifacts.py" --backups "$HAETTEUM_SHARED"
   (cd "$release/api"; "$NODE_BIN" --env-file="$HAETTEUM_SHARED/api.env" node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma)
 fi
 python3 - <<'PYTHON'
@@ -98,3 +108,10 @@ link_current "$release"
 "$PM2_BIN" save
 switched=false
 printf 'Activated release %s\n' "$sha"
+# Activation is committed; cleanup errors must not roll back healthy production.
+protected=()
+[[ -z $previous_current ]] || protected+=("$previous_current")
+if ! python3 "$DEPLOY_DIR/prune-artifacts.py" "$HAETTEUM_RELEASES" "$HAETTEUM_SHARED" "$release" "$rollback" "${protected[@]}"; then
+  echo 'WARNING: artifact cleanup failed; deployment is healthy, inspect disk usage' >&2
+fi
+rm -f -- "$archive" "$archive.sha256"
