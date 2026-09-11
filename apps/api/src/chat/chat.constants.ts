@@ -13,6 +13,10 @@ export const CHAT_MAX_OUTPUT_TOKENS = 1024;
 
 export interface ChatLlmPort {
   isConfigured(): boolean;
+  stream(
+    messages: readonly ChatMessage[],
+    signal: AbortSignal,
+  ): AsyncIterable<string>;
   complete(messages: readonly ChatMessage[]): Promise<string>;
 }
 

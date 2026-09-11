@@ -10,6 +10,30 @@ export class ChatService {
 
   constructor(@Inject(CHAT_LLM_PORT) private readonly llm: ChatLlmPort) {}
 
+  async *streamMessage(request: ChatRequest, signal: AbortSignal) {
+    if (!this.llm.isConfigured()) {
+      yield { type: "error", message: "챗봇을 사용할 수 없습니다." };
+      return;
+    }
+    try {
+      let hasText = false;
+      for await (const text of this.llm.stream(request.messages, signal)) {
+        if (signal.aborted) return;
+        hasText ||= text.trim().length > 0;
+        yield { type: "delta", text };
+      }
+      if (!hasText) throw new Error("Empty response");
+      yield { type: "done" };
+    } catch (error) {
+      if (signal.aborted) return;
+      this.logger.error("Chat stream failed", error);
+      yield {
+        type: "error",
+        message: "답변이 중단되었습니다. 다시 시도해 주세요.",
+      };
+    }
+  }
+
   async sendMessage(request: ChatRequest): Promise<ChatResponse> {
     if (!this.llm.isConfigured()) {
       return { status: "unavailable", reason: "provider_not_configured" };

@@ -31,6 +31,33 @@ export class BedrockChatClient implements ChatLlmPort {
     return this.enabled && this.region != null;
   }
 
+  async *stream(
+    messages: readonly ChatMessage[],
+    signal: AbortSignal,
+  ): AsyncGenerator<string> {
+    const stream = await this.bedrockClient().messages.create(
+      {
+        model: this.modelId,
+        max_tokens: CHAT_MAX_OUTPUT_TOKENS,
+        messages: messages.map((message) => ({ ...message })),
+        stream: true,
+      },
+      { signal },
+    );
+    try {
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          yield event.delta.text;
+        }
+      }
+    } finally {
+      stream.controller.abort();
+    }
+  }
+
   async complete(messages: readonly ChatMessage[]): Promise<string> {
     try {
       const response = await this.bedrockClient().messages.create({
