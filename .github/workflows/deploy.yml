@@ -105,6 +105,8 @@ jobs:
           bash scripts/deploy/package-release.sh "$RUNNER_TEMP/artifacts"
           mkdir "$RUNNER_TEMP/runtime"
           tar -xzf "$RUNNER_TEMP/artifacts/release-$RELEASE_SHA.tar.gz" -C "$RUNNER_TEMP/runtime"
+          # Exercise the actual packaged retention tool so missing files fail CI.
+          HAETTEUM_DEPLOY_TEST_DIR="$RUNNER_TEMP/runtime/scripts/deploy" python3 scripts/deploy/test_retention.py
           # Prevent accidentally resolving dependencies or files from the checkout.
           mv node_modules node_modules.hidden
           bash scripts/deploy/ci-smoke.sh "$RUNNER_TEMP/runtime" '${{ matrix.source }}'

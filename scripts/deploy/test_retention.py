@@ -1,10 +1,11 @@
+import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(os.environ.get('HAETTEUM_DEPLOY_TEST_DIR', pathlib.Path(__file__).resolve().parent))
 
 class RetentionTests(unittest.TestCase):
     def test_success_retains_current_previous_and_three_backups(self):

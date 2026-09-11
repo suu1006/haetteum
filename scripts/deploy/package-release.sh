@@ -79,7 +79,7 @@ cp packages/contracts/package.json "$RELEASE/web/packages/contracts/"
 cp -a packages/contracts/dist "$RELEASE/web/packages/contracts/"
 cp ecosystem.config.js "$RELEASE/"
 mkdir -p "$RELEASE/scripts/deploy"
-cp scripts/deploy/*.sh scripts/deploy/validate-archive.py scripts/deploy/backup-db.cjs scripts/deploy/verify-pm2.cjs "$RELEASE/scripts/deploy/"
+cp scripts/deploy/*.sh scripts/deploy/validate-archive.py scripts/deploy/prune-artifacts.py scripts/deploy/backup-db.cjs scripts/deploy/verify-pm2.cjs "$RELEASE/scripts/deploy/"
 
 for file in web/apps/web/server.js web/apps/web/.next/BUILD_ID api/dist/main.js api/dist/generated/prisma/client.js api/node_modules/prisma/build/index.js api/prisma/schema.prisma; do
   [[ -s "$RELEASE/$file" ]] || { echo "Missing artifact: $file" >&2; exit 1; }
