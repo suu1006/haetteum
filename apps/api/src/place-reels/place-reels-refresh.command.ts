@@ -3,7 +3,10 @@ import { fileURLToPath } from "node:url";
 
 import { NestFactory } from "@nestjs/core";
 
-import type { PlaceRankingAudience } from "@haetteum/contracts";
+import {
+  PlaceRegionSchema,
+  type PlaceRankingAudience,
+} from "@haetteum/contracts";
 
 import type { PlaceReelsRefreshService } from "./place-reels-refresh.service.js";
 
@@ -32,6 +35,9 @@ export async function executePlaceReelsRefresh(
     const summary = await service.refreshRankedPlaces({
       audience: parseAudienceArg(argv),
       limit: parseLimitArg(argv),
+      ...(readArg(argv, "region") !== undefined
+        ? { region: PlaceRegionSchema.parse(readArg(argv, "region")) }
+        : {}),
     });
     output(JSON.stringify(summary));
     return 0;

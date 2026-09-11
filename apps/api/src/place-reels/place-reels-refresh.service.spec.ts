@@ -28,6 +28,9 @@ function createPrisma(rankedRows: unknown[]) {
     update: jest.fn(() => Promise.resolve({})),
   };
   const prisma = {
+    place: {
+      findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+    },
     placeRanking: {
       findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue(
         rankedRows.length > 0
@@ -159,4 +162,24 @@ describe("PlaceReelsRefreshService", () => {
       failedPlaces: 1,
     });
   });
+});
+
+it("collects regional attractions even without a national ranking snapshot", async () => {
+  const { prisma } = createPrisma([]);
+  prisma.place.findMany.mockResolvedValue([
+    {
+      id: "jeju-place",
+      title: "성산일출봉",
+      region: { name: "제주특별자치도" },
+    },
+  ]);
+  const { service, search } = createService(prisma);
+  const result = await service.refreshRankedPlaces({
+    region: "jeju",
+    limit: 3,
+  });
+  expect(result.processedPlaces).toBe(1);
+  expect(search).toHaveBeenCalledWith(
+    expect.objectContaining({ query: "성산일출봉 제주특별자치도 여행" }),
+  );
 });

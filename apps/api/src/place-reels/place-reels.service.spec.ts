@@ -81,6 +81,9 @@ describe("PlaceReelsService", () => {
   describe("listPopular", () => {
     it("returns an empty list when no ranking snapshot exists", async () => {
       const service = new PlaceReelsService({
+        place: {
+          findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        },
         placeRanking: {
           findFirst: jest.fn<() => Promise<null>>().mockResolvedValue(null),
         },
@@ -99,6 +102,9 @@ describe("PlaceReelsService", () => {
 
     it("flattens every place's reels in rank then display order", async () => {
       const service = new PlaceReelsService({
+        place: {
+          findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        },
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
             periodStart: new Date("2025-08-01T00:00:00.000Z"),
@@ -130,7 +136,11 @@ describe("PlaceReelsService", () => {
         },
       } as never);
 
-      const result = await service.listPopular({ audience: "all", region: "all", limit: 2 });
+      const result = await service.listPopular({
+        audience: "all",
+        region: "all",
+        limit: 2,
+      });
 
       expect(result.items.map((item) => item.videoId)).toEqual([
         "dQw4w9WgXcQ",
@@ -150,6 +160,9 @@ describe("PlaceReelsService", () => {
 
     it("continues from the cursor and reports no next page once exhausted", async () => {
       const service = new PlaceReelsService({
+        place: {
+          findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        },
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
             periodStart: new Date("2025-08-01T00:00:00.000Z"),
@@ -188,14 +201,15 @@ describe("PlaceReelsService", () => {
         cursor: 2,
       });
 
-      expect(result.items.map((item) => item.videoId)).toEqual([
-        "zzzzzzzzzzz",
-      ]);
+      expect(result.items.map((item) => item.videoId)).toEqual(["zzzzzzzzzzz"]);
       expect(result.nextCursor).toBeNull();
     });
 
     it("skips a ranked place that has no reels instead of leaving a gap", async () => {
       const service = new PlaceReelsService({
+        place: {
+          findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        },
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
             periodStart: new Date("2025-08-01T00:00:00.000Z"),
@@ -224,7 +238,11 @@ describe("PlaceReelsService", () => {
         },
       } as never);
 
-      const result = await service.listPopular({ audience: "all", region: "all", limit: 2 });
+      const result = await service.listPopular({
+        audience: "all",
+        region: "all",
+        limit: 2,
+      });
 
       expect(result.items.map((item) => item.videoId)).toEqual(["zzzzzzzzzzz"]);
     });
@@ -232,6 +250,9 @@ describe("PlaceReelsService", () => {
     it("scopes the ranking query to the requested region and echoes it back", async () => {
       const findMany = jest.fn<() => Promise<unknown>>().mockResolvedValue([]);
       const service = new PlaceReelsService({
+        place: {
+          findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
+        },
         placeRanking: {
           findFirst: jest.fn<() => Promise<unknown>>().mockResolvedValue({
             periodStart: new Date("2025-08-01T00:00:00.000Z"),
@@ -251,10 +272,52 @@ describe("PlaceReelsService", () => {
         expect.objectContaining({
           where: expect.objectContaining({
             place: { is: { region: { is: { slug: "jeju" } } } },
-          }),
+          }) as unknown,
         }),
       );
       expect(result.region).toBe("jeju");
     });
   });
+});
+
+it("serves and paginates Jeju reels without a national ranking snapshot", async () => {
+  const findMany = jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+    {
+      id: "jeju-place",
+      title: "성산일출봉",
+      region: { name: "제주특별자치도" },
+      reels: [reelRow, { ...reelRow, providerVideoId: "other-video" }],
+    },
+  ]);
+  const service = new PlaceReelsService({
+    place: { findMany },
+    placeRanking: {
+      findFirst: jest.fn<() => Promise<null>>().mockResolvedValue(null),
+    },
+  } as never);
+  const first = await service.listPopular({
+    audience: "all",
+    region: "jeju",
+    limit: 1,
+  });
+  expect(first.items[0]).toMatchObject({
+    placeTitle: "성산일출봉",
+    region: "제주특별자치도",
+  });
+  expect(first.nextCursor).toBe(1);
+  const second = await service.listPopular({
+    audience: "all",
+    region: "jeju",
+    limit: 1,
+    cursor: 1,
+  });
+  expect(second.items[0].videoId).toBe("other-video");
+  expect(second.nextCursor).toBeNull();
+  expect(findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({
+        region: { is: { slug: "jeju" } },
+      }) as unknown,
+    }),
+  );
 });

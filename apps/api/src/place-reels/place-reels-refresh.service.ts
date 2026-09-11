@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import type { PlaceRankingAudience } from "@haetteum/contracts";
+import type { PlaceRankingAudience, PlaceRegion } from "@haetteum/contracts";
 
 import type { ApiEnvironment } from "../config/environment.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -29,6 +29,7 @@ const AUDIENCE_TO_DB = {
 export type PlaceReelsRefreshOptions = {
   audience?: PlaceRankingAudience;
   limit?: number;
+  region?: PlaceRegion;
 };
 
 export type PlaceReelsRefreshSummary = {
@@ -69,7 +70,35 @@ export class PlaceReelsRefreshService {
 
     if (!summary.enabled) return summary;
 
-    const places = await this.resolveRankedPlaces(audience, limit);
+    const ranked = options.region
+      ? []
+      : await this.resolveRankedPlaces(audience, limit);
+    const regions: PlaceRegion[] = options.region
+      ? [options.region]
+      : ["seoul", "gyeonggi", "gangwon", "busan", "jeju"];
+    const places = [...ranked];
+    for (const region of regions) {
+      const regional = await this.prisma.place.findMany({
+        where: {
+          region: { is: { slug: region, isActive: true } },
+          contentTypeId: 12,
+          id: { notIn: places.map((place) => place.id) },
+        },
+        orderBy: [
+          { reelsSyncedAt: { sort: "asc", nulls: "first" } },
+          { id: "asc" },
+        ],
+        take: options.region ? limit : 3,
+        select: { id: true, title: true, region: { select: { name: true } } },
+      });
+      places.push(
+        ...regional.map((place) => ({
+          id: place.id,
+          title: place.title,
+          regionName: place.region.name,
+        })),
+      );
+    }
 
     for (const [index, place] of places.entries()) {
       if (index > 0) await this.sleep(REFRESH_THROTTLE_MS);

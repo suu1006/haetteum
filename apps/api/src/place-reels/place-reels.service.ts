@@ -8,7 +8,10 @@ import type {
   PopularReelsResponse,
 } from "@haetteum/contracts";
 
-import type { PlaceRankingAudience, PopularReelRegion } from "@haetteum/contracts";
+import type {
+  PlaceRankingAudience,
+  PopularReelRegion,
+} from "@haetteum/contracts";
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
@@ -87,42 +90,57 @@ export class PlaceReelsService {
       select: { periodStart: true, periodEnd: true },
     });
 
-    if (snapshot === null) {
-      return {
-        source: "YOUTUBE",
-        audience: query.audience,
-        region: query.region,
-        items: [],
-        nextCursor: null,
-      };
-    }
-
-    const ranked = await this.prisma.placeRanking.findMany({
-      where: {
-        source: DATALAB_SOURCE,
-        scope: NATIONAL_SCOPE,
-        audience,
-        periodStart: snapshot.periodStart,
-        periodEnd: snapshot.periodEnd,
-        placeId: { not: null },
-        place: { is: REGION_WHERE[query.region] },
-      },
-      orderBy: { rank: "asc" },
-      take: MAX_RANKED_PLACES,
-      select: {
-        placeId: true,
-        place: {
-          select: {
-            id: true,
-            title: true,
-            region: { select: { name: true } },
-            reels: {
-              where: { provider: YOUTUBE_SOURCE },
-              orderBy: { displayOrder: "asc" },
-              take: MAX_REELS_PER_PLACE,
-              select: reelSelect,
+    const ranked =
+      snapshot === null
+        ? []
+        : await this.prisma.placeRanking.findMany({
+            where: {
+              source: DATALAB_SOURCE,
+              scope: NATIONAL_SCOPE,
+              audience,
+              periodStart: snapshot.periodStart,
+              periodEnd: snapshot.periodEnd,
+              placeId: { not: null },
+              place: { is: REGION_WHERE[query.region] },
             },
-          },
+            orderBy: { rank: "asc" },
+            take: MAX_RANKED_PLACES,
+            select: {
+              placeId: true,
+              place: {
+                select: {
+                  id: true,
+                  title: true,
+                  region: { select: { name: true } },
+                  reels: {
+                    where: { provider: YOUTUBE_SOURCE },
+                    orderBy: { displayOrder: "asc" },
+                    take: MAX_REELS_PER_PLACE,
+                    select: reelSelect,
+                  },
+                },
+              },
+            },
+          });
+
+    const regionalPlaces = await this.prisma.place.findMany({
+      where: {
+        ...REGION_WHERE[query.region],
+        id: {
+          notIn: ranked.flatMap((row) => (row.place ? [row.place.id] : [])),
+        },
+        reels: { some: { provider: YOUTUBE_SOURCE } },
+      },
+      orderBy: [{ title: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        region: { select: { name: true } },
+        reels: {
+          where: { provider: YOUTUBE_SOURCE },
+          orderBy: { displayOrder: "asc" },
+          take: MAX_REELS_PER_PLACE,
+          select: reelSelect,
         },
       },
     });
@@ -131,7 +149,10 @@ export class PlaceReelsService {
     // full flattened feed in memory rather than re-querying per page — the
     // ranked-place pool is capped at MAX_RANKED_PLACES, so this stays small.
     const allItems: PopularReelItem[] = [];
-    for (const row of ranked) {
+    for (const row of [
+      ...ranked,
+      ...regionalPlaces.map((place) => ({ place })),
+    ]) {
       const place = row.place;
       if (place == null) continue;
       for (const reel of place.reels) {
