@@ -11,16 +11,14 @@ import type { SavedCourseItem } from "@haetteum/contracts";
 import { AiTripScheduleBanner } from "@/components/travel/ai-trip-schedule-banner";
 import { BottomNavigation } from "@/components/travel/bottom-navigation";
 import { createMainNavigationItems } from "@/components/travel/main-navigation-items";
+import { RandomCourseRecommendation } from "@/components/travel/random-course-recommendation";
 import { SavedCourseCard } from "@/components/travel/saved-course-card";
 import { TripScheduleCard } from "@/components/travel/trip-schedule-card";
 import {
   TripScheduleTabs,
   type TripScheduleTab,
 } from "@/components/travel/trip-schedule-tabs";
-import {
-  blankCourseMock,
-  courseEditMock,
-} from "@/features/courses/course-edit.mock";
+import { blankCourseMock } from "@/features/courses/course-edit.mock";
 import type {
   TripSchedule,
   TripScheduleCollection,
@@ -140,9 +138,15 @@ function MyTripsScreen({ trips, initialSavedCourses }: MyTripsScreenProps) {
         </section>
 
         <div className="px-5 pt-4">
-          <AiTripScheduleBanner
-            onRecommend={() => router.push(`/courses/${courseEditMock.id}/edit`)}
-          />
+          <RandomCourseRecommendation>
+            {({ recommend, loading, disabled }) => (
+              <AiTripScheduleBanner
+                onRecommend={recommend}
+                loading={loading}
+                disabled={disabled}
+              />
+            )}
+          </RandomCourseRecommendation>
         </div>
 
         <p

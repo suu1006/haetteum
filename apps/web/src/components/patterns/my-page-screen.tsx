@@ -1,3 +1,5 @@
+"use client";
+
 import type { CSSProperties } from "react";
 import { TbBell } from "react-icons/tb";
 
@@ -6,6 +8,7 @@ import { createMainNavigationItems } from "@/components/travel/main-navigation-i
 import { MyPageAiBanner } from "@/components/travel/my-page-ai-banner";
 import { MyPageMenuList } from "@/components/travel/my-page-menu-list";
 import { ProfileSummaryCard } from "@/components/travel/profile-summary-card";
+import { RandomCourseRecommendation } from "@/components/travel/random-course-recommendation";
 import { TravelRecordSummary } from "@/components/travel/travel-record-summary";
 import type { MyPageData } from "@/features/profile/my-page-model";
 
@@ -44,7 +47,16 @@ function MyPageScreen({ data }: MyPageScreenProps) {
       <main className="space-y-4 px-6 pb-6">
         <ProfileSummaryCard profile={data.profile} />
         <TravelRecordSummary items={data.travelRecords} />
-        <MyPageAiBanner recommendation={data.aiRecommendation} />
+        <RandomCourseRecommendation>
+          {({ recommend, loading, disabled }) => (
+            <MyPageAiBanner
+              recommendation={data.aiRecommendation}
+              onRecommend={recommend}
+              loading={loading}
+              disabled={disabled}
+            />
+          )}
+        </RandomCourseRecommendation>
         <MyPageMenuList items={data.menuItems} />
       </main>
 

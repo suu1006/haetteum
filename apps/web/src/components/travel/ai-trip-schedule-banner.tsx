@@ -2,15 +2,22 @@ import Image from "next/image";
 
 type AiTripScheduleBannerProps = {
   onRecommend: () => void;
+  loading?: boolean;
+  disabled?: boolean;
 };
 
-function AiTripScheduleBanner({ onRecommend }: AiTripScheduleBannerProps) {
+function AiTripScheduleBanner({
+  onRecommend,
+  loading = false,
+  disabled = false,
+}: AiTripScheduleBannerProps) {
   return (
     <button
       type="button"
       onClick={onRecommend}
+      disabled={disabled || loading}
       aria-label="AI 맞춤 일정 추천 받기"
-      className="relative flex min-h-20 w-full items-center overflow-hidden rounded-[1.1rem] bg-primary-subtle px-5 py-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/25"
+      className="relative flex min-h-20 w-full items-center overflow-hidden rounded-[1.1rem] bg-primary-subtle px-5 py-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-70"
     >
       <span className="relative z-10 min-w-0 pr-24">
         <span className="block text-[0.8rem] font-medium text-muted-foreground">

@@ -26,7 +26,6 @@ export type MyPageData = {
   aiRecommendation: {
     title: string;
     description: string;
-    href: string;
     image: {
       src: string;
       alt: string;

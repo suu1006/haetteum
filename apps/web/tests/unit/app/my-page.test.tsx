@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -7,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   loadMyFavorites: vi.fn(),
   loadMySavedCourses: vi.fn(),
   requireCurrentUser: vi.fn(),
+  loadPlaceRankings: vi.fn(),
+  loadHotPlaceRankings: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
@@ -31,9 +35,28 @@ vi.mock("@/features/auth/auth-user-hydrator", () => ({
     <output data-testid="hydrated-user">{user.id}</output>
   ),
 }));
+vi.mock("@/features/discovery/place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/place-ranking-api")>()),
+  loadPlaceRankings: mocks.loadPlaceRankings,
+}));
+vi.mock("@/features/discovery/hot-place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/hot-place-ranking-api")>()),
+  loadHotPlaceRankings: mocks.loadHotPlaceRankings,
+}));
 
 import MyPage, { metadata } from "@/app/mypage/page";
 import { AuthStoreProvider } from "@/features/auth/auth-store";
+
+function renderPage(element: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AuthStoreProvider>{element}</AuthStoreProvider>
+    </QueryClientProvider>,
+  );
+}
 
 const user = {
   id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
@@ -59,13 +82,15 @@ beforeEach(() => {
     status: "ready",
     data: { items: [] },
   });
+  mocks.loadPlaceRankings.mockResolvedValue({ status: "error" });
+  mocks.loadHotPlaceRankings.mockResolvedValue({ status: "error" });
 });
 
 describe("My Page route", () => {
   it("protects the exact route and renders the verified profile with an actual review count", async () => {
     expect(metadata).toMatchObject({ title: "마이페이지 | 해뜸" });
 
-    render(<AuthStoreProvider>{await MyPage()}</AuthStoreProvider>);
+    renderPage(await MyPage());
 
     expect(mocks.requireCurrentUser).toHaveBeenCalledWith("/mypage");
     expect(screen.getByTestId("hydrated-user")).toHaveTextContent(user.id);
@@ -92,7 +117,7 @@ describe("My Page route", () => {
   it("keeps the review destination but omits its unavailable count when loading fails", async () => {
     mocks.loadMyReviews.mockResolvedValue({ status: "error" });
 
-    render(<AuthStoreProvider>{await MyPage()}</AuthStoreProvider>);
+    renderPage(await MyPage());
 
     const records = screen.getByRole("list", { name: "나의 여행 기록" });
     expect(within(records).getByRole("link", { name: "내 후기" })).toHaveAttribute(

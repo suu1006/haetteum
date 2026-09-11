@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
@@ -7,17 +8,45 @@ const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
   refresh: vi.fn(),
   replace: vi.fn(),
+  loadPlaceRankings: vi.fn(),
+  loadHotPlaceRankings: vi.fn(),
+  loadGeneratedCourse: vi.fn(),
 }));
 
 vi.mock("@/features/auth/auth-client", () => ({ logout: mocks.logout }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }),
 }));
+vi.mock("@/features/discovery/place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/place-ranking-api")>()),
+  loadPlaceRankings: mocks.loadPlaceRankings,
+}));
+vi.mock("@/features/discovery/hot-place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/hot-place-ranking-api")>()),
+  loadHotPlaceRankings: mocks.loadHotPlaceRankings,
+}));
+vi.mock("@/features/places/place-detail-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/places/place-detail-api")>()),
+  loadGeneratedCourse: mocks.loadGeneratedCourse,
+}));
 
 import { MyPageScreen } from "@/components/patterns/my-page-screen";
 import { AuthStoreProvider, useAuthStore } from "@/features/auth/auth-store";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import type { MyPageData } from "@/features/profile/my-page-model";
+
+const rankingCandidate = {
+  rank: 1,
+  sourcePlaceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  title: "해운대 해수욕장",
+  category: "자연",
+  sharePercent: 12.5,
+  placeId: "30000000-0000-4000-8000-000000000001",
+  primaryImageUrl: null,
+  imageCopyrightType: null,
+  imageAttribution: null,
+  imageAttributionUrl: null,
+};
 
 const user = {
   id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
@@ -43,7 +72,6 @@ const data: MyPageData = {
   aiRecommendation: {
     title: "AI 맞춤 여행 추천 받기",
     description: "나만을 위한 특별한 여행 코스를 추천해드려요",
-    href: "/?region=gyeonggi&tab=recommended#ai-course",
     image: {
       src: "/images/discovery/reference-main/ai-course-robot.png",
       alt: "맞춤 여행을 추천하는 해뜸 도우미",
@@ -64,21 +92,69 @@ function AuthStateProbe() {
 }
 
 function renderScreen() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <AuthStoreProvider>
-      <AuthUserHydrator user={user} />
-      <MyPageScreen data={data} />
-      <AuthStateProbe />
-    </AuthStoreProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthStoreProvider>
+        <AuthUserHydrator user={user} />
+        <MyPageScreen data={data} />
+        <AuthStateProbe />
+      </AuthStoreProvider>
+    </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.logout.mockResolvedValue(undefined);
+  mocks.loadPlaceRankings.mockResolvedValue({
+    status: "ready",
+    data: {
+      source: "KTO_DATALAB",
+      scope: "national",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-31",
+      audience: "all",
+      items: [rankingCandidate],
+    },
+  });
+  mocks.loadHotPlaceRankings.mockResolvedValue({ status: "ready", data: { items: [] } });
+  mocks.loadGeneratedCourse.mockResolvedValue({
+    status: "ready",
+    partial: false,
+    stops: [
+      {
+        role: "anchor",
+        sequence: 1,
+        placeId: rankingCandidate.placeId,
+        title: rankingCandidate.title,
+        categoryLabel: null,
+        address: "부산 해운대구",
+        longitude: 129.16,
+        latitude: 35.16,
+        distanceMeters: null,
+        placeUrl: null,
+      },
+    ],
+  });
 });
 
 describe("MyPageScreen", () => {
+  it("opens the home tab's random course recommendation modal from the AI banner", async () => {
+    const userEventApi = userEvent.setup();
+    renderScreen();
+
+    await userEventApi.click(
+      screen.getByRole("button", { name: "AI 맞춤 여행 추천 받기" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "해운대 해수욕장 근처 코스" }),
+    ).toBeVisible();
+  });
+
   it("renders only real profile identity and truthful record counts", () => {
     renderScreen();
 

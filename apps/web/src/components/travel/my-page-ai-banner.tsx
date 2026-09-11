@@ -1,18 +1,27 @@
 import Image from "next/image";
-import Link from "next/link";
 
 import type { MyPageData } from "@/features/profile/my-page-model";
 
 type MyPageAiBannerProps = {
   recommendation: MyPageData["aiRecommendation"];
+  onRecommend: () => void;
+  loading?: boolean;
+  disabled?: boolean;
 };
 
-function MyPageAiBanner({ recommendation }: MyPageAiBannerProps) {
+function MyPageAiBanner({
+  recommendation,
+  onRecommend,
+  loading = false,
+  disabled = false,
+}: MyPageAiBannerProps) {
   return (
-    <Link
-      href={recommendation.href}
+    <button
+      type="button"
+      onClick={onRecommend}
+      disabled={disabled || loading}
       aria-label={recommendation.title}
-      className="relative block min-h-[6.25rem] overflow-hidden rounded-[1.5rem] bg-[#f7f3ff] px-5 py-5 shadow-card outline-none transition-colors hover:bg-primary-subtle focus-visible:ring-3 focus-visible:ring-ring/25"
+      className="relative block min-h-[6.25rem] w-full overflow-hidden rounded-[1.5rem] bg-[#f7f3ff] px-5 py-5 text-left shadow-card outline-none transition-colors hover:bg-primary-subtle focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-70"
     >
       <div className="relative z-10 max-w-[70%]">
         <h2 className="text-[1rem] font-bold leading-6 tracking-[-0.02em] text-foreground">
@@ -30,7 +39,7 @@ function MyPageAiBanner({ recommendation }: MyPageAiBannerProps) {
         sizes="144px"
         className="absolute right-0 bottom-0 h-[6.25rem] w-36 object-contain object-right-bottom"
       />
-    </Link>
+    </button>
   );
 }
 

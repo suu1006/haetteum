@@ -62,7 +62,6 @@ export function createMyPageData(
     aiRecommendation: {
       title: "AI 맞춤 여행 추천 받기",
       description: "나만을 위한 특별한 여행 코스를 추천해드려요",
-      href: "/?region=gyeonggi&tab=recommended#ai-course",
       image: {
         src: "/images/discovery/reference-main/ai-course-robot.png",
         alt: "맞춤 여행을 추천하는 해뜸 도우미",

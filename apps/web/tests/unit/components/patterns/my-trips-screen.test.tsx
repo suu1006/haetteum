@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   saveCourse: vi.fn(),
   removeSavedCourse: vi.fn(),
   routerPush: vi.fn(),
+  loadPlaceRankings: vi.fn(),
+  loadHotPlaceRankings: vi.fn(),
+  loadGeneratedCourse: vi.fn(),
 }));
 
 vi.mock("@/features/trips/saved-course-api", () => ({
@@ -19,11 +22,36 @@ vi.mock("@/features/trips/saved-course-api", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.routerPush }),
 }));
+vi.mock("@/features/discovery/place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/place-ranking-api")>()),
+  loadPlaceRankings: mocks.loadPlaceRankings,
+}));
+vi.mock("@/features/discovery/hot-place-ranking-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/hot-place-ranking-api")>()),
+  loadHotPlaceRankings: mocks.loadHotPlaceRankings,
+}));
+vi.mock("@/features/places/place-detail-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/places/place-detail-api")>()),
+  loadGeneratedCourse: mocks.loadGeneratedCourse,
+}));
 
 import { MyTripsScreen } from "@/components/patterns/my-trips-screen";
 import type { MyTripsScreenProps } from "@/components/patterns/my-trips-screen";
-import { blankCourseMock, courseEditMock } from "@/features/courses/course-edit.mock";
+import { blankCourseMock } from "@/features/courses/course-edit.mock";
 import type { SavedCourseItem } from "@haetteum/contracts";
+
+const rankingCandidate = {
+  rank: 1,
+  sourcePlaceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  title: "해운대 해수욕장",
+  category: "자연",
+  sharePercent: 12.5,
+  placeId: "30000000-0000-4000-8000-000000000001",
+  primaryImageUrl: null,
+  imageCopyrightType: null,
+  imageAttribution: null,
+  imageAttributionUrl: null,
+};
 
 function render(ui: ReactElement) {
   const queryClient = new QueryClient({
@@ -124,6 +152,36 @@ const testTrips = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.loadMySavedCourses.mockResolvedValue({ items: [] });
+  mocks.loadPlaceRankings.mockResolvedValue({
+    status: "ready",
+    data: {
+      source: "KTO_DATALAB",
+      scope: "national",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-31",
+      audience: "all",
+      items: [rankingCandidate],
+    },
+  });
+  mocks.loadHotPlaceRankings.mockResolvedValue({ status: "ready", data: { items: [] } });
+  mocks.loadGeneratedCourse.mockResolvedValue({
+    status: "ready",
+    partial: false,
+    stops: [
+      {
+        role: "anchor",
+        sequence: 1,
+        placeId: rankingCandidate.placeId,
+        title: rankingCandidate.title,
+        categoryLabel: null,
+        address: "부산 해운대구",
+        longitude: 129.16,
+        latitude: 35.16,
+        distanceMeters: null,
+        placeUrl: null,
+      },
+    ],
+  });
 });
 
 describe("MyTripsScreen", () => {
@@ -235,7 +293,7 @@ describe("MyTripsScreen", () => {
     );
   });
 
-  it("opens the course editor from the AI recommendation banner", async () => {
+  it("opens the home tab's random course recommendation modal from the AI recommendation banner", async () => {
     const user = userEvent.setup();
     renderScreen({ trips: testTrips });
 
@@ -243,9 +301,10 @@ describe("MyTripsScreen", () => {
       screen.getByRole("button", { name: "AI 맞춤 일정 추천 받기" }),
     );
 
-    expect(mocks.routerPush).toHaveBeenCalledWith(
-      `/courses/${courseEditMock.id}/edit`,
-    );
+    expect(
+      await screen.findByRole("heading", { name: "해운대 해수욕장 근처 코스" }),
+    ).toBeVisible();
+    expect(mocks.routerPush).not.toHaveBeenCalled();
   });
 
   it("shows saved courses only on the scheduled tab", async () => {
