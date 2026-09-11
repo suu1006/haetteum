@@ -16,6 +16,7 @@ import {
 import { CourseEditRouteMap } from "@/components/travel/course-edit-route-map";
 import { SortableItineraryCard } from "@/components/travel/sortable-itinerary-card";
 import { Button } from "@/components/ui/button";
+import { CourseAlternativeDialog } from "@/features/courses/course-alternative-dialog";
 import { Input } from "@/components/ui/input";
 import type {
   CoursePlace,
@@ -41,6 +42,7 @@ type CourseEditScreenProps = {
   onRemovePlace: (placeId: string) => void;
   onAddPlace: () => void;
   onSave: () => void;
+  onApplyAlternative?: (places: readonly CoursePlace[]) => void;
 };
 
 function CourseEditScreen({
@@ -59,6 +61,7 @@ function CourseEditScreen({
   onRemovePlace,
   onAddPlace,
   onSave,
+  onApplyAlternative,
 }: CourseEditScreenProps) {
   const isCreate = mode === "create";
   const sourceLabel = isCreate
@@ -156,9 +159,12 @@ function CourseEditScreen({
               </ol>
             </SortableContext>
 
+            {onApplyAlternative ? (
+              <CourseAlternativeDialog places={places} slots={slots} onApply={onApplyAlternative} disabled={saving || generating} />
+            ) : null}
             <div
               aria-hidden="true"
-              className="type-label mt-5 flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/35 bg-primary-subtle/40 px-4 text-center text-primary"
+              className="type-caption mt-3 flex items-center justify-center gap-2 px-2 text-center text-muted-foreground"
             >
               <MenuIcon className="size-5 shrink-0" />
               아이콘을 눌러 순서를 변경할 수 있어요

@@ -284,6 +284,10 @@ function CourseEditor({
           onRemovePlace={handleRemovePlace}
           onAddPlace={() => setStep("place-search")}
           onSave={() => void handleSave()}
+          onApplyAlternative={(places) => {
+            updateActiveDraft((draft) => ({ ...draft, places }));
+            setStatus("새 코스를 일정에 반영했어요. 저장하기를 누르면 저장됩니다.");
+          }}
         />
       </DndContext>
       <CoursePlaceDetailModal

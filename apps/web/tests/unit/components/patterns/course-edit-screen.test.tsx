@@ -70,6 +70,12 @@ vi.mock("@/features/places/place-search-api", () => ({
   }),
 }));
 
+const nearbyMocks = vi.hoisted(() => ({ loadNearbyPlaces: vi.fn() }));
+vi.mock("@/features/places/place-detail-api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/places/place-detail-api")>(),
+  loadNearbyPlaces: nearbyMocks.loadNearbyPlaces,
+}));
+
 const savedCourseApiMocks = vi.hoisted(() => ({
   saveCourse: vi.fn(),
   updateSavedCourse: vi.fn(),
@@ -90,6 +96,7 @@ function render(ui: ReactElement) {
 
 describe("CourseEditor", () => {
   beforeEach(() => {
+    nearbyMocks.loadNearbyPlaces.mockReset();
     routerMocks.back.mockReset();
     routerMocks.push.mockReset();
     savedCourseApiMocks.saveCourse.mockReset();
@@ -97,6 +104,96 @@ describe("CourseEditor", () => {
     savedCourseApiMocks.loadMySavedCourses.mockReset();
     savedCourseApiMocks.removeSavedCourse.mockReset();
     savedCourseApiMocks.loadMySavedCourses.mockResolvedValue({ items: [] });
+  });
+
+  it("previews an alternative without changing the draft until applied", async () => {
+    const user = userEvent.setup();
+    const base = courseEditMock.courses.ai.places[0]!;
+    const places = [0, 3, 1, 2].map((offset, index) => ({
+      ...base, id: String(index), title: `장소 ${index}`,
+      latitude: 37, longitude: 127 + offset / 100,
+    }));
+    const course = { ...courseEditMock, courses: { ...courseEditMock.courses,
+      ai: { ...courseEditMock.courses.ai, places, slots: courseEditMock.courses.ai.slots.slice(0, 4) },
+    }};
+    render(<CourseEditor course={course} />);
+    const itinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /기존 장소 유지/ }));
+    expect(await screen.findByRole("button", { name: "이 코스로 변경" })).toBeEnabled();
+    expect(within(itinerary).getAllByRole("listitem", { hidden: true })[1]).toHaveTextContent("장소 1");
+    await user.click(screen.getByRole("button", { name: "기존 코스 유지" }));
+    expect(within(itinerary).getAllByRole("listitem", { hidden: true })[1]).toHaveTextContent("장소 1");
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /기존 장소 유지/ }));
+    await user.click(await screen.findByRole("button", { name: "이 코스로 변경" }));
+    expect(within(itinerary).getAllByRole("listitem", { hidden: true })[1]).toHaveTextContent("장소 2");
+    expect(within(itinerary).getByText("08:30")).toBeVisible();
+  });
+
+  it("applies new nearby places only after confirmation and keeps time slots", async () => {
+    const user = userEvent.setup();
+    nearbyMocks.loadNearbyPlaces.mockResolvedValue({
+      status: "ready", category: "cafe", partial: false,
+      items: [{ provider: "KAKAO_LOCAL", providerPlaceId: "987", title: "새로운 카페",
+        categoryLabel: "카페", telephone: null, address: "서울", roadAddress: null,
+        longitude: 127, latitude: 37, distanceMeters: 100, placeUrl: "https://place.map.kakao.com/987" }],
+    });
+    const course = { ...courseEditMock, courses: { ...courseEditMock.courses,
+      ai: { ...courseEditMock.courses.ai, places: courseEditMock.courses.ai.places.map((p, i) =>
+        i === 0 ? { ...p, id: "20000000-0000-4000-8000-000000000001" } : p) },
+    }};
+    render(<CourseEditor course={course} />);
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /새 장소 포함/ }));
+    expect(await screen.findByText("새로운 카페")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "기존 코스 유지" }));
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /새 장소 포함/ }));
+    expect(await screen.findByText("새로운 카페")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "이 코스로 변경" }));
+    const itinerary = screen.getByRole("list", { name: "AI 추천 코스 일정" });
+    expect(within(itinerary).getByText("새로운 카페")).toBeVisible();
+    expect(within(itinerary).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(itinerary).getByText("08:30")).toBeVisible();
+    expect(savedCourseApiMocks.updateSavedCourse).not.toHaveBeenCalled();
+  });
+
+  it("ignores a recommendation response after closing and reopening", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: { status: "unavailable"; reason: "provider_unavailable" }) => void;
+    nearbyMocks.loadNearbyPlaces.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const course = { ...courseEditMock, courses: { ...courseEditMock.courses,
+      ai: { ...courseEditMock.courses.ai, places: courseEditMock.courses.ai.places.map((p, i) =>
+        i === 0 ? { ...p, id: "20000000-0000-4000-8000-000000000001" } : p) },
+    }};
+    render(<CourseEditor course={course} />);
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /새 장소 포함/ }));
+    expect(screen.getByText("다른 코스를 찾고 있어요…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "기존 코스 유지" }));
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    finish({ status: "unavailable", reason: "provider_unavailable" });
+    await user.click(screen.getByRole("button", { name: /기존 장소 유지/ }));
+    expect(screen.queryByText("주변 장소를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "기존 코스 유지" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+  });
+
+  it("keeps the draft after a failed nearby request", async () => {
+    const user = userEvent.setup();
+    nearbyMocks.loadNearbyPlaces.mockRejectedValue(new Error("offline"));
+    const course = { ...courseEditMock, courses: { ...courseEditMock.courses,
+      ai: { ...courseEditMock.courses.ai, places: courseEditMock.courses.ai.places.map((p, i) =>
+        i === 0 ? { ...p, id: "20000000-0000-4000-8000-000000000001" } : p) },
+    }};
+    render(<CourseEditor course={course} />);
+    await user.click(screen.getByRole("button", { name: "다른 코스 추천받기" }));
+    await user.click(screen.getByRole("button", { name: /새 장소 포함/ }));
+    expect(await screen.findByText("추천을 불러오지 못했어요. 다시 시도해 주세요.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "이 코스로 변경" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "기존 코스 유지" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("renders the approved mobile regions in reference order", () => {
