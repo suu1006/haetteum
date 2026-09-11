@@ -74,14 +74,14 @@ function RankedPlaceAudienceFilter({
   };
 
   return (
-    <nav aria-label="세대 필터" className="mt-3 overflow-x-auto">
+    <nav aria-label="세대 필터" className="scrollbar-none mt-3 overflow-x-auto">
       <ul className="flex gap-2">
         {audienceFilters.map((audience) => {
           const href = explore
             ? buildExploreHref(query, { audience: audience.id })
             : buildDiscoveryHref(query, { audience: audience.id });
           return (
-            <li key={audience.id}>
+            <li key={audience.id} className="shrink-0">
               <Link
                 href={href}
                 scroll={false}
@@ -90,7 +90,7 @@ function RankedPlaceAudienceFilter({
                   query.audience === audience.id ? "true" : undefined
                 }
                 className={cn(
-                  "type-label inline-flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-muted-foreground transition-colors hover:bg-primary-subtle hover:text-primary",
+                  "type-label inline-flex h-11 min-w-11 items-center justify-center whitespace-nowrap rounded-full px-3 text-muted-foreground transition-colors hover:bg-primary-subtle hover:text-primary",
                   query.audience === audience.id &&
                     "bg-primary text-primary-foreground",
                 )}

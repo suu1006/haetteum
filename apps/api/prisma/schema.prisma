@@ -9,6 +9,17 @@ datasource db {
   provider = "postgresql"
 }
 
+/// 한국 날짜별 로그인 사용자 챗봇 호출 횟수.
+model ChatDailyUsage {
+  subjectKey String   @map("subject_key")
+  day        DateTime @db.Date
+  used       Int      @default(0)
+
+  @@id([subjectKey, day])
+  @@index([day])
+  @@map("chat_daily_usage")
+}
+
 /// Haetteum 서비스에서 노출하는 광역 관광 지역
 model TourismRegion {
   /// Haetteum 내부 관광 지역 식별자

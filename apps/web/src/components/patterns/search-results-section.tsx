@@ -11,6 +11,7 @@ import { resolveOfficialImageSource } from "@/lib/official-image";
 type SearchResultsSectionProps = {
   results: PlaceSearchLoadState | null;
   query: DiscoveryQuery;
+  clearSearchHref?: string;
 };
 
 function toDestination(place: PlaceListItem): ExploreDestination {
@@ -26,9 +27,8 @@ function toDestination(place: PlaceListItem): ExploreDestination {
   };
 }
 
-function SearchResultsSection({ results, query }: SearchResultsSectionProps) {
+function SearchResultsSection({ results, query, clearSearchHref = buildDiscoveryHref(query, { q: "" }) }: SearchResultsSectionProps) {
   const items = results?.status === "ready" ? results.items.map(toDestination) : [];
-  const clearSearchHref = buildDiscoveryHref(query, { q: "" });
 
   return (
     <section

@@ -13,6 +13,7 @@ type FestivalRemoteImageProps = {
   className?: string;
   loading?: "eager" | "lazy";
   draggable?: boolean;
+  fetchPriority?: "high" | "low" | "auto";
 };
 
 function FestivalRemoteImage({
@@ -21,6 +22,7 @@ function FestivalRemoteImage({
   sizes,
   className,
   loading,
+  fetchPriority,
   draggable = false,
 }: FestivalRemoteImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
@@ -49,6 +51,7 @@ function FestivalRemoteImage({
       fill
       sizes={sizes}
       loading={loading}
+      fetchPriority={fetchPriority}
       draggable={draggable}
       onError={() => setFailedSrc(src)}
       className={className}

@@ -58,9 +58,11 @@ function MainDiscovery({
       }`}
       style={mainDiscoveryStyle}
     >
-      <div data-testid="main-region" data-region="hero">
-        <DiscoveryAppHeader compact={view.showThemeTravel} />
-      </div>
+      {!view.showSearchResults ? (
+        <div data-testid="main-region" data-region="hero">
+          <DiscoveryAppHeader compact={view.showThemeTravel} />
+        </div>
+      ) : null}
       {!view.showSearchResults ? (
         <div data-testid="main-region" data-region="tabs">
           <DiscoverySearchPanel query={query} compact={view.showThemeTravel} />

@@ -5,9 +5,9 @@ import Link from "next/link";
 import { ArrowLeftIcon, ArrowUpIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { type ChatMessage } from "@haetteum/contracts";
+import { CHAT_MAX_QUESTION_CHARS, selectChatContext, type ChatMessage } from "@haetteum/contracts";
 
-import { readChatStream } from "@/features/chat/read-chat-stream";
+import { ChatRequestError, readChatStream, toChatRequestError } from "@/features/chat/read-chat-stream";
 
 import { createSmoothChatText } from "@/features/chat/smooth-chat-text";
 
@@ -21,7 +21,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatRequestError | null>(null);
   const pending = useRef(false);
   const conversation = useRef<HTMLElement>(null);
   const followBottom = useRef(true);
@@ -49,20 +49,29 @@ export default function ChatPage() {
       if (!abort.signal.aborted) setMessages([...nextMessages, { role: "assistant", content: text }]);
     });
     abort.signal.addEventListener("abort", smooth.cancel, { once: true });
+    const timeout = AbortSignal.timeout(60_000);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
-      if (!baseUrl) throw new Error("Missing API URL");
+      if (!baseUrl) throw new ChatRequestError(503);
       const response = await fetch(`${baseUrl}/chat/messages/stream`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
-        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60_000)]),
+        body: JSON.stringify({ messages: selectChatContext(nextMessages) }),
+        signal: AbortSignal.any([abort.signal, timeout]),
       });
       await readChatStream(response, smooth.push);
       await smooth.finish();
-    } catch {
+    } catch (cause) {
+      const failure = cause instanceof ChatRequestError ? cause : timeout.aborted ? new ChatRequestError(504) : toChatRequestError(cause);
       await smooth.finish();
-      if (!abort.signal.aborted) setError("답변이 중단되었어요. 다시 시도해 주세요.");
+      if (!abort.signal.aborted) {
+        setError(failure);
+        if (failure.status === 400) {
+          setDraft(nextMessages.at(-1)?.content ?? "");
+          setMessages(nextMessages.slice(0, -1));
+        }
+      }
     } finally {
       smooth.cancel();
       abort.signal.removeEventListener("abort", smooth.cancel);
@@ -72,7 +81,7 @@ export default function ChatPage() {
   }
 
   function submit(content: string) {
-    if (!content.trim() || pending.current || error) return;
+    if (!content.trim() || content.trim().length > CHAT_MAX_QUESTION_CHARS || pending.current || error) return;
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: content.trim() }];
     setMessages(nextMessages);
     setDraft("");
@@ -140,15 +149,16 @@ export default function ChatPage() {
         </div>
         {error ? (
           <div className="mt-5 rounded-2xl border border-border bg-card p-4">
-            <p role="alert" className="text-sm leading-6 text-muted-foreground">{error}</p>
-            <button type="button" onClick={() => void send(retryMessages.current)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-primary outline-none hover:bg-primary-subtle focus-visible:ring-2 focus-visible:ring-ring"><RefreshCwIcon aria-hidden="true" className="size-4" />다시 시도</button>
+            <p role="alert" className="text-sm leading-6 text-muted-foreground">{error.message}</p>
+            {error.status === 401 ? <Link href="/login?returnTo=%2Fchat" className="mt-2 inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-primary outline-none hover:bg-primary-subtle focus-visible:ring-2 focus-visible:ring-ring">로그인하기</Link> : null}
+            {error.retryable ? <button type="button" onClick={() => void send(retryMessages.current)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-primary outline-none hover:bg-primary-subtle focus-visible:ring-2 focus-visible:ring-ring"><RefreshCwIcon aria-hidden="true" className="size-4" />다시 시도</button> : null}
           </div>
         ) : null}
       </section>
 
       <footer className="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[calc(0.75rem+var(--safe-area-bottom))]">
         <form onSubmit={(event) => { event.preventDefault(); submit(draft); }} className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2 focus-within:border-primary">
-          <textarea aria-label="여행 질문" placeholder="어떤 여행을 떠나고 싶으세요?" rows={2} maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+          <textarea aria-label="여행 질문" placeholder="어떤 여행을 떠나고 싶으세요?" rows={1} maxLength={CHAT_MAX_QUESTION_CHARS} value={draft} onChange={(event) => { setDraft(event.target.value); if (error?.status === 400) setError(null); }} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(draft); }
           }} className="min-w-0 flex-1 resize-none bg-transparent px-2 py-1 text-base leading-6 outline-none placeholder:text-muted-foreground" />
           <button type="submit" aria-label="메시지 보내기" disabled={sending || !!error || !draft.trim()} className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-40">

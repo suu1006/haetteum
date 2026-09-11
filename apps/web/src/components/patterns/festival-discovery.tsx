@@ -57,7 +57,8 @@ function FestivalDiscovery({ data, query }: FestivalDiscoveryProps) {
             <li key={festival.id} className="min-w-0">
               <FestivalDiscoveryListItem
                 festival={festival}
-                eager={index === 0}
+                eager={index < 4}
+                highPriority={index < 2}
               />
             </li>
           ))}

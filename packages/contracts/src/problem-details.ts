@@ -14,6 +14,7 @@ export const ProblemDetailsSchema = z.object({
   code: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
   requestId: z.string().uuid(),
   errors: z.array(ValidationIssueSchema).optional(),
+  resetsAt: z.iso.datetime().optional(),
 });
 
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;

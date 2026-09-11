@@ -21,6 +21,7 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: [config.get("WEB_ORIGIN", { infer: true })],
     credentials: true,
+    exposedHeaders: ["Retry-After"],
   });
   app.useGlobalFilters(new ProblemDetailsFilter());
   app.enableShutdownHooks();

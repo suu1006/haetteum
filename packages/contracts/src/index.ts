@@ -1,5 +1,10 @@
 export { AuthUserSchema, type AuthUser } from "./auth.js";
+export { CHAT_ERRORS, ChatErrorStatusSchema, ChatStreamEventSchema, type ChatErrorStatus, type ChatStreamEvent } from "./chat-errors.js";
 export {
+  CHAT_MAX_QUESTION_CHARS,
+  CHAT_MAX_CONTEXT_CHARS,
+  CHAT_MAX_CONTEXT_MESSAGES,
+  selectChatContext,
   ChatMessageRoleSchema,
   ChatMessageSchema,
   ChatRequestSchema,

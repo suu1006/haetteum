@@ -9,7 +9,8 @@ export const CHAT_LLM_PORT = Symbol("CHAT_LLM_PORT");
 export const DEFAULT_BEDROCK_MODEL_ID =
   "global.anthropic.claude-haiku-4-5-20251001-v1:0";
 
-export const CHAT_MAX_OUTPUT_TOKENS = 1024;
+export const CHAT_MAX_OUTPUT_TOKENS = 512;
+export const CHAT_RESPONSE_TIMEOUT_MS = 55_000;
 
 export interface ChatLlmPort {
   isConfigured(): boolean;
@@ -17,7 +18,10 @@ export interface ChatLlmPort {
     messages: readonly ChatMessage[],
     signal: AbortSignal,
   ): AsyncIterable<string>;
-  complete(messages: readonly ChatMessage[]): Promise<string>;
+  complete(
+    messages: readonly ChatMessage[],
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 export class ChatLlmError extends Error {

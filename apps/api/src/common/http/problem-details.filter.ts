@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { STATUS_CODES } from "node:http";
 
 import {
+  CHAT_ERRORS,
+  ChatErrorStatusSchema,
   ProblemDetailsSchema,
   ValidationIssueSchema,
 } from "@haetteum/contracts";
@@ -72,16 +74,24 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const title = STATUS_CODES[status] ?? "Error";
     const requestId = request.requestId ?? randomUUID();
 
+    const chatStatus = ChatErrorStatusSchema.safeParse(status);
+    const safeChatDetail =
+      status >= 500 &&
+      chatStatus.success &&
+      extensions.code === CHAT_ERRORS[chatStatus.data].code
+        ? CHAT_ERRORS[chatStatus.data].message
+        : undefined;
     const problem = ProblemDetailsSchema.parse({
       type: "about:blank",
       title,
       status,
       detail:
-        status >= 500
+        safeChatDetail ??
+        (status >= 500
           ? "서버에서 요청을 처리하지 못했습니다."
           : typeof extensions.detail === "string"
             ? extensions.detail
-            : title,
+            : title),
       instance: request.originalUrl,
       code:
         typeof extensions.code === "string" &&
@@ -90,6 +100,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           : (DEFAULT_ERROR_CODES[status] ?? "HTTP_ERROR"),
       requestId,
       errors: safeIssues.success ? safeIssues.data : undefined,
+      resetsAt: z.iso.datetime().safeParse(extensions.resetsAt).data,
     });
 
     if (status >= 500) {
@@ -101,6 +112,15 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     response.setHeader("X-Request-Id", requestId);
+    if (status === 429 && problem.resetsAt) {
+      response.setHeader(
+        "Retry-After",
+        Math.max(
+          1,
+          Math.ceil((Date.parse(problem.resetsAt) - Date.now()) / 1000),
+        ),
+      );
+    }
     response.status(status).type("application/problem+json").json(problem);
   }
 }

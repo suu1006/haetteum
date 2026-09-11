@@ -14,12 +14,17 @@ describe("ChatController", () => {
         .fn<(request: ChatRequest) => Promise<ChatResponse>>()
         .mockResolvedValue(response),
     };
-    const controller = new ChatController(chat as never);
+    const controller = new ChatController(
+      chat as never,
+      { prepare: () => Promise.resolve() } as never,
+    );
     const request: ChatRequest = {
       messages: [{ role: "user", content: "안녕" }],
     };
 
-    await expect(controller.sendMessage(request)).resolves.toBe(response);
+    await expect(
+      controller.sendMessage(request, {} as never, {} as never),
+    ).resolves.toBe(response);
     expect(chat.sendMessage).toHaveBeenCalledWith(request);
   });
 
@@ -29,7 +34,7 @@ describe("ChatController", () => {
       ChatController,
       "sendMessage",
     ) as Record<string, { pipes: unknown[] }>;
-    const parameter = Object.values(args)[0];
+    const parameter = Object.values(args).find((arg) => arg.pipes.length > 0);
     const pipe = parameter?.pipes[0];
 
     expect(pipe).toBeInstanceOf(ZodValidationPipe);

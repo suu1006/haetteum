@@ -9,11 +9,13 @@ import { cn } from "@/lib/utils";
 type FestivalDiscoveryListItemProps = {
   festival: FestivalDiscoveryListItemData;
   eager?: boolean;
+  highPriority?: boolean;
 };
 
 function FestivalDiscoveryListItem({
   festival,
   eager = false,
+  highPriority = false,
 }: FestivalDiscoveryListItemProps) {
   return (
     <article aria-label={festival.title} className="h-full">
@@ -27,6 +29,7 @@ function FestivalDiscoveryListItem({
             alt={festival.image.alt}
             sizes="(max-width: 480px) calc((100vw - 3.5rem) / 2), 210px"
             loading={eager ? "eager" : "lazy"}
+            fetchPriority={highPriority ? "high" : "auto"}
             className="object-cover"
           />
           <span

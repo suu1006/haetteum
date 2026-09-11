@@ -58,16 +58,22 @@ export class BedrockChatClient implements ChatLlmPort {
     }
   }
 
-  async complete(messages: readonly ChatMessage[]): Promise<string> {
+  async complete(
+    messages: readonly ChatMessage[],
+    signal?: AbortSignal,
+  ): Promise<string> {
     try {
-      const response = await this.bedrockClient().messages.create({
-        model: this.modelId,
-        max_tokens: CHAT_MAX_OUTPUT_TOKENS,
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-      });
+      const response = await this.bedrockClient().messages.create(
+        {
+          model: this.modelId,
+          max_tokens: CHAT_MAX_OUTPUT_TOKENS,
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+        },
+        { signal },
+      );
 
       const textBlock = response.content.find((block) => block.type === "text");
 

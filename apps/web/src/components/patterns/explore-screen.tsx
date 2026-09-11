@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { BellIcon, SearchIcon } from "lucide-react";
 
+import { SearchResultsSection } from "@/components/patterns/search-results-section";
+import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
 import { PopularPlacesTab } from "@/components/patterns/popular-places-tab";
 import { BottomNavigation } from "@/components/travel/bottom-navigation";
 import { createMainNavigationItems } from "@/components/travel/main-navigation-items";
@@ -10,6 +12,7 @@ import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api
 type ExploreScreenProps = {
   query: DiscoveryQuery;
   popularReels: PopularReelsLoadState | null;
+  searchResults?: PlaceSearchLoadState | null;
 };
 
 const exploreScreenStyle = {
@@ -21,7 +24,10 @@ const exploreScreenStyle = {
 function ExploreScreen({
   query,
   popularReels,
+  searchResults = null,
 }: ExploreScreenProps) {
+  const isSearching = Boolean(query.q.trim());
+  const clearSearchHref = `/explore?${new URLSearchParams({ region: query.region, reelRegion: query.reelRegion })}`;
   return (
     <div
       className="mx-auto min-h-screen w-full max-w-[30rem] bg-card pb-[var(--main-navigation-reserve)]"
@@ -41,15 +47,17 @@ function ExploreScreen({
       </header>
 
       <section aria-label="여행지 검색" className="px-5">
-        <form action="/" method="get" role="search" className="relative">
+        <form action="/explore" method="get" role="search" className="relative">
           <input type="hidden" name="region" value={query.region} />
-          <input type="hidden" name="tab" value="recommended" />
+          <input type="hidden" name="reelRegion" value={query.reelRegion} />
           <label htmlFor="explore-search" className="sr-only">
             여행지 검색
           </label>
           <input
             id="explore-search"
             name="q"
+            key={query.q}
+            defaultValue={query.q}
             type="search"
             placeholder="어디로 떠나볼까요?"
             className="type-body-md h-12 w-full rounded-full border border-transparent bg-muted pr-12 pl-4 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
@@ -64,10 +72,13 @@ function ExploreScreen({
         </form>
       </section>
 
-
-      <div className="mt-6 bg-background pb-5">
-        <PopularPlacesTab videos={[]} query={query} popularReels={popularReels} explore />
-      </div>
+      {isSearching ? (
+        <SearchResultsSection results={searchResults} query={query} clearSearchHref={clearSearchHref} />
+      ) : (
+        <div className="mt-6 bg-background pb-5">
+          <PopularPlacesTab videos={[]} query={query} popularReels={popularReels} explore />
+        </div>
+      )}
 
       <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card">
         <BottomNavigation items={createMainNavigationItems("explore")} />

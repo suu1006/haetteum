@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  HttpException,
+  NotFoundException,
+} from "@nestjs/common";
 import type { ProblemDetails } from "@haetteum/contracts";
 import { jest } from "@jest/globals";
 
@@ -141,3 +145,28 @@ describe("ProblemDetailsFilter", () => {
     );
   });
 });
+
+it.each([
+  [
+    502,
+    "CHAT_PROVIDER_ERROR",
+    "AI 답변 생성 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+  ],
+  [503, "CHAT_UNAVAILABLE", "현재 챗봇을 사용할 수 없습니다."],
+  [
+    504,
+    "CHAT_TIMEOUT",
+    "답변 시간이 오래 걸리고 있습니다. 잠시 후 다시 시도해 주세요.",
+  ],
+] as const)(
+  "returns the canonical safe chat detail for %i",
+  (status, code, detail) => {
+    const { host, result } = createHost();
+    new ProblemDetailsFilter().catch(
+      new HttpException({ code, detail: "AWS credentials=private" }, status),
+      host,
+    );
+    expect(result().body).toMatchObject({ status, code, detail });
+    expect(JSON.stringify(result().body)).not.toContain("credentials");
+  },
+);

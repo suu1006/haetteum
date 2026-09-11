@@ -220,3 +220,13 @@ describe("validateEnvironment", () => {
     ).toThrow("YOUTUBE_API_KEY");
   });
 });
+
+it("allows authenticated-only chat without an anonymous IP hashing secret", () => {
+  expect(
+    validateEnvironment({
+      ...validEnvironment,
+      CHAT_ENABLED: "true",
+      CHAT_AWS_REGION: "ap-northeast-2",
+    }).CHAT_ENABLED,
+  ).toBe(true);
+});
