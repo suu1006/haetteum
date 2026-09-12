@@ -35,7 +35,7 @@ function PlaceDetailScreen({ place, query }: PlaceDetailScreenProps) {
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[30rem] bg-background pb-[calc(7rem+var(--safe-area-bottom))]">
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md">
+      <div className="safe-area-top sticky top-0 z-40 bg-background/95 backdrop-blur-md">
         <div
           data-testid="place-detail-region"
           data-region="header"

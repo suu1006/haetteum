@@ -44,7 +44,7 @@ function FestivalDetailHeader({ title }: FestivalDetailHeaderProps) {
   }
 
   return (
-    <header className="relative flex h-14 items-center justify-between border-b border-border bg-card px-2">
+    <header className="safe-area-top relative flex h-14 items-center justify-between border-b border-border bg-card px-2">
       <Button
         type="button"
         variant="ghost"
