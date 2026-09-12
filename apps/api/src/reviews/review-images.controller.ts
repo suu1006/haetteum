@@ -16,7 +16,10 @@ import type { Request } from "express";
 
 import { SameOriginGuard } from "../auth/same-origin.guard.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
-import { REVIEW_IMAGE_MAX_BYTES, REVIEW_UPLOADS_DIR } from "./review-images.constants.js";
+import {
+  REVIEW_IMAGE_MAX_BYTES,
+  REVIEW_UPLOADS_DIR,
+} from "./review-images.constants.js";
 
 const ALLOWED_EXTENSIONS: Record<string, true> = {
   "image/jpeg": true,

@@ -51,10 +51,7 @@ export class SavedCoursesController {
     @Param(new ZodValidationPipe(SavedCourseIdParamsSchema))
     params: SavedCourseIdParams,
   ): Promise<SavedCourseItem> {
-    const course = await this.savedCourses.findOne(
-      currentUser.id,
-      params.id,
-    );
+    const course = await this.savedCourses.findOne(currentUser.id, params.id);
     if (!course) throw new NotFoundException();
     return SavedCourseItemSchema.parse(course);
   }

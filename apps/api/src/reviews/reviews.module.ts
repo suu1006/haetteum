@@ -8,7 +8,11 @@ import { ReviewsService } from "./reviews.service.js";
 
 @Module({
   imports: [AuthModule],
-  controllers: [PlaceReviewsController, ReviewImagesController, ReviewsController],
+  controllers: [
+    PlaceReviewsController,
+    ReviewImagesController,
+    ReviewsController,
+  ],
   providers: [ReviewsService],
 })
 export class ReviewsModule {}

@@ -149,7 +149,7 @@ function mapSavedCourseRow(row: SavedCourseRow): SavedCourseItem {
       longitude: Number(stop.longitude),
       latitude: Number(stop.latitude),
       distanceMeters: stop.distanceMeters,
-      placeUrl: stop.placeUrl as SavedCourseItem["stops"][number]["placeUrl"],
+      placeUrl: stop.placeUrl,
     })),
   };
 }

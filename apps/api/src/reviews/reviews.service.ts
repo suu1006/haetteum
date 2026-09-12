@@ -242,7 +242,9 @@ export class ReviewsService {
     });
     await this.prisma.review.deleteMany({ where: { id: reviewId, userId } });
     if (existingReview !== null) {
-      await deleteUploadedImages(existingReview.images.map((image) => image.url));
+      await deleteUploadedImages(
+        existingReview.images.map((image) => image.url),
+      );
     }
   }
 }
