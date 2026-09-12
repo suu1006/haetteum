@@ -42,13 +42,13 @@ function ProfileInfoStep({
   onSubmit,
 }: ProfileInfoStepProps) {
   return (
-    <div className="pt-2">
-      <h1
+    <div className="pt-5">
+      <h2
         id={headingId}
-        className="max-w-[19rem] break-keep text-[1.5rem] leading-[1.35] font-bold tracking-[-0.04em] text-foreground"
+        className="break-keep text-xl leading-[1.35] font-bold tracking-[-0.04em] text-foreground"
       >
         추가 정보를 입력해주세요.
-      </h1>
+      </h2>
       <p className="mt-3 max-w-sm break-keep type-body-md leading-6 text-muted-foreground">
         더 나은 여행 경험을 위해 간단한 정보를 알려주세요.
       </p>

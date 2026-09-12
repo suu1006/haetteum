@@ -190,12 +190,14 @@ function LoginScreen({
         <AuthSocialLinkButton href={loginHref} icon={<KakaoGlyph />}>
           카카오로 로그인하기
         </AuthSocialLinkButton>
+        {/* 구글로 로그인하기: 임시 비활성화
         <AuthSocialActionButton
           icon={<GoogleIcon />}
           onClick={() => announceComingSoon("구글 로그인은")}
         >
           구글로 로그인하기
         </AuthSocialActionButton>
+        */}
       </div>
 
       <p className="mt-6 text-center type-caption text-muted-foreground">

@@ -50,6 +50,7 @@ const REGION_OPTIONS: { value: PlaceRegion; label: string }[] = [
 const CODE_LENGTH = 6;
 const PASSWORD_HINT = "8자 이상, 영문, 숫자, 특수문자를 포함해주세요.";
 const EMAIL_SIGNUP_TITLE_ID = "email-signup-title";
+const EMAIL_SIGNUP_PROFILE_TITLE_ID = "email-signup-profile-title";
 
 function isValidPassword(password: string): boolean {
   return (
@@ -263,14 +264,9 @@ function EmailSignupScreen({
             }
             goBack();
           }}
-          title={isEmailStep ? (
+          title={
             <h1 id={EMAIL_SIGNUP_TITLE_ID} className="text-2xl font-bold tracking-[-0.04em] text-foreground">회원가입</h1>
-          ) : undefined}
-          end={!isEmailStep ? (
-            <span className="type-caption font-semibold text-muted-foreground">
-              회원가입
-            </span>
-          ) : undefined}
+          }
         />
       ) : null}
 
@@ -323,7 +319,7 @@ function EmailSignupScreen({
 
       {step === "profile" ? (
         <ProfileInfoStep
-          headingId={EMAIL_SIGNUP_TITLE_ID}
+          headingId={EMAIL_SIGNUP_PROFILE_TITLE_ID}
           profilePhotoUrl={profilePhotoUrl}
           uploadingPhoto={uploadingPhoto}
           onPhotoSelect={(event) => void handlePhotoSelect(event)}
