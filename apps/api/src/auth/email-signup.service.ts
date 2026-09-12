@@ -184,6 +184,7 @@ export class EmailSignupService {
       id: user.id,
       displayName,
       profileImageUrl: null,
+      provider: "EMAIL",
     };
     const session = await this.sessions.create(user.id);
 

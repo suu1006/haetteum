@@ -71,6 +71,7 @@ export class AuthService {
         id: user.id,
         displayName: user.displayName,
         profileImageUrl: user.profileImageUrl,
+        provider: "EMAIL",
       },
       ...session,
     };
@@ -107,6 +108,7 @@ export class AuthService {
           id: user.id,
           displayName: user.displayName,
           profileImageUrl: user.profileImageUrl,
+          provider: "KAKAO",
         },
         ...session,
       };

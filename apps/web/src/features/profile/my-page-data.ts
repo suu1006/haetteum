@@ -50,7 +50,8 @@ export function createMyPageData(
   return {
     profile: {
       nickname: user.displayName,
-      authLabel: "카카오로 로그인됨",
+      authLabel:
+        user.provider === "EMAIL" ? "이메일로 로그인됨" : "카카오로 로그인됨",
       image: {
         src: isAllowedKakaoProfileImageUrl(user.profileImageUrl)
           ? user.profileImageUrl

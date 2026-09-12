@@ -19,6 +19,7 @@ const currentUser: AuthUser = {
   id: "10000000-0000-4000-8000-000000000006",
   displayName: "traveler",
   profileImageUrl: null,
+  provider: "KAKAO",
 };
 
 function fakeRequest(): Request {
@@ -41,14 +42,18 @@ function createController(options?: {
     interestedRegions: string[];
   };
 }) {
-  const updatePreferences = jest.fn().mockResolvedValue(
-    options?.preferencesResult ?? {
-      travelStyles: ["nature_healing"],
-      interestedRegions: ["seoul"],
-    },
-  );
+  const updatePreferences = jest
+    .fn<
+      () => Promise<{ travelStyles: string[]; interestedRegions: string[] }>
+    >()
+    .mockResolvedValue(
+      options?.preferencesResult ?? {
+        travelStyles: ["nature_healing"],
+        interestedRegions: ["seoul"],
+      },
+    );
   const updatePhoto = jest
-    .fn()
+    .fn<() => Promise<{ profileImageUrl: string }>>()
     .mockResolvedValue({ profileImageUrl: "http://localhost:4000/x.jpg" });
   const profile = {
     updatePreferences,

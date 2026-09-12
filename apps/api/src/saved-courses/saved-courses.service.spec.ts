@@ -136,16 +136,12 @@ describe("SavedCoursesService", () => {
   });
 
   it("returns null when the saved course does not belong to the passed user", async () => {
-    const findFirst = jest
-      .fn<() => Promise<null>>()
-      .mockResolvedValue(null);
+    const findFirst = jest.fn<() => Promise<null>>().mockResolvedValue(null);
     const service = new SavedCoursesService({
       savedCourse: { findFirst },
     } as never);
 
-    await expect(
-      service.findOne(USER_ID, COURSE_ID),
-    ).resolves.toBeNull();
+    await expect(service.findOne(USER_ID, COURSE_ID)).resolves.toBeNull();
   });
 
   it("updates a saved course's title and replaces its stops for the passed user", async () => {

@@ -23,9 +23,9 @@ describe("ReviewImagesController", () => {
     expect(Reflect.getMetadata(PATH_METADATA, ReviewImagesController)).toBe(
       "reviews/images",
     );
-    expect(
-      Reflect.getMetadata(VERSION_METADATA, ReviewImagesController),
-    ).toBe("1");
+    expect(Reflect.getMetadata(VERSION_METADATA, ReviewImagesController)).toBe(
+      "1",
+    );
     expect(
       Reflect.getMetadata(GUARDS_METADATA, ReviewImagesController),
     ).toEqual([SessionAuthGuard, SameOriginGuard]);

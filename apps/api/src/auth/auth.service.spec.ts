@@ -1,10 +1,11 @@
 import { jest } from "@jest/globals";
 
 import type { PrismaService } from "../prisma/prisma.service.js";
+import type { KakaoIdentity } from "./auth.types.js";
 import type { KakaoAuthClient } from "./kakao-auth.client.js";
 import { AuthService } from "./auth.service.js";
 import type { PasswordHasher } from "./password-hasher.service.js";
-import type { SessionService } from "./session.service.js";
+import type { CreatedSession, SessionService } from "./session.service.js";
 
 const now = new Date("2026-08-26T12:00:00.000Z");
 const expiresAt = new Date("2026-09-09T12:00:00.000Z");
@@ -41,27 +42,41 @@ function createService(options?: {
   updateUser?: ReturnType<typeof userRow>;
 }) {
   const exchangeCode = options?.exchangeError
-    ? jest.fn().mockRejectedValue(options.exchangeError)
-    : jest.fn().mockResolvedValue("provider-access-token");
+    ? jest.fn<() => Promise<string>>().mockRejectedValue(options.exchangeError)
+    : jest
+        .fn<() => Promise<string>>()
+        .mockResolvedValue("provider-access-token");
   const getUser = options?.userError
-    ? jest.fn().mockRejectedValue(options.userError)
-    : jest.fn().mockResolvedValue(identity);
+    ? jest
+        .fn<() => Promise<KakaoIdentity>>()
+        .mockRejectedValue(options.userError)
+    : jest.fn<() => Promise<KakaoIdentity>>().mockResolvedValue(identity);
   const upsert = options?.upsertError
-    ? jest.fn().mockRejectedValue(options.upsertError)
-    : jest.fn().mockResolvedValue(options?.persistedUser ?? userRow());
+    ? jest
+        .fn<() => Promise<ReturnType<typeof userRow>>>()
+        .mockRejectedValue(options.upsertError)
+    : jest
+        .fn<() => Promise<ReturnType<typeof userRow>>>()
+        .mockResolvedValue(options?.persistedUser ?? userRow());
   const create = options?.sessionError
-    ? jest.fn().mockRejectedValue(options.sessionError)
-    : jest.fn().mockResolvedValue({
+    ? jest
+        .fn<() => Promise<CreatedSession>>()
+        .mockRejectedValue(options.sessionError)
+    : jest.fn<() => Promise<CreatedSession>>().mockResolvedValue({
         sessionToken: "A".repeat(43),
         expiresAt,
       });
   const findUnique = jest
-    .fn()
+    .fn<() => Promise<ReturnType<typeof userRow> | null>>()
     .mockResolvedValue(
       options?.findUniqueUser === undefined ? null : options.findUniqueUser,
     );
-  const update = jest.fn().mockResolvedValue(options?.updateUser ?? userRow());
-  const verify = jest.fn().mockResolvedValue(options?.verifyPassword ?? true);
+  const update = jest
+    .fn<() => Promise<ReturnType<typeof userRow>>>()
+    .mockResolvedValue(options?.updateUser ?? userRow());
+  const verify = jest
+    .fn<() => Promise<boolean>>()
+    .mockResolvedValue(options?.verifyPassword ?? true);
 
   const kakao = { exchangeCode, getUser } as unknown as KakaoAuthClient;
   const prisma = {
@@ -95,6 +110,7 @@ describe("AuthService", () => {
         id: userId,
         displayName: "해뜸 여행자",
         profileImageUrl: "https://cdn.example.test/profile.jpg",
+        provider: "KAKAO",
       },
       sessionToken: "A".repeat(43),
       expiresAt,
@@ -146,6 +162,7 @@ describe("AuthService", () => {
       id: userId,
       displayName: "새 카카오 닉네임",
       profileImageUrl: null,
+      provider: "KAKAO",
     });
   });
 
@@ -231,6 +248,7 @@ describe("AuthService", () => {
         id: userId,
         displayName: "traveler",
         profileImageUrl: identity.profileImageUrl,
+        provider: "EMAIL",
       });
     });
 

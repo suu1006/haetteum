@@ -9,6 +9,7 @@ const user = {
   id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1",
   displayName: "실제 카카오 여행자",
   profileImageUrl: "https://k.kakaocdn.net/dn/profile.jpg",
+  provider: "KAKAO" as const,
 };
 
 describe("createMyPageData", () => {
@@ -41,6 +42,14 @@ describe("createMyPageData", () => {
     expect(data.profile).not.toHaveProperty("levelLabel");
     expect(data.profile).not.toHaveProperty("pointsLabel");
     expect(data.profile).not.toHaveProperty("progressPercent");
+  });
+
+  it("labels an email-signup user as signed in with email, not Kakao", () => {
+    const emailUser = { ...user, provider: "EMAIL" as const };
+
+    expect(createMyPageData(emailUser, {}).profile.authLabel).toBe(
+      "이메일로 로그인됨",
+    );
   });
 
   it("keeps the favorites destination but omits its unavailable count", () => {

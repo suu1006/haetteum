@@ -12,7 +12,11 @@ describe("ReviewsModule", () => {
   it("registers the public and authenticated review controllers and the CRUD service through the shared auth module", () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, ReviewsModule),
-    ).toEqual([PlaceReviewsController, ReviewImagesController, ReviewsController]);
+    ).toEqual([
+      PlaceReviewsController,
+      ReviewImagesController,
+      ReviewsController,
+    ]);
     expect(
       Reflect.getMetadata(MODULE_METADATA.PROVIDERS, ReviewsModule),
     ).toEqual([ReviewsService]);

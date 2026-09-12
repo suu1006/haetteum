@@ -60,6 +60,7 @@ const currentUser: AuthUser = {
   id: "30000000-0000-4000-8000-000000000001",
   displayName: "로그인 여행자",
   profileImageUrl: null,
+  provider: "KAKAO",
 };
 
 function validationPipe(

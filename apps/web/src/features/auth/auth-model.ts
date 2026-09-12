@@ -1,7 +1,10 @@
+export type AuthProvider = "EMAIL" | "KAKAO";
+
 export type AuthUser = {
   id: string;
   displayName: string;
   profileImageUrl: string | null;
+  provider: AuthProvider;
 };
 
 export type AuthState =

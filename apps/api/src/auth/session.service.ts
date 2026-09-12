@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type { AuthUser } from "@haetteum/contracts";
+import type { AuthProvider, AuthUser } from "@haetteum/contracts";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -84,6 +84,7 @@ export class SessionService {
         id: session.user.id,
         displayName: session.user.displayName,
         profileImageUrl: session.user.profileImageUrl,
+        provider: session.user.provider as AuthProvider,
       },
       refreshedExpiresAt,
     };

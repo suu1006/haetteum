@@ -3,7 +3,7 @@ import { jest } from "@jest/globals";
 import type { PrismaService } from "../prisma/prisma.service.js";
 import { EmailSignupService } from "./email-signup.service.js";
 import type { PasswordHasher } from "./password-hasher.service.js";
-import type { SessionService } from "./session.service.js";
+import type { CreatedSession, SessionService } from "./session.service.js";
 import type { VerificationMailService } from "./verification-mail.service.js";
 
 const now = new Date("2026-09-09T12:00:00.000Z");
@@ -20,24 +20,36 @@ function createService(options?: {
   txFindUniqueUser?: { id: string } | null;
 }) {
   const findUniqueUser = jest
-    .fn()
+    .fn<() => Promise<{ id: string } | null>>()
     .mockResolvedValue(options?.findUniqueUser ?? null);
   const findUniquePending = jest
-    .fn()
+    .fn<() => Promise<Record<string, unknown> | null>>()
     .mockResolvedValue(options?.findUniquePending ?? null);
-  const upsertPending = jest.fn().mockResolvedValue({});
-  const updatePending = jest.fn().mockResolvedValue({});
-  const deletePending = jest.fn().mockResolvedValue({});
+  const upsertPending = jest
+    .fn<(args: unknown) => Promise<Record<string, unknown>>>()
+    .mockResolvedValue({});
+  const updatePending = jest
+    .fn<() => Promise<Record<string, unknown>>>()
+    .mockResolvedValue({});
+  const deletePending = jest
+    .fn<() => Promise<Record<string, unknown>>>()
+    .mockResolvedValue({});
   const sendVerificationCode = options?.sendError
-    ? jest.fn().mockRejectedValue(options.sendError)
-    : jest.fn().mockResolvedValue(undefined);
-  const hash = jest.fn().mockResolvedValue("hashed-password");
+    ? jest.fn<() => Promise<void>>().mockRejectedValue(options.sendError)
+    : jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+  const hash = jest
+    .fn<() => Promise<string>>()
+    .mockResolvedValue("hashed-password");
 
-  const txUserCreate = jest.fn().mockResolvedValue({ id: userId });
+  const txUserCreate = jest
+    .fn<() => Promise<{ id: string }>>()
+    .mockResolvedValue({ id: userId });
   const txUserFindUnique = jest
-    .fn()
+    .fn<() => Promise<{ id: string } | null>>()
     .mockResolvedValue(options?.txFindUniqueUser ?? null);
-  const txPendingDelete = jest.fn().mockResolvedValue({});
+  const txPendingDelete = jest
+    .fn<() => Promise<Record<string, unknown>>>()
+    .mockResolvedValue({});
 
   type Tx = {
     user: { findUnique: typeof txUserFindUnique; create: typeof txUserCreate };
@@ -61,10 +73,12 @@ function createService(options?: {
   } as unknown as PrismaService;
   const passwords = { hash } as unknown as PasswordHasher;
   const mail = { sendVerificationCode } as unknown as VerificationMailService;
-  const createSession = jest.fn().mockResolvedValue({
-    sessionToken: "A".repeat(43),
-    expiresAt: sessionExpiresAt,
-  });
+  const createSession = jest
+    .fn<() => Promise<CreatedSession>>()
+    .mockResolvedValue({
+      sessionToken: "A".repeat(43),
+      expiresAt: sessionExpiresAt,
+    });
   const sessions = { create: createSession } as unknown as SessionService;
 
   const service = new EmailSignupService(
@@ -240,7 +254,12 @@ describe("EmailSignupService", () => {
       const result = await service.verifyCode(email, "123456");
 
       expect(result).toEqual({
-        user: { id: userId, displayName: "traveler", profileImageUrl: null },
+        user: {
+          id: userId,
+          displayName: "traveler",
+          profileImageUrl: null,
+          provider: "EMAIL",
+        },
         sessionToken: "A".repeat(43),
         expiresAt: sessionExpiresAt,
       });

@@ -35,23 +35,28 @@ import {
 } from "./index.js";
 
 describe("AuthUserSchema", () => {
-  it("exposes the authenticated user without provider identity details", () => {
+  it("exposes the login provider category without finer identity details", () => {
     const authUser = AuthUserSchema.parse({
       id: "10000000-0000-4000-8000-000000000001",
       displayName: "해뜸 여행자",
       profileImageUrl: null,
+      provider: "EMAIL",
     });
 
     expect(authUser).toEqual({
       id: "10000000-0000-4000-8000-000000000001",
       displayName: "해뜸 여행자",
       profileImageUrl: null,
+      provider: "EMAIL",
     });
     expect(
       AuthUserSchema.parse({ ...authUser, providerUserId: "do-not-expose" }),
     ).toEqual(authUser);
     expect(() =>
       AuthUserSchema.parse({ ...authUser, id: "not-a-uuid" }),
+    ).toThrow();
+    expect(() =>
+      AuthUserSchema.parse({ ...authUser, provider: "GOOGLE" }),
     ).toThrow();
   });
 });

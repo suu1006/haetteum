@@ -60,6 +60,7 @@ const currentUser: AuthUser = {
   id: "30000000-0000-4000-8000-000000000001",
   displayName: "로그인 여행자",
   profileImageUrl: null,
+  provider: "KAKAO",
 };
 
 function validationPipe(
@@ -93,16 +94,11 @@ describe("SavedCoursesController", () => {
         .fn<(userId: string) => Promise<MySavedCoursesResponse>>()
         .mockResolvedValue(response),
       findOne: jest
-        .fn<
-          (userId: string, id: string) => Promise<SavedCourseItem | null>
-        >()
+        .fn<(userId: string, id: string) => Promise<SavedCourseItem | null>>()
         .mockResolvedValue(savedCourse),
       create: jest
         .fn<
-          (
-            userId: string,
-            input: SaveCourseRequest,
-          ) => Promise<SavedCourseItem>
+          (userId: string, input: SaveCourseRequest) => Promise<SavedCourseItem>
         >()
         .mockResolvedValue(savedCourse),
       update: jest
@@ -122,12 +118,12 @@ describe("SavedCoursesController", () => {
     const params: SavedCourseIdParams = { id: COURSE_ID };
 
     await expect(controller.listMine(currentUser)).resolves.toEqual(response);
-    await expect(
-      controller.findOne(currentUser, params),
-    ).resolves.toEqual(savedCourse);
-    await expect(
-      controller.save(currentUser, saveRequest),
-    ).resolves.toEqual(savedCourse);
+    await expect(controller.findOne(currentUser, params)).resolves.toEqual(
+      savedCourse,
+    );
+    await expect(controller.save(currentUser, saveRequest)).resolves.toEqual(
+      savedCourse,
+    );
     await expect(
       controller.update(currentUser, params, saveRequest),
     ).resolves.toEqual(savedCourse);
@@ -149,10 +145,7 @@ describe("SavedCoursesController", () => {
       COURSE_ID,
       saveRequest,
     );
-    expect(savedCourses.remove).toHaveBeenCalledWith(
-      currentUser.id,
-      COURSE_ID,
-    );
+    expect(savedCourses.remove).toHaveBeenCalledWith(currentUser.id, COURSE_ID);
   });
 
   it("raises a 404 when the saved course cannot be found for the current user", async () => {
@@ -170,12 +163,12 @@ describe("SavedCoursesController", () => {
   });
 
   it("registers the versioned saved-courses routes", () => {
-    expect(
-      Reflect.getMetadata(PATH_METADATA, SavedCoursesController),
-    ).toBe("saved-courses");
-    expect(
-      Reflect.getMetadata(VERSION_METADATA, SavedCoursesController),
-    ).toBe("1");
+    expect(Reflect.getMetadata(PATH_METADATA, SavedCoursesController)).toBe(
+      "saved-courses",
+    );
+    expect(Reflect.getMetadata(VERSION_METADATA, SavedCoursesController)).toBe(
+      "1",
+    );
 
     expect(Reflect.getMetadata(PATH_METADATA, handler("listMine"))).toBe(
       "mine",
@@ -183,9 +176,7 @@ describe("SavedCoursesController", () => {
     expect(Reflect.getMetadata(METHOD_METADATA, handler("listMine"))).toBe(
       RequestMethod.GET,
     );
-    expect(Reflect.getMetadata(PATH_METADATA, handler("findOne"))).toBe(
-      ":id",
-    );
+    expect(Reflect.getMetadata(PATH_METADATA, handler("findOne"))).toBe(":id");
     expect(Reflect.getMetadata(METHOD_METADATA, handler("findOne"))).toBe(
       RequestMethod.GET,
     );
@@ -264,10 +255,7 @@ describe("SavedCoursesController", () => {
 
     expect(validationPipe("findOne", 1)).toBeInstanceOf(ZodValidationPipe);
     expect(
-      validationPipe("findOne", 1).transform(
-        { id: COURSE_ID },
-        paramsMetadata,
-      ),
+      validationPipe("findOne", 1).transform({ id: COURSE_ID }, paramsMetadata),
     ).toEqual(SavedCourseIdParamsSchema.parse({ id: COURSE_ID }));
     expect(validationPipe("save", 1)).toBeInstanceOf(ZodValidationPipe);
     expect(
@@ -308,12 +296,8 @@ describe("SavedCoursesController", () => {
     const params: SavedCourseIdParams = { id: COURSE_ID };
 
     await expect(controller.listMine(currentUser)).rejects.toThrow();
-    await expect(
-      controller.findOne(currentUser, params),
-    ).rejects.toThrow();
-    await expect(
-      controller.save(currentUser, saveRequest),
-    ).rejects.toThrow();
+    await expect(controller.findOne(currentUser, params)).rejects.toThrow();
+    await expect(controller.save(currentUser, saveRequest)).rejects.toThrow();
     await expect(
       controller.update(currentUser, params, saveRequest),
     ).rejects.toThrow();
@@ -341,12 +325,12 @@ describe("SavedCoursesController", () => {
     await expect(controller.listMine(currentUser)).resolves.toEqual(
       MySavedCoursesResponseSchema.parse({ items: [savedCourse] }),
     );
-    await expect(
-      controller.findOne(currentUser, params),
-    ).resolves.toEqual(SavedCourseItemSchema.parse(savedCourse));
-    await expect(
-      controller.save(currentUser, saveRequest),
-    ).resolves.toEqual(SavedCourseItemSchema.parse(savedCourse));
+    await expect(controller.findOne(currentUser, params)).resolves.toEqual(
+      SavedCourseItemSchema.parse(savedCourse),
+    );
+    await expect(controller.save(currentUser, saveRequest)).resolves.toEqual(
+      SavedCourseItemSchema.parse(savedCourse),
+    );
     await expect(
       controller.update(currentUser, params, saveRequest),
     ).resolves.toEqual(SavedCourseItemSchema.parse(savedCourse));

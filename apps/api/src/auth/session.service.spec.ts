@@ -37,11 +37,17 @@ function sessionRow(expiresAt: Date) {
 
 function createService(row: ReturnType<typeof sessionRow> | null = null) {
   const calls = {
-    create: jest.fn().mockResolvedValue({ id: sessionId }),
-    findUnique: jest.fn().mockResolvedValue(row),
-    update: jest.fn().mockResolvedValue(undefined),
-    delete: jest.fn().mockResolvedValue(undefined),
-    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    create: jest
+      .fn<() => Promise<{ id: string }>>()
+      .mockResolvedValue({ id: sessionId }),
+    findUnique: jest
+      .fn<() => Promise<ReturnType<typeof sessionRow> | null>>()
+      .mockResolvedValue(row),
+    update: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    delete: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    deleteMany: jest
+      .fn<() => Promise<{ count: number }>>()
+      .mockResolvedValue({ count: 0 }),
   };
   const prisma = {
     session: calls,
@@ -85,6 +91,7 @@ describe("SessionService", () => {
         id: userId,
         displayName: "해뜸 여행자",
         profileImageUrl: "https://cdn.example.test/profile.jpg",
+        provider: "KAKAO",
       },
       refreshedExpiresAt: null,
     });

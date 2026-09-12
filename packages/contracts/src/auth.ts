@@ -1,9 +1,14 @@
 import { z } from "zod";
 
+export const AuthProviderSchema = z.enum(["EMAIL", "KAKAO"]);
+
+export type AuthProvider = z.infer<typeof AuthProviderSchema>;
+
 export const AuthUserSchema = z.object({
   id: z.string().uuid(),
   displayName: z.string().min(1).max(100),
   profileImageUrl: z.string().url().nullable(),
+  provider: AuthProviderSchema,
 });
 
 export type AuthUser = z.infer<typeof AuthUserSchema>;

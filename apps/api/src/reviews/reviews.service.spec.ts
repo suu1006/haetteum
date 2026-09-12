@@ -158,7 +158,10 @@ describe("ReviewsService", () => {
         content: "다시 방문하고 싶은 곳이에요.",
         images: {
           create: [
-            { url: "https://example.test/uploads/reviews/photo-1.jpg", sortOrder: 0 },
+            {
+              url: "https://example.test/uploads/reviews/photo-1.jpg",
+              sortOrder: 0,
+            },
           ],
         },
       },

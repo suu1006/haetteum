@@ -14,6 +14,7 @@ const resolved: ResolvedSession = {
     id: "10000000-0000-4000-8000-000000000001",
     displayName: "해뜸 여행자",
     profileImageUrl: "https://cdn.example.test/profile.jpg",
+    provider: "KAKAO",
   },
   refreshedExpiresAt: null,
 };
@@ -22,7 +23,9 @@ function createGuard(
   resolvedSession: ResolvedSession | null,
   cookies: Record<string, unknown> = { haetteum_session: rawToken },
 ) {
-  const resolve = jest.fn().mockResolvedValue(resolvedSession);
+  const resolve = jest
+    .fn<() => Promise<ResolvedSession | null>>()
+    .mockResolvedValue(resolvedSession);
   const session = {
     resolve,
   } as unknown as SessionService;

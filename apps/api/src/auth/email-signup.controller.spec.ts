@@ -11,7 +11,11 @@ import type { Response } from "express";
 
 import type { AuthCookieService } from "./auth-cookie.service.js";
 import { EmailSignupController } from "./email-signup.controller.js";
-import type { EmailSignupService } from "./email-signup.service.js";
+import type {
+  EmailSignupService,
+  EmailSignupStarted,
+  EmailSignupVerified,
+} from "./email-signup.service.js";
 import { SameOriginGuard } from "./same-origin.guard.js";
 
 const codeExpiresAt = new Date("2026-09-09T12:03:00.000Z");
@@ -20,7 +24,8 @@ const user = {
   id: "10000000-0000-4000-8000-000000000003",
   displayName: "traveler",
   profileImageUrl: null,
-};
+  provider: "EMAIL",
+} as const;
 
 function handler(
   method: keyof EmailSignupController,
@@ -36,11 +41,17 @@ function createController(options?: {
   verifyError?: Error;
 }) {
   const start = options?.startError
-    ? jest.fn().mockRejectedValue(options.startError)
-    : jest.fn().mockResolvedValue({ codeExpiresAt });
+    ? jest
+        .fn<() => Promise<EmailSignupStarted>>()
+        .mockRejectedValue(options.startError)
+    : jest
+        .fn<() => Promise<EmailSignupStarted>>()
+        .mockResolvedValue({ codeExpiresAt });
   const verifyCode = options?.verifyError
-    ? jest.fn().mockRejectedValue(options.verifyError)
-    : jest.fn().mockResolvedValue({
+    ? jest
+        .fn<() => Promise<EmailSignupVerified>>()
+        .mockRejectedValue(options.verifyError)
+    : jest.fn<() => Promise<EmailSignupVerified>>().mockResolvedValue({
         user,
         sessionToken: "A".repeat(43),
         expiresAt: sessionExpiresAt,

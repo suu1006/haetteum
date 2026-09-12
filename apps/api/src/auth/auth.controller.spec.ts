@@ -15,7 +15,7 @@ import type { Request, Response } from "express";
 import type { ApiEnvironment } from "../config/environment.js";
 import type { AuthCookieService } from "./auth-cookie.service.js";
 import { AuthController } from "./auth.controller.js";
-import type { AuthService } from "./auth.service.js";
+import type { AuthService, CompletedLogin } from "./auth.service.js";
 import type { OAuthStateService } from "./oauth-state.service.js";
 import { SameOriginGuard } from "./same-origin.guard.js";
 import { SessionAuthGuard } from "./session-auth.guard.js";
@@ -25,6 +25,7 @@ const user: AuthUser = {
   id: "10000000-0000-4000-8000-000000000001",
   displayName: "해뜸 여행자",
   profileImageUrl: "https://cdn.example.test/profile.jpg",
+  provider: "KAKAO",
 };
 const expiresAt = new Date("2026-09-09T12:00:00.000Z");
 const oauthAttempt = {
@@ -73,15 +74,19 @@ function createController(options?: {
     consume: consumeState,
   } as unknown as OAuthStateService;
   const completeKakaoLogin = options?.loginError
-    ? jest.fn().mockRejectedValue(options.loginError)
-    : jest.fn().mockResolvedValue({
+    ? jest
+        .fn<() => Promise<CompletedLogin>>()
+        .mockRejectedValue(options.loginError)
+    : jest.fn<() => Promise<CompletedLogin>>().mockResolvedValue({
         user: options?.completedUser ?? user,
         sessionToken: "A".repeat(43),
         expiresAt,
       });
   const completeEmailLogin = options?.emailLoginError
-    ? jest.fn().mockRejectedValue(options.emailLoginError)
-    : jest.fn().mockResolvedValue({
+    ? jest
+        .fn<() => Promise<CompletedLogin>>()
+        .mockRejectedValue(options.emailLoginError)
+    : jest.fn<() => Promise<CompletedLogin>>().mockResolvedValue({
         user: options?.completedUser ?? user,
         sessionToken: "A".repeat(43),
         expiresAt,
@@ -102,8 +107,12 @@ function createController(options?: {
     clearSession,
   } as unknown as AuthCookieService;
   const revoke = options?.revokeError
-    ? jest.fn().mockRejectedValue(options.revokeError)
-    : jest.fn().mockResolvedValue(undefined);
+    ? jest
+        .fn<(rawToken: string) => Promise<void>>()
+        .mockRejectedValue(options.revokeError)
+    : jest
+        .fn<(rawToken: string) => Promise<void>>()
+        .mockResolvedValue(undefined);
   const sessions = { revoke } as unknown as SessionService;
   const redirect = jest.fn();
   const response = { redirect } as unknown as Response;

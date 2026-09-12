@@ -1,4 +1,9 @@
-export { AuthUserSchema, type AuthUser } from "./auth.js";
+export {
+  AuthProviderSchema,
+  AuthUserSchema,
+  type AuthProvider,
+  type AuthUser,
+} from "./auth.js";
 export { CHAT_ERRORS, ChatErrorStatusSchema, ChatStreamEventSchema, type ChatErrorStatus, type ChatStreamEvent } from "./chat-errors.js";
 export {
   CHAT_MAX_QUESTION_CHARS,
