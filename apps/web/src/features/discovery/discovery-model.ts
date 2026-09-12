@@ -4,13 +4,10 @@ import type {
   PopularReelRegion,
 } from "@haetteum/contracts";
 
-import type { ThemeTravelData } from "@/features/themes/theme-travel-model";
-
 export const discoveryTabIds = [
   "recommended",
   "places",
   "festivals",
-  "ai-course",
 ] as const;
 export const regionIds = [
   "seoul",
@@ -100,49 +97,6 @@ export const defaultDiscoveryQuery: DiscoveryQuery = {
 };
 
 export type DiscoveryImage = { src: string; alt: string };
-export type PopularVideoMedia = {
-  src: string;
-  posterSrc: string;
-  durationSeconds: number;
-  hasAudio: boolean;
-};
-export type PopularVideoItem = {
-  id: string;
-  title: string;
-  region: RegionId;
-  location: string;
-  address: string;
-  description: string;
-  creatorLabel: string;
-  soundLabel: string;
-  badgeLabel: string;
-  durationLabel: string;
-  viewCountLabel: string;
-  likeCountLabel: string;
-  commentCountLabel: string;
-  shareCountLabel: string;
-  image: DiscoveryImage;
-  video: PopularVideoMedia;
-};
-export type TravelThemeItem = {
-  id: string;
-  label: string;
-  image: DiscoveryImage;
-};
-export type VideoCourseItem = {
-  id: string;
-  title: string;
-  summary: string;
-  region: RegionId;
-  location: string;
-  durationLabel: string;
-  image: DiscoveryImage;
-};
-export type PopularPlacesData = {
-  videos: readonly PopularVideoItem[];
-  themes: readonly TravelThemeItem[];
-  courses: readonly VideoCourseItem[];
-};
 export type PlaceRankingItem = {
   id: string;
   rank: 1 | 2 | 3;
@@ -177,7 +131,7 @@ export type FestivalFeature = {
 };
 export type FestivalDiscoveryRankingItem = {
   id: string;
-  rank: 1 | 2 | 3;
+  rank: 1 | 2 | 3 | 4 | 5;
   title: string;
   status: FestivalStatus;
   statusLabel: "진행 중" | "곧 시작";
@@ -207,22 +161,15 @@ export type FestivalDiscoveryData = {
 };
 export type MainDiscoveryData = {
   aiCourse: DiscoveryImage;
-  themeTravel: ThemeTravelData;
   festivalFeature: FestivalFeature;
   festivalDiscovery: FestivalDiscoveryData;
   regions: ReadonlyArray<{ id: RegionId; label: string }>;
   places: readonly PlaceRankingItem[];
-  popularPlaces: PopularPlacesData;
 };
 export type DiscoveryView = {
   places: readonly PlaceRankingItem[];
-  popularVideos: readonly PopularVideoItem[];
-  travelThemes: readonly TravelThemeItem[];
-  videoCourses: readonly VideoCourseItem[];
   showRankedPlaces: boolean;
-  showPopularPlaces: boolean;
   showAiCourse: boolean;
-  showThemeTravel: boolean;
   showFestivals: boolean;
   showFestivalDiscovery: boolean;
   showSearchResults: boolean;
@@ -247,9 +194,8 @@ export function parseDiscoveryQuery(
   const audience = firstValue(searchParams.audience);
   const hotAudience = firstValue(searchParams.hotAudience);
   const reelRegion = firstValue(searchParams.reelRegion);
-  // 테마 여행은 데이터 연동 전까지 직접 URL 접근도 추천 탭으로 처리한다.
   const parsedTab =
-    tab !== "ai-course" && discoveryTabIds.includes(tab as DiscoveryTabId)
+    discoveryTabIds.includes(tab as DiscoveryTabId)
     ? (tab as DiscoveryTabId)
     : defaultDiscoveryQuery.tab;
   const parsedRegion =
@@ -398,36 +344,14 @@ export function selectDiscoveryView(
       (!normalizedQuery ||
         matchesQuery([place.title, place.location], normalizedQuery)),
   );
-  const popularVideos = data.popularPlaces.videos.filter(
-    (video) =>
-      video.region === query.region &&
-      (!normalizedQuery ||
-        matchesQuery([video.title, video.location], normalizedQuery)),
-  );
-  const videoCourses = data.popularPlaces.courses.filter(
-    (course) =>
-      course.region === query.region &&
-      (!normalizedQuery ||
-        matchesQuery(
-          [course.title, course.summary, course.location],
-          normalizedQuery,
-        )),
-  );
-
   // 추천 탭에서 검색어가 있으면 랭킹 대신 검색 결과 섹션을 보여준다.
   const isSearchingRecommended =
     query.tab === "recommended" && normalizedQuery !== "";
 
   return {
     places,
-    popularVideos,
-    travelThemes: data.popularPlaces.themes,
-    videoCourses,
     showRankedPlaces: query.tab === "places",
-    showPopularPlaces: false,
     showAiCourse: query.tab === "recommended" && !isSearchingRecommended,
-    // TODO: 테마 여행 데이터 연동 후 query.tab 조건을 다시 활성화한다.
-    showThemeTravel: false,
     showFestivals: query.tab === "recommended" && !isSearchingRecommended,
     showSearchResults: isSearchingRecommended,
     showFestivalDiscovery: query.tab === "festivals",

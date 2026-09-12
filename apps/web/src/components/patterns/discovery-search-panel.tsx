@@ -5,11 +5,9 @@ import {
   type DiscoveryQuery,
   type DiscoveryTabId,
 } from "@/features/discovery/discovery-model";
-import { cn } from "@/lib/utils";
 
 type DiscoverySearchPanelProps = {
   query: DiscoveryQuery;
-  compact?: boolean;
 };
 
 const discoveryTabs: ReadonlyArray<{
@@ -19,15 +17,12 @@ const discoveryTabs: ReadonlyArray<{
   { id: "recommended", label: "추천" },
   { id: "places", label: "인기 관광지" },
   { id: "festivals", label: "관광 축제" },
-  // TODO: 테마 여행 데이터 연동 후 탭을 다시 활성화한다.
-  // { id: "ai-course", label: "테마 여행" },
 ];
 
 const tabDefaultRegions: Record<DiscoveryTabId, DiscoveryQuery["region"]> = {
   recommended: "gyeonggi",
   places: "jeju",
   festivals: "all",
-  "ai-course": "gyeonggi",
 };
 
 function discoveryLinkHref(
@@ -45,15 +40,11 @@ const linkClassName =
 
 function DiscoverySearchPanel({
   query,
-  compact = false,
 }: DiscoverySearchPanelProps) {
   return (
     <nav
       aria-label="탐색 분류"
-      className={cn(
-        "overflow-x-auto bg-card px-5",
-        compact ? "py-1" : "py-2",
-      )}
+      className="overflow-x-auto bg-card px-5 py-2"
     >
       <ul className="flex gap-4">
         {discoveryTabs.map((tab) => (

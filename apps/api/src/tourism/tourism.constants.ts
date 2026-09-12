@@ -5,7 +5,26 @@ export const TOUR_API_FETCH = Symbol("TOUR_API_FETCH");
 export const TOUR_API_SLEEP = Symbol("TOUR_API_SLEEP");
 
 export const TOUR_API_SOURCE = "TOUR_API";
-export const TOURISM_REGION_CODES = ["11", "41", "51", "26", "50"] as const;
+// Nationwide ingestion uses legal district codes, not legacy search areaCode values.
+export const TOURISM_REGION_CODES = [
+  "11",
+  "41",
+  "51",
+  "26",
+  "50",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "36",
+  "43",
+  "44",
+  "52",
+  "46",
+  "47",
+  "48",
+] as const;
 
 /**
  * 서비스 지역(서울·경기·강원·부산·제주)의 TourAPI 레거시 areaCode.

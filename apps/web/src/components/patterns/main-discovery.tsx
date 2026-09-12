@@ -21,9 +21,7 @@ import type {
 import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 import type { WeeklyPlacesLoadState } from "@/features/places/weekly-places";
-import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
-import { ThemeCourseExplorer } from "@/features/themes/theme-course-explorer";
 
 export type MainDiscoveryProps = {
   data: MainDiscoveryData;
@@ -32,7 +30,6 @@ export type MainDiscoveryProps = {
   ranking?: PlaceRankingLoadState | null;
   hotRanking?: HotPlaceRankingLoadState | null;
   weeklyPlaces?: WeeklyPlacesLoadState | null;
-  popularReels?: PopularReelsLoadState | null;
   searchResults?: PlaceSearchLoadState | null;
 };
 
@@ -60,12 +57,12 @@ function MainDiscovery({
     >
       {!view.showSearchResults ? (
         <div data-testid="main-region" data-region="hero">
-          <DiscoveryAppHeader compact={view.showThemeTravel} />
+          <DiscoveryAppHeader />
         </div>
       ) : null}
       {!view.showSearchResults ? (
         <div data-testid="main-region" data-region="tabs">
-          <DiscoverySearchPanel query={query} compact={view.showThemeTravel} />
+          <DiscoverySearchPanel query={query} />
         </div>
       ) : null}
       <div data-testid="main-region" data-region="list">
@@ -86,9 +83,6 @@ function MainDiscovery({
             ranking={hotRanking}
             query={query}
           />
-        ) : null}
-        {view.showThemeTravel ? (
-          <ThemeCourseExplorer data={data.themeTravel} />
         ) : null}
         {view.showAiCourse ? (
           <div
@@ -122,12 +116,12 @@ function MainDiscovery({
       >
         <BottomNavigation
           items={
-            view.showFestivalDiscovery || view.showThemeTravel
+            view.showFestivalDiscovery
               ? createMainNavigationItems("home", "compact")
               : createMainNavigationItems("home")
           }
           variant={
-            view.showFestivalDiscovery || view.showThemeTravel
+            view.showFestivalDiscovery
               ? "festival"
               : "default"
           }

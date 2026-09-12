@@ -182,3 +182,9 @@ export {
   type ReviewItem,
   type UpdateReviewRequest,
 } from "./reviews.js";
+export {
+  WeeklyPlaceItemSchema,
+  WeeklyRecommendationsResponseSchema,
+  type WeeklyPlaceItem,
+  type WeeklyRecommendationsResponse,
+} from "./weekly-recommendations.js";

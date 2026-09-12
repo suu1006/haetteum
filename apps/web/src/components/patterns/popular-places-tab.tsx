@@ -5,17 +5,14 @@ import { useId, type ReactNode } from "react";
 import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { PopularReelFeed } from "@/components/travel/popular-reel-feed";
 import { PopularReelRegionFilter } from "@/components/travel/popular-reel-region-filter";
-import { PopularVideoRail } from "@/components/travel/popular-video-rail";
 import {
   buildDiscoveryHref,
   type DiscoveryQuery,
-  type PopularVideoItem,
 } from "@/features/discovery/discovery-model";
 import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api";
 
 type PopularPlacesTabProps = {
   explore?: boolean;
-  videos: readonly PopularVideoItem[];
   query: DiscoveryQuery;
   popularReels?: PopularReelsLoadState | null;
 };
@@ -45,7 +42,6 @@ function SectionHeading({ id, title, description, icon }: SectionHeadingProps) {
 
 function PopularPlacesTab({
   explore = false,
-  videos,
   query,
   popularReels,
 }: PopularPlacesTabProps) {
@@ -85,8 +81,6 @@ function PopularPlacesTab({
             region={query.reelRegion}
             initialPage={liveReelsPage}
           />
-        ) : videos.length > 0 ? (
-          <PopularVideoRail videos={videos} />
         ) : (
           <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
             <p className="type-body-md text-muted-foreground">

@@ -110,10 +110,10 @@ describe("DiscoveryContent", () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = new URL(String(input));
-      if (url.pathname.endsWith("/places")) {
+      if (url.pathname.endsWith("/places/recommendations/weekly")) {
         return new Response(JSON.stringify({
           items: [{ id: "84549352-0c20-4e11-af50-2d4f278f41ef", title: "성산일출봉", region: "jeju", address: "제주 서귀포시", district: null, latitude: null, longitude: null, primaryImageUrl: null, imageCopyrightType: null }],
-          page: 1, pageSize: 100, totalCount: 1,
+          week: "2026-09-07",
         }));
       }
       return new Response("", { status: 503 });

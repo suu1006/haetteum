@@ -778,7 +778,6 @@ describe("PopularPlacesTab", () => {
   it("renders the popular-place sections in the approved order", () => {
     render(
       <PopularPlacesTab
-        videos={mainDiscoveryMock.popularPlaces.videos}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );
@@ -811,7 +810,6 @@ describe("PopularPlacesTab", () => {
   it("offers a region filter for the reel feed without an age filter", () => {
     render(
       <PopularPlacesTab
-        videos={mainDiscoveryMock.popularPlaces.videos}
         query={{ ...defaultDiscoveryQuery, tab: "places", reelRegion: "jeju" }}
       />,
     );
@@ -830,25 +828,9 @@ describe("PopularPlacesTab", () => {
     ).toHaveAttribute("href", "/?region=gyeonggi&tab=places&reelRegion=seoul");
   });
 
-  it("preloads only the first popular short-video preview", () => {
-    const { container } = render(
-      <PopularPlacesTab
-        videos={mainDiscoveryMock.popularPlaces.videos}
-        query={{ ...defaultDiscoveryQuery, tab: "places" }}
-      />,
-    );
-
-    const videos = container.querySelectorAll("video");
-    expect(videos[0]).toHaveAttribute("preload", "metadata");
-    for (const video of Array.from(videos).slice(1)) {
-      expect(video).toHaveAttribute("preload", "none");
-    }
-  });
-
   it("offers a reset action when no popular place matches", () => {
     render(
       <PopularPlacesTab
-        videos={[]}
         query={{
           ...defaultDiscoveryQuery,
           q: "해당없음",
@@ -870,7 +852,6 @@ describe("PopularPlacesTab", () => {
   it("has no detectable accessibility violations on the popular-place tab", async () => {
     const { container } = render(
       <PopularPlacesTab
-        videos={mainDiscoveryMock.popularPlaces.videos}
         query={{ ...defaultDiscoveryQuery, tab: "places" }}
       />,
     );

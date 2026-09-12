@@ -1,34 +1,19 @@
 import { BellIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-
-type DiscoveryAppHeaderProps = {
-  compact?: boolean;
-};
-
-function DiscoveryAppHeader({ compact = false }: DiscoveryAppHeaderProps) {
+function DiscoveryAppHeader() {
   return (
     <header
-      className={cn(
-        "bg-card px-5",
-        compact ? "pt-4 pb-2" : "pt-[25px] pb-3",
-      )}
+      className="bg-card px-5 pt-[25px] pb-3"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p
-            className={cn(
-              "text-muted-foreground",
-              compact ? "type-caption" : "type-label",
-            )}
+            className="type-label text-muted-foreground"
           >
             여행자님, 반가워요
           </p>
           <h1
-            className={cn(
-              "mt-1 break-keep text-foreground",
-              compact ? "type-title-md" : "type-title-lg",
-            )}
+            className="type-title-lg mt-1 break-keep text-foreground"
           >
             어디로 떠나볼까요?
           </h1>
@@ -45,4 +30,4 @@ function DiscoveryAppHeader({ compact = false }: DiscoveryAppHeaderProps) {
   );
 }
 
-export { DiscoveryAppHeader, type DiscoveryAppHeaderProps };
+export { DiscoveryAppHeader };

@@ -128,7 +128,7 @@ export class PlacesService {
         secondary: place.category2,
         tertiary: place.category3,
       },
-      region: place.region.slug as PlaceDetailResponse["region"],
+      region: place.region.slug,
       district: place.district?.name ?? null,
       address: address(place.address1, place.address2),
       longitude: place.longitude?.toNumber() ?? null,

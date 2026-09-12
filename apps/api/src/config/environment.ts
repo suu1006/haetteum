@@ -50,6 +50,8 @@ const ApiEnvironmentSchema = z
       z.string().url().optional(),
     ),
     TOURISM_SYNC_ENABLED: booleanFromString,
+    WEEKLY_RECOMMENDATIONS_ENABLED: booleanFromString,
+    WEEKLY_THUMBNAIL_PUBLIC_BASE_URL: z.string().url().optional(),
     YOUTUBE_API_KEY: providerSecret,
     PLACE_REELS_ENABLED: booleanFromString,
     // SMTP 미설정 시 인증번호 발송은 로그 출력으로 대체되고, 서버 부팅은 계속 허용된다.
@@ -90,6 +92,21 @@ const ApiEnvironmentSchema = z
         path: ["CHAT_AWS_REGION"],
         message: "CHAT_AWS_REGION is required when chat is enabled",
       });
+    }
+
+    if (value.WEEKLY_RECOMMENDATIONS_ENABLED) {
+      for (const key of [
+        "END_POINT",
+        "SERVICE_KEY",
+        "WEEKLY_THUMBNAIL_PUBLIC_BASE_URL",
+      ] as const) {
+        if (!value[key])
+          context.addIssue({
+            code: "custom",
+            path: [key],
+            message: `${key} is required for weekly recommendations`,
+          });
+      }
     }
 
     if (value.TOURISM_SYNC_ENABLED) {

@@ -20,11 +20,6 @@ import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry
 import { CourseQuickSaveCard } from "@/components/travel/course-quick-save-card";
 import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
 import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
-import { PopularVideoCard } from "@/components/travel/popular-video-card";
-import {
-  TravelThemeItem,
-  TravelThemeMoreItem,
-} from "@/components/travel/travel-theme-item";
 
 const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 
@@ -457,70 +452,6 @@ describe("BottomNavigation", () => {
 });
 
 describe("popular-place travel cards", () => {
-  it("renders a named short-video preview with its metadata", () => {
-    render(
-      <PopularVideoCard video={mainDiscoveryMock.popularPlaces.videos[0]} />,
-    );
-
-    const card = screen.getByRole("article", {
-      name: "성산일출봉 일출 미리보기",
-    });
-    expect(card).toHaveTextContent("지금 인기 급상승");
-    expect(card).toHaveTextContent("0:18");
-    expect(card).toHaveTextContent("12.4만");
-    expect(card).toHaveTextContent("2,356");
-    expect(card).toHaveTextContent("서귀포");
-    const metadata = screen.getAllByRole("definition");
-    expect(metadata[0]).not.toHaveClass("max-[359px]:sr-only");
-    expect(metadata[1]).toHaveClass("max-[359px]:sr-only");
-    expect(metadata[2]).toHaveClass("max-[359px]:sr-only");
-  });
-
-  it("preloads an explicitly eager short-video preview", () => {
-    const { container } = render(
-      <PopularVideoCard
-        video={mainDiscoveryMock.popularPlaces.videos[0]}
-        eager
-      />,
-    );
-
-    const video = container.querySelector("video");
-    expect(video).toHaveAttribute("preload", "metadata");
-    expect(video).toHaveAttribute(
-      "poster",
-      "/images/discovery/place-seongsan.png",
-    );
-  });
-
-  it("renders a non-interactive travel theme", () => {
-    render(
-      <TravelThemeItem theme={mainDiscoveryMock.popularPlaces.themes[0]} />,
-    );
-
-    expect(screen.getByText("핫플")).toBeVisible();
-    expect(
-      screen.getByRole("img", { name: "제주 해안의 인기 여행지" }),
-    ).toHaveAttribute("loading", "eager");
-    expect(
-      screen.queryByRole("button", { name: "핫플" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "핫플" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders a non-interactive theme more item", () => {
-    render(<TravelThemeMoreItem />);
-
-    expect(screen.getByText("더보기")).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "더보기" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "더보기" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("renders the visual quick-save promotion as a named article", () => {
     render(<CourseQuickSaveCard />);
 

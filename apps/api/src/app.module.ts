@@ -1,3 +1,4 @@
+import { WeeklyRecommendationsModule } from "./weekly-recommendations/weekly-recommendations.module.js";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
@@ -38,6 +39,7 @@ import { TourismModule } from "./tourism/tourism.module.js";
     PlaceCoursesModule,
     PlaceFavoritesModule,
     PlaceReelsModule,
+    WeeklyRecommendationsModule,
     PlacesModule,
     ProfileModule,
     ReviewsModule,

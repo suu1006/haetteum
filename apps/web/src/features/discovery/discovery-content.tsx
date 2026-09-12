@@ -37,7 +37,7 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
       view.showRankedPlaces || view.showAiCourse ? loadPlaceRankings(query.audience) : null,
       view.showRankedPlaces || view.showAiCourse ? loadHotPlaceRankings(query.hotAudience) : null,
       view.showFestivals
-        ? loadWeeklyPlaces(query.region)
+        ? loadWeeklyPlaces()
         : null,
       view.showSearchResults && isPlaceSearchRegion(query.region)
         ? searchPlaces(query.region, query.q)

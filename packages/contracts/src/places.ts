@@ -55,7 +55,7 @@ export const PlaceDetailResponseSchema = z.object({
     secondary: z.string().nullable(),
     tertiary: z.string().nullable(),
   }),
-  region: PlaceRegionSchema,
+  region: z.string().regex(/^[a-z]+(?:-[a-z]+)*$/),
   district: z.string().nullable(),
   address: z.string().nullable(),
   longitude: z.number().nullable(),

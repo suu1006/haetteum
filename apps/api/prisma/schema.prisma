@@ -736,3 +736,45 @@ model TourismSyncRun {
   @@index([provider, status, finishedAt])
   @@map("tourism_sync_runs")
 }
+
+/// 주차별 추천 초안 및 검증/공개 상태. 공개 전환은 한 트랜잭션으로 수행한다.
+model WeeklyRecommendationEdition {
+  id String @id @default(uuid()) @db.Uuid
+  week DateTime @unique @db.Date
+  status String @default("DRAFT") @db.VarChar(20)
+  errorCode String? @map("error_code") @db.VarChar(100)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(3)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  candidates WeeklyRecommendationCandidate[]
+  @@index([status, week])
+  @@map("weekly_recommendation_editions")
+}
+
+/// 검증 항목과 제외 사유, 준비된 카드 스냅샷을 보존한다.
+model WeeklyRecommendationCandidate {
+  id String @id @default(uuid()) @db.Uuid
+  editionId String @map("edition_id") @db.Uuid
+  placeId String @map("place_id") @db.Uuid
+  status String @default("PENDING") @db.VarChar(20)
+  kind String @db.VarChar(32)
+  reason String? @db.VarChar(100)
+  checks Json @default("{}")
+  snapshot Json
+  checkedAt DateTime? @map("checked_at") @db.Timestamptz(3)
+  position Int?
+  edition WeeklyRecommendationEdition @relation(fields:[editionId],references:[id],onDelete:Cascade)
+  @@unique([editionId,placeId])
+  @@index([editionId,status,position])
+  @@index([placeId])
+  @@map("weekly_recommendation_candidates")
+}
+
+/// 여러 API 인스턴스의 배치 중복 실행 방지용 만료 가능한 임대.
+model WeeklyRecommendationLease {
+  name String @id
+  token String
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  @@map("weekly_recommendation_leases")
+}

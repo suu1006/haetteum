@@ -10,6 +10,8 @@ import { configureApp } from "./configure-app.js";
 import { PROFILE_PHOTO_UPLOADS_DIR } from "./profile/profile-photo.constants.js";
 import { REVIEW_UPLOADS_DIR } from "./reviews/review-images.constants.js";
 
+import { weeklyThumbnailDirectory } from "./weekly-recommendations/weekly-thumbnail.constants.js";
+
 async function bootstrap(): Promise<void> {
   mkdirSync(REVIEW_UPLOADS_DIR, { recursive: true });
   mkdirSync(PROFILE_PHOTO_UPLOADS_DIR, { recursive: true });
@@ -18,6 +20,13 @@ async function bootstrap(): Promise<void> {
   app.useStaticAssets(REVIEW_UPLOADS_DIR, { prefix: "/uploads/reviews" });
   app.useStaticAssets(PROFILE_PHOTO_UPLOADS_DIR, {
     prefix: "/uploads/profile-photos",
+  });
+  mkdirSync(weeklyThumbnailDirectory(), { recursive: true });
+  app.useStaticAssets(weeklyThumbnailDirectory(), {
+    prefix: "/uploads/weekly",
+    immutable: true,
+    maxAge: "1y",
+    dotfiles: "deny",
   });
   configureApp(app);
 

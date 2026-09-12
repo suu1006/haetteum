@@ -58,7 +58,7 @@ describe("parseDiscoveryQuery", () => {
     );
   });
 
-  it("treats the disabled theme-travel tab as the recommendation tab", () => {
+  it("treats the removed theme-travel tab as the recommendation tab", () => {
     expect(
       parseDiscoveryQuery({ tab: "ai-course", region: "gyeonggi" }),
     ).toMatchObject({
@@ -108,19 +108,6 @@ describe("parseDiscoveryQuery", () => {
 });
 
 describe("selectDiscoveryView", () => {
-  it("defines local media and reel details for every popular video", () => {
-    for (const video of mainDiscoveryMock.popularPlaces.videos) {
-      expect(video.address).toMatch(/^제주특별자치도/);
-      expect(video.description.length).toBeGreaterThan(0);
-      expect(video.commentCountLabel).toMatch(/^\d/);
-      expect(video.shareCountLabel).toMatch(/^\d/);
-      expect(video.video.src).toMatch(/^\/videos\/discovery\/.+\.mp4$/);
-      expect(video.video.posterSrc).toBe(video.image.src);
-      expect(video.video.durationSeconds).toBe(6);
-      expect(video.video.hasAudio).toBe(false);
-    }
-  });
-
   it("selects the three approved Gyeonggi recommendations by default", () => {
     const view = selectDiscoveryView(mainDiscoveryMock, parseDiscoveryQuery({}));
 
@@ -153,7 +140,6 @@ describe("selectDiscoveryView", () => {
 
     expect(view.places.map((place) => place.title)).toEqual(["성산일출봉"]);
     expect(view.showRankedPlaces).toBe(true);
-    expect(view.showPopularPlaces).toBe(false);
     expect(view.showFestivals).toBe(false);
   });
 
@@ -169,16 +155,9 @@ describe("selectDiscoveryView", () => {
     });
 
     expect(view.showRankedPlaces).toBe(true);
-    expect(view.showPopularPlaces).toBe(false);
     expect(view.showAiCourse).toBe(false);
     expect(view.showFestivals).toBe(false);
-    expect(view.popularVideos.map((item) => item.title)).toEqual([
-      "성산일출봉 일출 미리보기",
-    ]);
-    expect(view.videoCourses.map((item) => item.title)).toEqual([
-      "성산 일출 코스",
-    ]);
-    expect(view.travelThemes).toEqual(mainDiscoveryMock.popularPlaces.themes);
+
   });
 
   it("shows all approved sections for the recommendation tab", () => {
@@ -193,28 +172,8 @@ describe("selectDiscoveryView", () => {
     });
 
     expect(view.showRankedPlaces).toBe(false);
-    expect(view.showPopularPlaces).toBe(false);
     expect(view.showAiCourse).toBe(true);
     expect(view.showFestivals).toBe(true);
-    expect(view.showFestivalDiscovery).toBe(false);
-  });
-
-  it("keeps the disabled theme travel surface hidden", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
-      q: "",
-      region: "gyeonggi",
-      tab: "ai-course",
-      audience: "all",
-      hotAudience: "all",
-      reelRegion: "all",
-      festivalFilters: defaultFestivalFilters,
-    });
-
-    expect(view.showRankedPlaces).toBe(false);
-    expect(view.showPopularPlaces).toBe(false);
-    expect(view.showAiCourse).toBe(false);
-    expect(view.showThemeTravel).toBe(false);
-    expect(view.showFestivals).toBe(false);
     expect(view.showFestivalDiscovery).toBe(false);
   });
 
@@ -230,7 +189,6 @@ describe("selectDiscoveryView", () => {
     });
 
     expect(view.showRankedPlaces).toBe(false);
-    expect(view.showPopularPlaces).toBe(false);
     expect(view.showAiCourse).toBe(false);
     expect(view.showFestivals).toBe(false);
     expect(view.showFestivalDiscovery).toBe(true);

@@ -76,7 +76,7 @@ function ExploreScreen({
         <SearchResultsSection results={searchResults} query={query} clearSearchHref={clearSearchHref} />
       ) : (
         <div className="mt-6 bg-background pb-5">
-          <PopularPlacesTab videos={[]} query={query} popularReels={popularReels} explore />
+          <PopularPlacesTab query={query} popularReels={popularReels} explore />
         </div>
       )}
 

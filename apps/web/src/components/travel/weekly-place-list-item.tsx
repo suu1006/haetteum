@@ -2,31 +2,35 @@ import Link from "next/link";
 import { CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
 import { FestivalRemoteImage } from "@/components/travel/festival-remote-image";
-import type { PlaceListItem } from "@haetteum/contracts";
-import { resolveOfficialImageSource } from "@/lib/official-image";
+import type { WeeklyPlaceItem } from "@haetteum/contracts";
+import { resolveWeeklyThumbnail } from "@/lib/weekly-thumbnail";
 
 type WeeklyPlaceListItemProps = {
-  place: PlaceListItem;
+  place: WeeklyPlaceItem;
+  priority?: boolean;
 };
 
-function WeeklyPlaceListItem({ place }: WeeklyPlaceListItemProps) {
+function WeeklyPlaceListItem({ place, priority = false }: WeeklyPlaceListItemProps) {
   return (
-    <article aria-label={place.title} className="min-w-0">
+    <article aria-label={place.title} className="h-full min-w-0">
       <Link
         href={`/places/${place.id}?tab=introduction`}
         aria-label={place.title}
         className="block h-full rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
       >
-        <div className="flex gap-3 rounded-lg bg-card p-2 transition-transform active:translate-y-px">
-          <div className="relative aspect-square w-20 shrink-0 overflow-hidden rounded-md bg-primary-subtle">
+        <div className="flex h-full flex-col overflow-hidden rounded-lg bg-card transition-transform active:translate-y-px">
+          <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-primary-subtle">
             <FestivalRemoteImage
-              src={resolveOfficialImageSource(place.primaryImageUrl)}
+              src={resolveWeeklyThumbnail(place.primaryImageUrl)}
               alt={`${place.title} 대표 이미지`}
-              sizes="80px"
+              sizes="50vw"
+              unoptimized
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "auto"}
               className="object-cover"
             />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <div className="flex min-w-0 flex-1 flex-col p-3">
             <h3 className="type-label break-words text-foreground">
               {place.title}
             </h3>
