@@ -1,0 +1,15 @@
+description: Haetteum Next.js frontend development rules
+globs: "apps/web/**/*.{ts,tsx}"
+alwaysApply: false
+------------------
+
+# Haetteum Web Rules
+
+- App 라우터와 공통 provider 구조를 유지한다. 실제 진입점: `apps/web/src/app/layout.tsx`.
+- 서버 상태 관리는 TanStack Query 패턴으로 통일한다. 실제 설정 위치: `apps/web/src/features/query/query-provider.tsx`.
+- 인증 부트스트랩은 공통 흐름으로 둔다. 실제 연동: `apps/web/src/features/auth/auth-store.tsx`, `apps/web/src/features/auth/auth-bootstrap.tsx`.
+- API 호출은 공통 api 클라이언트/패턴으로 둔다. 실제 예시: `apps/web/src/features/*/api.ts`.
+- 입력 검증은 공통 계약을 우선한다. 실제 사용: `@haetteum/contracts`의 zod schema.
+- UI 변경은 공통 컴포넌트를 우선 재사용하고, 동일 계열 중복 구현을 피한다. 예: `apps/web/src/components`와 `apps/web/src/features`.
+- 모바일 우선 확인이 선행되며, API 에러/빈 상태/로딩 상태를 분리해서 처리한다.
+- 최소 검증: TypeScript, lint, 모바일 레이아웃, loading/empty/API error 상태

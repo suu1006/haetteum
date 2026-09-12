@@ -1,0 +1,22 @@
+description: Haetteum Prisma and PostgreSQL database change rules
+globs: "**/prisma/**/*,apps/api/src/**/*.ts"
+alwaysApply: false
+------------------
+
+# Haetteum Database Rules
+
+- Prisma 스키마 변경은 `apps/api/prisma/schema.prisma`를 기준으로 한다.
+- 마이그레이션은 `apps/api/prisma/migrations`의 타임스탬프 폴더 단위로 관리한다.
+- 스키마 변경 전후로 기존 relation, nullable, unique/index를 확인한다.
+- 운영 DB 데이터 유실 위험이 있는 변경(컬럼/테이블 삭제, 대규모 삭제)은 기본적으로 수행하지 않는다.
+- migration은 기존 데이터 호환성 점검 후에만 적용한다.
+- 운영 환경 기준으로 `prisma db push`는 사용하지 않는다.
+
+## Safety process
+
+1. 스키마 수정
+2. migration 반영 또는 신규 생성 계획 수립
+3. migration SQL 검토
+4. 기존 데이터 영향/호환성 점검
+5. Prisma client 생성 필요 여부 점검
+6. 검증 실행(타입/테스트)

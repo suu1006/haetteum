@@ -1,0 +1,15 @@
+description: Haetteum NestJS API implementation rules
+globs: "apps/api/src/**/*.ts"
+alwaysApply: false
+------------------
+
+# Haetteum API Rules
+
+- 기존 NestJS 계층 구조를 유지한다: module/controller/service. 대표 예시 `apps/api/src/places/places.module.ts`, `places.controller.ts`, `places.service.ts`.
+- Controller는 요청 파싱과 응답 라우팅에 집중하고, 비즈니스 규칙은 Service로 둔다. 예: `apps/api/src/reviews/reviews.controller.ts`, `reviews.service.ts`.
+- 요청 유효성은 실제 파이프/스키마로 강제한다. 예: `ZodValidationPipe` 적용 라우트.
+- DTO/스키마 존재, optional-nullable, enum/허용값 검증을 API 입력 경로에서 확인한다.
+- 인증이 필요한 변경은 session 기반 가드로 보호한다. 실제 적용 위치: `apps/api/src/auth/session.guard.ts`, `apps/api/src/auth/auth.controller.ts`.
+- 리소스 접근 권한은 사용자 식별자 기반으로 검증한다. 직접 ID 조합만으로는 타 사용자 변경을 허용하지 않는다.
+- 외부 API는 직접 호출을 단일 클라이언트 경로로 제한한다. 예: TourAPI는 `apps/api/src/tourism/tour-api.client.ts` 경로를 경유.
+- 오류는 입력 오류/서버 오류를 구분해 현재 프로젝트의 예외 패턴으로 리턴한다.

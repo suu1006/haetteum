@@ -1,0 +1,14 @@
+description: Haetteum repository-wide development constraints
+alwaysApply: true
+-----------------
+
+# Haetteum Core Rules
+
+- 변경 전 관련 파일을 함께 확인한다. 실제 패턴은 `apps/web/src/app/layout.tsx`, `apps/api/src/app.module.ts`에서 확인한다.
+- 현재 기능과 직접 관련된 작업만 한다. 예: `apps/web`과 `apps/api` 변경 시 각각의 대응 파일(`apps/web/src/features/...`, `apps/api/src/...`) 범위만 수정한다.
+- 기존 구현을 우선 재사용한다. 기존 훅/서비스/유틸리티를 먼저 찾는다. 예: `apps/web/src/features/query/query-provider.tsx`, `apps/api/src/auth/session.service.ts`.
+- 새 dependency 추가 전 기존 모듈/라이브러리 대체 가능성을 먼저 확인한다.
+- 환경별 값은 코드에 하드코딩하지 않는다. `NEXT_PUBLIC_API_BASE_URL`/`API_BASE_URL`처럼 설정값을 통해 주입한다(`apps/web/src/features/*/api.ts`, `apps/api/src/config`).
+- 키/시크릿/토큰/패스워드는 코드와 문서에 기록하지 않는다.
+- API 계약 변경은 프런트(`apps/web`)와 API(`apps/api`) 동작 영향 확인 후 진행한다.
+- 변경 후 검증되지 않은 항목은 완료 처리하지 않는다. (예: `pnpm lint`, `pnpm test`, 타입/구문 점검)
