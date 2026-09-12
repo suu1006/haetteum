@@ -145,11 +145,16 @@ Image Optimization을 통과한다.
 
 ## 8. 환경변수 (`apps/web/.env.local`)
 
-| 변수                                    | 용도                                              |
-| ---------------------------------------- | -------------------------------------------------- |
-| `NEXT_PUBLIC_API_BASE_URL`                | API base URL (예: `http://localhost:4000/api/v1`) |
-| `NEXT_PUBLIC_KAKAO_JS_KEY`                | 장소 상세 지도(Kakao Maps JS SDK)용 공개 키. 비어 있으면 지도만 조용히 숨겨짐 |
-| `NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL`   | 주간 추천 썸네일 base URL                          |
+| 변수                                    | 필요 여부 | 용도                                                              |
+| ---------------------------------------- | --------- | ----------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL`                | 필수      | API base URL (예: `http://localhost:4000/api/v1`)                 |
+| `NEXT_PUBLIC_KAKAO_JS_KEY`                | 선택      | Kakao Maps JS SDK 지도 표시를 위한 공개 키. 미설정 시 지도 사용 불가 |
+| `NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL`   | 선택      | 주간 추천 썸네일 base URL; 값이 비어 있거나 형식이 잘못되면 사전 생성 썸네일의 이미지 최적화 우회를 비활성화 |
+
+`apps/web/src/lib/environment-contract.ts`에서 위 3개 값의 기본 계약을 검증하고,
+`apps/web/src/instrumentation.ts`의 `register()`에서 서버 인스턴스 시작 시 경고/오류를 출력합니다. 설정 오류로 서버 시작을 중단하지는 않습니다.
+URL은 HTTP(S) 형식이며 사용자 인증정보, query, fragment를 포함하지 않아야 합니다.
+`NEXT_PUBLIC_*`는 빌드 시 브라우저 번들에 고정되므로 변경 시 웹을 다시 빌드해야 합니다.
 
 `NEXT_PUBLIC_*` 값은 브라우저에 노출되므로 비밀정보(REST API 키, client
 secret 등)를 넣지 않는다.

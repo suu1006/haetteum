@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { Map, MapMarker, Polyline, useKakaoLoader } from "react-kakao-maps-sdk";
 
+import { getKakaoJsKey } from "@/lib/environment-contract";
+
 import type { CoursePlace } from "@/features/courses/course-edit-model";
 
 const FALLBACK_ROUTE_LINE_COLOR = "#5b21b6";
@@ -18,7 +20,7 @@ function CourseEditRouteMap({
   heightPx = DEFAULT_HEIGHT_PX,
 }: CourseEditRouteMapProps) {
   const [loading, error] = useKakaoLoader({
-    appkey: process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "",
+    appkey: getKakaoJsKey() ?? "",
   });
   const mapRef = useRef<kakao.maps.Map | null>(null);
 

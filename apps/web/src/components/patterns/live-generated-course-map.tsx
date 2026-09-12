@@ -4,6 +4,8 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Map, MapMarker, Polyline, useKakaoLoader } from "react-kakao-maps-sdk";
 
+import { getKakaoJsKey } from "@/lib/environment-contract";
+
 import type { GeneratedCourseStop } from "@haetteum/contracts";
 
 const FALLBACK_ROUTE_LINE_COLOR = "#5b21b6";
@@ -23,7 +25,7 @@ function LiveGeneratedCourseMap({
   onActiveIndexChange,
 }: LiveGeneratedCourseMapProps) {
   const [loading, error] = useKakaoLoader({
-    appkey: process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "",
+    appkey: getKakaoJsKey() ?? "",
   });
   const mapRef = useRef<kakao.maps.Map | null>(null);
   // 최초 마운트 시엔 onCreate가 이미 전체 경로에 맞춰 지도를 맞춰주므로,

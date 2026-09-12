@@ -10,6 +10,8 @@ import {
   useKakaoLoader,
 } from "react-kakao-maps-sdk";
 
+import { getKakaoJsKey } from "@/lib/environment-contract";
+
 import type { GeneratedCourseStop } from "@haetteum/contracts";
 
 const FALLBACK_ROUTE_LINE_COLOR = "#5b21b6";
@@ -101,7 +103,7 @@ function SavedCourseRouteMap({
   heightPx = DEFAULT_HEIGHT_PX,
 }: SavedCourseRouteMapProps) {
   const [loading, error] = useKakaoLoader({
-    appkey: process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "",
+    appkey: getKakaoJsKey() ?? "",
   });
   const [expanded, setExpanded] = useState(false);
 

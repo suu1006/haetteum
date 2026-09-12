@@ -1,6 +1,8 @@
+import { getWeeklyThumbnailBaseUrl } from "@/lib/environment-contract";
+
 /** Only prebuilt images under the configured storage prefix may bypass optimization. */
 export function resolveWeeklyThumbnail(source: string | null): string | null {
-  const configured = process.env.NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL;
+  const configured = getWeeklyThumbnailBaseUrl();
   if (!source || !configured) return null;
   try {
     const base = new URL(configured);
