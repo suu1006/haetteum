@@ -1,29 +1,22 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { HotPlaceRankingItem } from "@haetteum/contracts";
 
-import { resolveOfficialImageSource } from "@/lib/official-image";
-import { cn } from "@/lib/utils";
+import { RankingCardPhoto } from "./ranking-card-photo";
 
 type HotPlaceRankingCardProps = {
   place: HotPlaceRankingItem;
   priority?: boolean;
-};
-
-const rankBadgeClassNames: Record<number, string> = {
-  1: "bg-rank-gold text-rank-gold-foreground",
-  2: "bg-rank-silver text-rank-silver-foreground",
-  3: "bg-rank-bronze text-rank-bronze-foreground",
+  hideImage?: boolean;
+  onImageError?: () => void;
 };
 
 function HotPlaceRankingCard({
   place,
   priority = false,
+  hideImage,
+  onImageError,
 }: HotPlaceRankingCardProps) {
   const rankLabel = `${place.rank}위`;
-  const rankBadgeClassName =
-    rankBadgeClassNames[place.rank] ?? "bg-primary text-primary-foreground";
-  const imageSrc = resolveOfficialImageSource(place.primaryImageUrl);
 
   const card = (
     <article
@@ -31,24 +24,14 @@ function HotPlaceRankingCard({
       className="grid min-w-0 gap-2"
     >
       <div className="grid min-h-11 gap-2">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-primary-subtle">
-          <Image
-            src={imageSrc}
-            alt={place.title}
-            fill
-            sizes="(max-width: 480px) 30vw, 144px"
-            className="object-cover"
-            priority={priority}
-          />
-          <span
-            className={cn(
-              "type-caption absolute top-1.5 left-1.5 rounded-full px-2 py-0.5 font-semibold",
-              rankBadgeClassName,
-            )}
-          >
-            {rankLabel}
-          </span>
-        </div>
+        <RankingCardPhoto
+          source={place.primaryImageUrl}
+          title={place.title}
+          rank={place.rank}
+          priority={priority}
+          hideImage={hideImage}
+          onImageError={onImageError}
+        />
 
         <div className="min-w-0 space-y-1">
           <h3 className="type-label truncate text-foreground">{place.title}</h3>
@@ -76,7 +59,9 @@ function HotPlaceRankingCard({
     >
       {card}
     </Link>
-  ) : card;
+  ) : (
+    card
+  );
 }
 
 export { HotPlaceRankingCard, type HotPlaceRankingCardProps };

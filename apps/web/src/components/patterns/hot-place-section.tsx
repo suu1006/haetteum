@@ -1,5 +1,5 @@
+import { PhotoPriorityRankingList } from "@/components/travel/photo-priority-ranking-list";
 import { HotPlaceRankingAudienceFilter } from "@/components/travel/hot-place-ranking-audience-filter";
-import { HotPlaceRankingCard } from "@/components/travel/hot-place-ranking-card";
 import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import {
   defaultDiscoveryQuery,
@@ -48,20 +48,12 @@ function HotPlaceSection({
       <HotPlaceRankingAudienceFilter query={query} explore={explore} />
 
       {rankingData ? (
-        <ol
+        <PhotoPriorityRankingList
           key={query.hotAudience}
-          aria-label="세대별 핫플레이스"
-          className="scrollbar-none mt-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
-        >
-          {rankingData.items.map((place, index) => (
-            <li
-              key={place.sourcePlaceId}
-              className="w-40 shrink-0 snap-start sm:w-44"
-            >
-              <HotPlaceRankingCard place={place} priority={index === 0} />
-            </li>
-          ))}
-        </ol>
+          kind="hot"
+          items={rankingData.items}
+          label="세대별 핫플레이스"
+        />
       ) : (
         <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
           <p className="type-body-md text-muted-foreground">

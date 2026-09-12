@@ -1,4 +1,4 @@
-import { PlaceRankingCard } from "@/components/travel/place-ranking-card";
+import { PhotoPriorityRankingList } from "@/components/travel/photo-priority-ranking-list";
 import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
 import { RankedPlaceAudienceFilter } from "@/components/travel/ranked-place-audience-filter";
 import {
@@ -42,7 +42,8 @@ function RankedPlaceSection({
         </h2>
         {rankingData ? (
           <p className="type-caption whitespace-nowrap text-muted-foreground">
-            전국 · {formatPeriod(rankingData.periodStart, rankingData.periodEnd)}
+            전국 ·{" "}
+            {formatPeriod(rankingData.periodStart, rankingData.periodEnd)}
           </p>
         ) : null}
       </div>
@@ -50,20 +51,12 @@ function RankedPlaceSection({
       <RankedPlaceAudienceFilter query={query} explore={explore} />
 
       {rankingData ? (
-        <ol
+        <PhotoPriorityRankingList
           key={query.audience}
-          aria-label="세대별 인기관광지 순위"
-          className="scrollbar-none mt-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
-        >
-          {rankingData.items.map((place, index) => (
-            <li
-              key={place.sourcePlaceId}
-              className="w-40 shrink-0 snap-start sm:w-44"
-            >
-              <PlaceRankingCard place={place} priority={index === 0} />
-            </li>
-          ))}
-        </ol>
+          kind="popular"
+          items={rankingData.items}
+          label="세대별 인기관광지 순위"
+        />
       ) : (
         <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/45 p-4">
           <p className="type-body-md text-muted-foreground">

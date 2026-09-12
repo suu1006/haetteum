@@ -1,12 +1,12 @@
-import type { PlaceListItem } from "@haetteum/contracts";
 import Link from "next/link";
 
-import { ExploreDestinationCard } from "@/components/travel/explore-destination-card";
+import { SearchPlaceResult } from "@/components/travel/search-place-result";
 import { PlaceRankingRetryButton } from "@/components/travel/place-ranking-retry-button";
-import { buildDiscoveryHref, type DiscoveryQuery } from "@/features/discovery/discovery-model";
-import type { ExploreDestination } from "@/features/explore/explore-model";
+import {
+  buildDiscoveryHref,
+  type DiscoveryQuery,
+} from "@/features/discovery/discovery-model";
 import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
-import { resolveOfficialImageSource } from "@/lib/official-image";
 
 type SearchResultsSectionProps = {
   results: PlaceSearchLoadState | null;
@@ -14,21 +14,12 @@ type SearchResultsSectionProps = {
   clearSearchHref?: string;
 };
 
-function toDestination(place: PlaceListItem): ExploreDestination {
-  return {
-    id: place.id,
-    title: place.title,
-    location: place.address ?? place.district ?? undefined,
-    href: `/places/${place.id}?tab=introduction`,
-    image: {
-      src: resolveOfficialImageSource(place.primaryImageUrl),
-      alt: `${place.title} 대표 이미지`,
-    },
-  };
-}
-
-function SearchResultsSection({ results, query, clearSearchHref = buildDiscoveryHref(query, { q: "" }) }: SearchResultsSectionProps) {
-  const items = results?.status === "ready" ? results.items.map(toDestination) : [];
+function SearchResultsSection({
+  results,
+  query,
+  clearSearchHref = buildDiscoveryHref(query, { q: "" }),
+}: SearchResultsSectionProps) {
+  const items = results?.status === "ready" ? results.items : [];
 
   return (
     <section
@@ -74,10 +65,8 @@ function SearchResultsSection({ results, query, clearSearchHref = buildDiscovery
           aria-label={`'${query.q}' 검색 결과`}
           className="mt-4 grid grid-cols-2 gap-3"
         >
-          {items.map((destination) => (
-            <li key={destination.id} className="min-w-0">
-              <ExploreDestinationCard destination={destination} variant="regional" />
-            </li>
+          {items.map((place) => (
+            <SearchPlaceResult key={place.id} place={place} />
           ))}
         </ul>
       )}

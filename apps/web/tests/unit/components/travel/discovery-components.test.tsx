@@ -74,7 +74,7 @@ describe("PlaceRankingCard", () => {
     expect(screen.queryByRole("link", { name: /1위 에버랜드/ })).not.toBeInTheDocument();
   });
 
-  it("uses the local fallback image and primary color after the medal ranks", () => {
+  it("keeps the rank badge without substituting an image when a photo is missing", () => {
     render(
       <>
         <PlaceRankingCard place={matchedPlace} />
@@ -107,10 +107,7 @@ describe("PlaceRankingCard", () => {
       "bg-primary",
       "text-primary-foreground",
     );
-    expect(screen.getByRole("img", { name: "관광지 4" })).toHaveAttribute(
-      "src",
-      expect.stringContaining("popular-attraction.png"),
-    );
+    expect(screen.queryByRole("img", { name: "관광지 4" })).not.toBeInTheDocument();
   });
 
   it("upgrades the official provider's legacy HTTP image URL to HTTPS", () => {
@@ -129,7 +126,7 @@ describe("PlaceRankingCard", () => {
     );
   });
 
-  it("uses the local fallback image when an upgraded official URL has a custom port", () => {
+  it("omits the photo when an upgraded official URL has a custom port", () => {
     render(
       <PlaceRankingCard
         place={{
@@ -139,13 +136,10 @@ describe("PlaceRankingCard", () => {
       />,
     );
 
-    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
-      "src",
-      expect.stringContaining("popular-attraction.png"),
-    );
+    expect(screen.queryByRole("img", { name: "에버랜드" })).not.toBeInTheDocument();
   });
 
-  it("uses the local fallback image when an upgraded official URL has a query string", () => {
+  it("omits the photo when an upgraded official URL has a query string", () => {
     render(
       <PlaceRankingCard
         place={{
@@ -156,13 +150,10 @@ describe("PlaceRankingCard", () => {
       />,
     );
 
-    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
-      "src",
-      expect.stringContaining("popular-attraction.png"),
-    );
+    expect(screen.queryByRole("img", { name: "에버랜드" })).not.toBeInTheDocument();
   });
 
-  it("uses the local fallback image for an unsupported remote host", () => {
+  it("omits the photo for an unsupported remote host", () => {
     render(
       <PlaceRankingCard
         place={{
@@ -172,10 +163,7 @@ describe("PlaceRankingCard", () => {
       />,
     );
 
-    expect(screen.getByRole("img", { name: "에버랜드" })).toHaveAttribute(
-      "src",
-      expect.stringContaining("popular-attraction.png"),
-    );
+    expect(screen.queryByRole("img", { name: "에버랜드" })).not.toBeInTheDocument();
   });
 
   it("allows a Wikimedia Commons image and shows its photo credit", () => {
@@ -248,7 +236,7 @@ describe("HotPlaceRankingCard", () => {
     );
   });
 
-  it("keeps an unmatched hot-place card non-interactive with the fallback image", () => {
+  it("keeps an unmatched hot-place card non-interactive without a substitute image", () => {
     render(
       <HotPlaceRankingCard
         place={{ ...matchedPlace, placeId: null, primaryImageUrl: null }}
@@ -258,10 +246,7 @@ describe("HotPlaceRankingCard", () => {
     expect(
       screen.queryByRole("link", { name: /1위 장릉/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "장릉" })).toHaveAttribute(
-      "src",
-      expect.stringContaining("popular-attraction.png"),
-    );
+    expect(screen.queryByRole("img", { name: "장릉" })).not.toBeInTheDocument();
   });
 
   it("shows the photo credit for a Wikimedia Commons-sourced image", () => {

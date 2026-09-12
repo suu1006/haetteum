@@ -40,3 +40,13 @@ export {
   wikimediaImageHostname,
   resolveOfficialImageSource,
 };
+
+/** Actual stored photo URL only; never substitute a generic destination image. */
+export function resolvePlacePhotoSource(
+  value: string | null | undefined,
+): string | null {
+  const source = resolveOfficialImageSource(value, "");
+  if (!source) return null;
+  const url = new URL(source);
+  return url.username || url.password || url.hash ? null : source;
+}
