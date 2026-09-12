@@ -37,7 +37,15 @@ function festival(externalId: string): NormalizedFestival {
 }
 
 class FakePrisma {
-  readonly festivals = new Map<string, NormalizedFestival>();
+  readonly festivals = new Map<
+    string,
+    NormalizedFestival & {
+      id?: string;
+      detailSnapshot?: unknown;
+      detailSourceModifiedAt?: Date | null;
+      detailSyncedAt?: Date | null;
+    }
+  >();
   readonly upserts: Array<Record<string, unknown>> = [];
   readonly runs = new Map<string, Record<string, unknown>>();
   private runSequence = 0;
@@ -61,20 +69,29 @@ class FakePrisma {
     },
     updateMany: async (args: {
       where: {
+        id?: string;
         source: string;
-        isVisible: boolean;
-        eventStartDate: { gte: Date };
-        eventEndDate: { lte: Date };
+        isVisible?: boolean;
+        providerModifiedAt?: Date;
+        eventStartDate?: { gte: Date };
+        eventEndDate?: { lte: Date };
         externalId?: { notIn: string[] };
       };
-      data: { isVisible: boolean; lastSyncedAt: Date };
+      data: Record<string, unknown>;
     }) => {
       const matched = [...this.festivals.values()].filter(
         (item) =>
           item.source === args.where.source &&
-          item.isVisible === args.where.isVisible &&
-          item.eventStartDate >= args.where.eventStartDate.gte &&
-          item.eventEndDate <= args.where.eventEndDate.lte &&
+          (args.where.id === undefined || item.id === args.where.id) &&
+          (args.where.isVisible === undefined ||
+            item.isVisible === args.where.isVisible) &&
+          (args.where.providerModifiedAt === undefined ||
+            item.providerModifiedAt.getTime() ===
+              args.where.providerModifiedAt.getTime()) &&
+          (args.where.eventStartDate === undefined ||
+            item.eventStartDate >= args.where.eventStartDate.gte) &&
+          (args.where.eventEndDate === undefined ||
+            item.eventEndDate <= args.where.eventEndDate.lte) &&
           !(args.where.externalId?.notIn ?? []).includes(item.externalId),
       );
       for (const item of matched) {
@@ -195,6 +212,7 @@ describe("FestivalRepository", () => {
       insertedCount: 1,
       updatedCount: 1,
       deactivatedCount: 3,
+      failedCount: 2,
     });
 
     expect(success).toMatchObject({
@@ -204,7 +222,7 @@ describe("FestivalRepository", () => {
       insertedCount: 1,
       updatedCount: 1,
       deactivatedCount: 3,
-      failedCount: 0,
+      failedCount: 2,
     });
     expect(prisma.runs.get(run.id)).toMatchObject({
       status: "SUCCEEDED",
@@ -212,8 +230,8 @@ describe("FestivalRepository", () => {
       insertedCount: 1,
       updatedCount: 1,
       deactivatedCount: 3,
-      failedCount: 0,
-      errorSummary: null,
+      failedCount: 2,
+      errorSummary: "Festival detail synchronization failed for 2 festival(s).",
     });
 
     const failedRun = await repository.createSyncRun(
@@ -226,6 +244,7 @@ describe("FestivalRepository", () => {
         insertedCount: 1,
         updatedCount: 0,
         deactivatedCount: 0,
+        failedCount: 0,
       },
       "Festival synchronization failed (22)",
     );
@@ -237,6 +256,93 @@ describe("FestivalRepository", () => {
       deactivatedCount: 0,
       failedCount: 1,
       errorSummary: "Festival synchronization failed (22)",
+    });
+  });
+
+  it("selects only visible festival rows with missing or stale detail versions", async () => {
+    const matchingVersion = new Date("2026-08-24T00:00:00.000Z");
+    const prisma = {
+      festival: {
+        findMany: async (args: Record<string, unknown>) => {
+          expect(args).toEqual({
+            where: {
+              source: "TOUR_API",
+              isVisible: true,
+            },
+            select: {
+              id: true,
+              externalId: true,
+              providerModifiedAt: true,
+              detailSourceModifiedAt: true,
+            },
+            orderBy: { id: "asc" },
+          });
+          return [
+            {
+              id: "missing",
+              externalId: "festival-missing",
+              providerModifiedAt: matchingVersion,
+              detailSourceModifiedAt: null,
+            },
+            {
+              id: "current",
+              externalId: "festival-current",
+              providerModifiedAt: matchingVersion,
+              detailSourceModifiedAt: matchingVersion,
+            },
+            {
+              id: "stale",
+              externalId: "festival-stale",
+              providerModifiedAt: matchingVersion,
+              detailSourceModifiedAt: new Date("2026-08-23T00:00:00.000Z"),
+            },
+          ];
+        },
+      },
+    };
+    const repository = new FestivalRepository(prisma as never);
+
+    await expect(repository.findPendingDetails()).resolves.toEqual([
+      {
+        id: "missing",
+        externalId: "festival-missing",
+        providerModifiedAt: matchingVersion,
+      },
+      {
+        id: "stale",
+        externalId: "festival-stale",
+        providerModifiedAt: matchingVersion,
+      },
+    ]);
+  });
+
+  it("stores a validated snapshot and its exact source version atomically", async () => {
+    const { prisma, repository } = setup();
+    const row = {
+      ...festival("festival-1"),
+      id: "festival-row-1",
+      detailSourceModifiedAt: null,
+      detailSyncedAt: null,
+    };
+    prisma.festivals.set(row.externalId, row);
+    const detailSyncedAt = new Date("2026-08-25T03:00:00.000Z");
+    const snapshot = {
+      common: { contentid: "festival-1" },
+      intro: { contentid: "festival-1" },
+      images: [],
+    };
+
+    await repository.saveDetailSnapshot({
+      id: row.id,
+      providerModifiedAt: row.providerModifiedAt,
+      snapshot,
+      detailSyncedAt,
+    });
+
+    expect(prisma.festivals.get("festival-1")).toMatchObject({
+      detailSnapshot: snapshot,
+      detailSourceModifiedAt: row.providerModifiedAt,
+      detailSyncedAt,
     });
   });
 });

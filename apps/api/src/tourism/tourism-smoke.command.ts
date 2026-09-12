@@ -1,3 +1,4 @@
+import { TourApiPolicy } from "./tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -134,6 +135,7 @@ export async function executeTourismSmoke(
 }
 
 async function run(): Promise<void> {
+  process.env.SCHEDULERS_ENABLED = "false";
   let app:
     | Awaited<ReturnType<typeof NestFactory.createApplicationContext>>
     | undefined;
@@ -144,10 +146,12 @@ async function run(): Promise<void> {
       logger: false,
     });
     const provider = app.get<TourApiPort>(TOUR_API_PORT);
-    const exitCode = await executeTourismSmoke(
-      provider,
-      (message) => console.log(message),
-      (message) => console.error(message),
+    const exitCode = await app.get(TourApiPolicy).batch(() =>
+      executeTourismSmoke(
+        provider,
+        (message) => console.log(message),
+        (message) => console.error(message),
+      ),
     );
 
     if (exitCode !== 0) process.exitCode = exitCode;

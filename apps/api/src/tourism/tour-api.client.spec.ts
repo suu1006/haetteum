@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { jest } from "@jest/globals";
 
+import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 import { TourApiClient, TourApiError } from "./tour-api.client.js";
 import {
   FESTIVAL_API_PORT,
@@ -135,8 +136,12 @@ function createClient(
     }),
   };
 
+  const policy = {
+    request: jest.fn(async <T>(work: () => Promise<T>) => work()),
+  };
   return {
-    client: new TourApiClient(config as never, fetch, sleep),
+    client: new TourApiClient(config as never, fetch, sleep, policy as never),
+    policy,
     config,
     fetch,
     sleep,
@@ -167,13 +172,28 @@ async function rejectedError(
 }
 
 describe("TourApiClient", () => {
+  it("applies the policy to every retry and blocks HTTP when the policy refuses", async () => {
+    const { client, fetch, policy } = createClient();
+    fetch.mockResolvedValueOnce(new Response("", { status: 503 }));
+    policy.request.mockImplementationOnce(async (work) => work());
+    policy.request.mockRejectedValueOnce(
+      new TourApiPolicyError("TOUR_API_DAILY_LIMIT"),
+    );
+    await expect(
+      client.getPlacePage({ regionCode: "50", pageNo: 1 }),
+    ).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(policy.request).toHaveBeenCalledTimes(2);
+  });
+
   it("resolves ConfigService through Nest injection metadata", async () => {
-    const { config, fetch, sleep } = createClient();
+    const { config, fetch, sleep, policy } = createClient();
 
     const module = await Test.createTestingModule({
       providers: [
         TourApiClient,
         { provide: ConfigService, useValue: config },
+        { provide: TourApiPolicy, useValue: policy },
         { provide: TOUR_API_FETCH, useValue: fetch },
         { provide: TOUR_API_SLEEP, useValue: sleep },
       ],
@@ -438,6 +458,28 @@ describe("TourApiClient", () => {
     });
   });
 
+  it("does not retry a daily quota error returned as HTTP 429", async () => {
+    const { client, fetch, sleep } = createClient();
+    fetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: {
+            cmmMsgHeader: {
+              errMsg: "LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR",
+              returnReasonCode: "22",
+            },
+          },
+        }),
+        { status: 429 },
+      ),
+    );
+    await expect(client.getPlaceCommonDetail("123")).rejects.toMatchObject({
+      providerCode: "22",
+      httpStatus: 429,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
   it("throws a sanitized provider error for resultCode other than 0000", async () => {
     const serviceKey = "do-not-leak-provider-key";
     const { client, fetch, sleep } = createClient({ serviceKey });

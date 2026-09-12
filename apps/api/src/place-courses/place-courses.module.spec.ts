@@ -15,16 +15,19 @@ describe("PlaceCoursesModule", () => {
     ).toEqual([PlaceCoursesController]);
     expect(
       Reflect.getMetadata(MODULE_METADATA.PROVIDERS, PlaceCoursesModule),
-    ).toEqual([PlaceCoursesService, CourseSyncService]);
+    ).toEqual([PlaceCoursesService]);
     expect(
       Reflect.getMetadata(MODULE_METADATA.IMPORTS, PlaceCoursesModule),
     ).toEqual([TourismModule]);
   });
 
-  it("takes the course provider port from the tourism module", () => {
+  it("exposes the collector service without exposing its external provider port", () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.EXPORTS, TourismModule),
-    ).toContain(COURSE_API_PORT);
+    ).not.toContain(COURSE_API_PORT);
+    expect(
+      Reflect.getMetadata(MODULE_METADATA.EXPORTS, TourismModule),
+    ).toContain(CourseSyncService);
   });
 
   it("is imported by the application module", () => {

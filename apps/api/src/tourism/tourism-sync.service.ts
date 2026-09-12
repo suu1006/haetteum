@@ -1,3 +1,4 @@
+import { TourApiPolicyError } from "./tour-api-policy.js";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
@@ -132,7 +133,7 @@ export class TourismSyncService {
         await this.fullSyncRegion(region, counters);
       }
 
-      return await this.completeRun(run.id, counters);
+      return await this.completeRun(run.id, counters, run.startedAt);
     } catch (error) {
       throw await this.failRun(run.id, "full", counters, error);
     }
@@ -149,7 +150,7 @@ export class TourismSyncService {
       },
       orderBy: { finishedAt: "desc" },
     });
-    const lastFinishedAt = lastSuccess?.finishedAt;
+    const lastFinishedAt = lastSuccess?.checkpointAt ?? lastSuccess?.finishedAt;
 
     if (lastFinishedAt == null) {
       throw fullSyncRequired(
@@ -184,7 +185,7 @@ export class TourismSyncService {
         }
       }
 
-      return await this.completeRun(run.id, counters);
+      return await this.completeRun(run.id, counters, now);
     } catch (error) {
       throw await this.failRun(run.id, "incremental", counters, error);
     }
@@ -206,8 +207,20 @@ export class TourismSyncService {
             externalId: normalizedContentId,
           },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          isVisible: true,
+          providerModifiedAt: true,
+          detailSourceModifiedAt: true,
+        },
       });
+      if (
+        !place.isVisible ||
+        (place.detailSourceModifiedAt != null &&
+          place.detailSourceModifiedAt.getTime() ===
+            place.providerModifiedAt.getTime())
+      )
+        return;
       const common =
         await this.provider.getPlaceCommonDetail(normalizedContentId);
       const intro = await this.provider.getPlaceIntro(normalizedContentId);
@@ -226,7 +239,10 @@ export class TourismSyncService {
       await this.prisma.$transaction(async (transaction) => {
         await transaction.place.update({
           where: { id: place.id },
-          data: detail.place,
+          data: {
+            ...detail.place,
+            detailSourceModifiedAt: place.providerModifiedAt,
+          },
         });
         await transaction.placeImage.deleteMany({
           where: { placeId: place.id, source: TOUR_API_SOURCE },
@@ -252,8 +268,47 @@ export class TourismSyncService {
         }
       });
     } catch (error) {
+      if (
+        error instanceof TourApiPolicyError ||
+        (error instanceof TourApiError && error.providerCode === "22")
+      )
+        throw error;
       throw sanitizedSyncError("detail", error);
     }
+  }
+
+  async enrichPendingPlaceDetails(): Promise<RankedPlaceDetailEnrichmentSummary> {
+    const places = await this.prisma.place.findMany({
+      where: { source: TOUR_API_SOURCE, isVisible: true },
+      select: {
+        externalId: true,
+        providerModifiedAt: true,
+        detailSourceModifiedAt: true,
+      },
+      orderBy: { id: "asc" },
+    });
+    const pending = places.filter(
+      (place) =>
+        place.detailSourceModifiedAt == null ||
+        place.detailSourceModifiedAt.getTime() !==
+          place.providerModifiedAt.getTime(),
+    );
+    let succeededCount = 0;
+    let failedCount = 0;
+    for (const place of pending) {
+      try {
+        await this.enrichPlaceDetails(place.externalId);
+        succeededCount++;
+      } catch (error) {
+        if (
+          error instanceof TourApiPolicyError ||
+          (error instanceof TourApiError && error.providerCode === "22")
+        )
+          throw error;
+        failedCount++;
+      }
+    }
+    return { requestedCount: pending.length, succeededCount, failedCount };
   }
 
   async enrichPlace(contentId: string): Promise<void> {
@@ -284,7 +339,25 @@ export class TourismSyncService {
       try {
         await this.enrichPlaceDetails(row.place.externalId);
         succeededCount += 1;
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof TourApiPolicyError ||
+          (error instanceof TourApiError && error.providerCode === "22")
+        ) {
+          await this.prisma.tourismSyncRun.update({
+            where: { id: run.id },
+            data: {
+              status: "FAILED",
+              finishedAt: new Date(),
+              fetchedCount: succeededCount + failedCount + 1,
+              updatedCount: succeededCount,
+              failedCount: failedCount + 1,
+              errorSummary:
+                "Tourism ranked detail synchronization stopped by TourAPI limit",
+            },
+          });
+          throw error;
+        }
         failedCount += 1;
       }
     }
@@ -428,7 +501,7 @@ export class TourismSyncService {
       TOURISM_REGION_CODES.some((code) => !regionCodes.has(code))
     ) {
       throw new SafeSyncError(
-        "Tourism synchronization requires all five configured regions",
+        "Tourism synchronization requires all 17 configured regions",
       );
     }
 
@@ -573,6 +646,9 @@ export class TourismSyncService {
       const data = {
         ...item.changed.place,
         externalId: newExternalId,
+        ...(current != null && current.externalId !== newExternalId
+          ? { detailSourceModifiedAt: null }
+          : {}),
         regionId,
         districtId: districtIdFor(item.districtCode, districtIds),
       };
@@ -609,12 +685,14 @@ export class TourismSyncService {
   private async completeRun(
     runId: string,
     counters: SyncCounters,
+    checkpointAt: Date,
   ): Promise<SyncSummary> {
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
       data: {
         status: "SUCCEEDED",
         finishedAt: new Date(),
+        checkpointAt,
         ...counters,
         failedCount: 0,
         errorSummary: null,
@@ -749,7 +827,7 @@ function districtIdFor(
 
 function incrementalDates(lastSuccess: Date, now: Date): string[] {
   assertValidDate(lastSuccess, "last successful timestamp");
-  const firstDay = kstDayNumber(lastSuccess) + 1;
+  const firstDay = kstDayNumber(lastSuccess);
   const finalDay = kstDayNumber(now);
   if (firstDay > finalDay) return [];
 

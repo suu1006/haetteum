@@ -13,6 +13,18 @@ const EXPECTED_REGIONS = [
   { slug: "gangwon", name: "강원", providerCode: "51", displayOrder: 3 },
   { slug: "busan", name: "부산", providerCode: "26", displayOrder: 4 },
   { slug: "jeju", name: "제주", providerCode: "50", displayOrder: 5 },
+  { slug: "daegu", name: "대구", providerCode: "27", displayOrder: 6 },
+  { slug: "incheon", name: "인천", providerCode: "28", displayOrder: 7 },
+  { slug: "gwangju", name: "광주", providerCode: "29", displayOrder: 8 },
+  { slug: "daejeon", name: "대전", providerCode: "30", displayOrder: 9 },
+  { slug: "ulsan", name: "울산", providerCode: "31", displayOrder: 10 },
+  { slug: "sejong", name: "세종", providerCode: "36", displayOrder: 11 },
+  { slug: "chungbuk", name: "충북", providerCode: "43", displayOrder: 12 },
+  { slug: "chungnam", name: "충남", providerCode: "44", displayOrder: 13 },
+  { slug: "jeonbuk", name: "전북", providerCode: "52", displayOrder: 14 },
+  { slug: "jeonnam", name: "전남", providerCode: "46", displayOrder: 15 },
+  { slug: "gyeongbuk", name: "경북", providerCode: "47", displayOrder: 16 },
+  { slug: "gyeongnam", name: "경남", providerCode: "48", displayOrder: 17 },
 ] as const;
 
 const EXPECTED_DATABASE_COMMENTS = {
@@ -74,6 +86,7 @@ const EXPECTED_DATABASE_COMMENTS = {
       credit_card: "신용카드 사용 가능 여부",
       pet: "반려동물 동반 가능 여부",
       detail_synced_at: "TourAPI 상세정보를 마지막으로 정상 반영한 시각",
+      detail_source_modified_at: "상세 수집을 완료한 원본 수정 시각",
       reels_synced_at: "관광지 릴스를 YouTube에서 마지막으로 수집 시도한 시각",
       primary_image_url: "대표 원본 이미지 URL",
       primary_thumbnail_url: "대표 썸네일 이미지 URL",
@@ -148,6 +161,9 @@ const EXPECTED_DATABASE_COMMENTS = {
   festivals: {
     table: "TourAPI에서 동기화한 축제 기본 정보",
     columns: {
+      detail_snapshot: "배치에서 검증한 축제 상세 및 이미지 스냅샷",
+      detail_source_modified_at: "상세 수집을 완료한 원본 수정 시각",
+      detail_synced_at: "축제 상세정보를 마지막으로 정상 반영한 시각",
       id: "Haetteum 내부 축제 식별자",
       source: "축제 원본 provider 식별자",
       external_id: "provider가 부여한 축제 식별자",
@@ -187,6 +203,7 @@ const EXPECTED_DATABASE_COMMENTS = {
       job_type: "전체 또는 증분 등 동기화 작업 유형",
       status: "동기화 실행 상태",
       requested_from: "증분 동기화 요청에 사용한 시작 기준 시각",
+      checkpoint_at: "성공한 목록 수집의 시작 기준 시각",
       started_at: "동기화 실행 시작 시각",
       finished_at: "동기화 실행 종료 시각",
       fetched_count: "외부 provider에서 조회한 항목 수",
@@ -318,9 +335,12 @@ describe("tourism database foundation (e2e)", () => {
     };
   }
 
-  it("contains the five approved product regions", async () => {
+  it("contains all 17 active regions for nationwide ingestion", async () => {
     const regions = await prisma.tourismRegion.findMany({
-      where: { slug: { in: EXPECTED_REGIONS.map((region) => region.slug) } },
+      where: {
+        slug: { in: EXPECTED_REGIONS.map((region) => region.slug) },
+        isActive: true,
+      },
       orderBy: { displayOrder: "asc" },
       select: {
         slug: true,

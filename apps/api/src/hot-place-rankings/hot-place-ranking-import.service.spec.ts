@@ -224,97 +224,53 @@ describe("HotPlaceRankingImportService", () => {
     expect(prisma.deletedSnapshot).toBeUndefined();
   });
 
-  it("fills unmatched rows with TourAPI images once per source place id", async () => {
+  it("keeps images null when there is no exact stored place match", async () => {
     const prisma = new FakePrisma();
     parseHotPlaceRankingDirectory.mockResolvedValue(
       snapshot([
         rankingRow({
           rank: 1,
-          audience: "ALL",
-          sourcePlaceId: "shared-id",
           sourcePlaceName: "청령포",
-          provinceName: "강원특별자치도",
-        }),
-        rankingRow({
-          rank: 2,
-          audience: "ALL",
-          sourcePlaceId: "other-id",
-          sourcePlaceName: "선돌",
-          provinceName: "강원특별자치도",
-        }),
-        rankingRow({
-          rank: 1,
-          audience: "TWENTIES",
-          sourcePlaceId: "shared-id",
-          sourcePlaceName: "청령포",
-          provinceName: "강원특별자치도",
         }),
       ]),
     );
-    const searchPlaceCandidates = jest.fn(
-      async (input: { keyword: string; areaCode?: string }) => {
-        expect(input.areaCode).toBe("32");
-        return input.keyword === "청령포"
-          ? [
-              {
-                contentid: "1",
-                contenttypeid: "12",
-                title: "청령포",
-                firstimage: "http://tong.visitkorea.or.kr/cheongryeongpo.jpg",
-                cpyrhtDivCd: "Type1",
-              },
-            ]
-          : [];
-      },
-    );
 
-    const service = new HotPlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
+    const service = new HotPlaceRankingImportService(prisma);
 
     await service.importDirectory("/tmp/hot");
 
-    expect(searchPlaceCandidates).toHaveBeenCalledTimes(2);
     expect(prisma.createdRows[0]).toMatchObject({
       sourcePlaceName: "청령포",
-      primaryImageUrl: "https://tong.visitkorea.or.kr/cheongryeongpo.jpg",
-      imageCopyrightType: "Type1",
-    });
-    expect(prisma.createdRows[1]).toMatchObject({
-      sourcePlaceName: "선돌",
       primaryImageUrl: null,
       imageCopyrightType: null,
     });
-    expect(prisma.createdRows[2]).toMatchObject({
-      sourcePlaceName: "청령포",
-      primaryImageUrl: "https://tong.visitkorea.or.kr/cheongryeongpo.jpg",
-      imageCopyrightType: "Type1",
-    });
-  });
-
-  it("keeps importing when a TourAPI lookup throws", async () => {
-    const prisma = new FakePrisma();
-    parseHotPlaceRankingDirectory.mockResolvedValue(
-      snapshot([rankingRow({ rank: 1, sourcePlaceName: "청령포" })]),
-    );
-    const searchPlaceCandidates = jest.fn(async () => {
-      throw new Error("TourAPI searchKeyword2 failed (HTTP_500)");
-    });
-
-    const service = new HotPlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
-
-    await expect(service.importDirectory("/tmp/hot")).resolves.toMatchObject({
-      importedCount: 1,
-    });
-    expect(prisma.createdRows[0]).toMatchObject({ primaryImageUrl: null });
   });
 });
 
 describe("HotPlaceRankingImportService.backfillDisplayImages", () => {
-  it("fills only rows without an image and reuses one lookup per source place id", async () => {
+  it("fills only unique exact matches from stored place images", async () => {
     const prisma = new FakePrisma();
+    prisma.places = [
+      {
+        id: "place-cheongnyeongpo",
+        title: "청령포",
+        isVisible: true,
+        primaryImageUrl: "http://tong.visitkorea.or.kr/c.jpg",
+        imageCopyrightType: "Type1",
+      },
+      {
+        id: "place-duplicate-a",
+        title: "중복명",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/duplicate-a.jpg",
+      },
+      {
+        id: "place-duplicate-b",
+        title: "중복명",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/duplicate-b.jpg",
+      },
+    ];
     prisma.imagelessRows = [
       {
         id: "row-a",
@@ -331,45 +287,30 @@ describe("HotPlaceRankingImportService.backfillDisplayImages", () => {
       {
         id: "row-c",
         sourcePlaceId: "p-2",
-        sourcePlaceName: "없는장소",
+        sourcePlaceName: "중복명",
         provinceName: "강원특별자치도",
       },
     ];
-    const searchPlaceCandidates = jest.fn(async (input: { keyword: string }) =>
-      input.keyword === "청령포"
-        ? [
-            {
-              contentid: "1",
-              contenttypeid: "12",
-              title: "청령포",
-              firstimage2: "http://tong.visitkorea.or.kr/c.jpg",
-            },
-          ]
-        : [],
-    );
 
-    const service = new HotPlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
+    const service = new HotPlaceRankingImportService(prisma);
 
     await expect(service.backfillDisplayImages()).resolves.toEqual({
       scanned: 3,
       updated: 2,
     });
-    expect(searchPlaceCandidates).toHaveBeenCalledTimes(2);
     expect(prisma.updates).toEqual([
       {
         id: "row-a",
         data: {
           primaryImageUrl: "https://tong.visitkorea.or.kr/c.jpg",
-          imageCopyrightType: null,
+          imageCopyrightType: "Type1",
         },
       },
       {
         id: "row-b",
         data: {
           primaryImageUrl: "https://tong.visitkorea.or.kr/c.jpg",
-          imageCopyrightType: null,
+          imageCopyrightType: "Type1",
         },
       },
     ]);
@@ -377,17 +318,12 @@ describe("HotPlaceRankingImportService.backfillDisplayImages", () => {
 
   it("does nothing when every snapshot row already has an image", async () => {
     const prisma = new FakePrisma();
-    const searchPlaceCandidates = jest.fn();
-
-    const service = new HotPlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
+    const service = new HotPlaceRankingImportService(prisma);
 
     await expect(service.backfillDisplayImages()).resolves.toEqual({
       scanned: 0,
       updated: 0,
     });
-    expect(searchPlaceCandidates).not.toHaveBeenCalled();
     expect(prisma.updates).toHaveLength(0);
   });
 
@@ -418,7 +354,7 @@ describe("HotPlaceRankingImportService.backfillDisplayImages", () => {
         input.placeName === "킨텍스제2전시장" ? "place-kintex" : null,
     );
 
-    const service = new HotPlaceRankingImportService(prisma, null, {
+    const service = new HotPlaceRankingImportService(prisma, {
       resolvePlaceId,
     });
 

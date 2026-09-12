@@ -47,6 +47,25 @@ describe("festival sync command", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("returns a failure exit code when the list succeeds but details fail", async () => {
+    const code = await executeFestivalSync(
+      {
+        fullSync: async () => ({
+          runId: "partial",
+          status: "SUCCEEDED",
+          fetchedCount: 1,
+          insertedCount: 1,
+          updatedCount: 0,
+          deactivatedCount: 0,
+          failedCount: 1,
+        }),
+      },
+      () => undefined,
+      () => undefined,
+    );
+    expect(code).toBe(1);
+  });
+
   it("returns a failure code without exposing service errors", async () => {
     const secret = "SERVICE_KEY=do-not-leak";
     const output: string[] = [];

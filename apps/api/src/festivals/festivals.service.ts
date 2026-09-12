@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 
 import type {
   FestivalBrowseRegion,
@@ -13,8 +13,7 @@ import type {
 
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
-import { TOUR_API_PORT } from "../tourism/tourism.constants.js";
-import type { TourApiPort } from "../tourism/tour-api.types.js";
+import { parseFestivalDetailSnapshot } from "../tourism/festival-detail-snapshot.js";
 
 const VISIBLE_WHERE: Prisma.FestivalWhereInput = { isVisible: true };
 
@@ -51,10 +50,7 @@ type FestivalRow = Awaited<
 export class FestivalsService {
   private readonly logger = new Logger(FestivalsService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    @Inject(TOUR_API_PORT) private readonly tourApi: TourApiPort,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async list(
     input: FestivalDiscoveryQuery,
@@ -92,12 +88,12 @@ export class FestivalsService {
         transaction.festival.findMany({
           where: ongoingDateWhere,
           orderBy: [{ eventEndDate: "asc" }, { externalId: "asc" }],
-          take: 3,
+          take: 5,
         }),
         transaction.festival.findMany({
           where: upcomingDateWhere,
           orderBy: [{ eventStartDate: "asc" }, { externalId: "asc" }],
-          take: 3,
+          take: 5,
         }),
       ]);
       const ongoingTake = Math.max(
@@ -141,7 +137,7 @@ export class FestivalsService {
       ...result.rankingUpcoming.map((festival) =>
         mapFestival(festival, "UPCOMING"),
       ),
-    ].slice(0, 3);
+    ].slice(0, 5);
     const items = [
       ...result.pageOngoing.map((festival) => mapFestival(festival, "ONGOING")),
       ...result.pageUpcoming.map((festival) =>
@@ -154,7 +150,7 @@ export class FestivalsService {
       region: input.region,
       ranking: ranking.map((festival, index) => ({
         ...festival,
-        rank: (index + 1) as 1 | 2 | 3,
+        rank: (index + 1) as 1 | 2 | 3 | 4 | 5,
       })),
       items,
       page: input.page,
@@ -174,26 +170,13 @@ export class FestivalsService {
       throw new NotFoundException("축제를 찾을 수 없습니다.");
     }
 
-    const [commonResult, introResult, imagesResult] = await Promise.allSettled([
-      this.tourApi.getPlaceCommonDetail(festival.externalId),
-      this.tourApi.getFestivalIntro(festival.externalId),
-      this.tourApi.getPlaceImages(festival.externalId),
-    ]);
-    // TourAPI가 콘텐츠를 회수하면 상세/소개/이미지 조회가 모두 빈 응답이 되고
-    // 화면에는 이유 없이 정보가 비어 보인다. 조용히 넘기지 말고 흔적을 남긴다.
-    const common = this.settledDetail(
-      commonResult,
-      "detailCommon2",
+    const snapshot = this.detailSnapshot(
+      festival.detailSnapshot,
       festival.externalId,
     );
-    const intro = this.settledDetail(
-      introResult,
-      "detailIntro2",
-      festival.externalId,
-    );
-    const rawImages =
-      this.settledDetail(imagesResult, "detailImage2", festival.externalId) ??
-      [];
+    const common = snapshot?.common;
+    const intro = snapshot?.intro;
+    const rawImages = snapshot?.images ?? [];
 
     const images = rawImages
       .map((image) => {
@@ -241,18 +224,16 @@ export class FestivalsService {
     };
   }
 
-  private settledDetail<T>(
-    result: PromiseSettledResult<T>,
-    operation: string,
-    externalId: string,
-  ): T | null {
-    if (result.status === "fulfilled") return result.value;
-    this.logger.warn(
-      `TourAPI ${operation} lookup failed for festival content ${externalId}: ${
-        result.reason instanceof Error ? result.reason.message : "unknown error"
-      }`,
-    );
-    return null;
+  private detailSnapshot(value: Prisma.JsonValue | null, externalId: string) {
+    if (value == null) return null;
+    try {
+      return parseFestivalDetailSnapshot(value, externalId);
+    } catch {
+      this.logger.warn(
+        `Invalid stored detail snapshot for festival content ${externalId}`,
+      );
+      return null;
+    }
   }
 }
 

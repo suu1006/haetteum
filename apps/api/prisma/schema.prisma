@@ -136,6 +136,7 @@ model Place {
   /// 반려동물 동반 가능 여부
   pet                String?   @db.Text
   /// TourAPI 상세정보를 마지막으로 정상 반영한 시각
+  detailSourceModifiedAt DateTime? @map("detail_source_modified_at") @db.Timestamptz(3)
   detailSyncedAt     DateTime? @map("detail_synced_at") @db.Timestamptz(3)
   /// 관광지 릴스를 YouTube에서 마지막으로 수집 시도한 시각
   reelsSyncedAt      DateTime? @map("reels_synced_at") @db.Timestamptz(3)
@@ -632,6 +633,9 @@ model TourCourseStop {
 
 /// TourAPI에서 동기화한 축제 기본 정보
 model Festival {
+  detailSnapshot Json? @map("detail_snapshot")
+  detailSourceModifiedAt DateTime? @map("detail_source_modified_at") @db.Timestamptz(3)
+  detailSyncedAt DateTime? @map("detail_synced_at") @db.Timestamptz(3)
   /// Haetteum 내부 축제 식별자
   id            String @id @default(uuid()) @db.Uuid
   /// 축제 원본 provider 식별자
@@ -705,6 +709,7 @@ model Festival {
 
 /// 관광 데이터 전체 또는 증분 동기화 실행 이력
 model TourismSyncRun {
+  checkpointAt DateTime? @map("checkpoint_at") @db.Timestamptz(3)
   /// 동기화 실행 식별자
   id            String    @id @default(uuid()) @db.Uuid
   /// 동기화 대상 관광 데이터 provider
@@ -777,4 +782,12 @@ model WeeklyRecommendationLease {
   token String
   expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
   @@map("weekly_recommendation_leases")
+}
+
+/// TourAPI 호출 시도 예산. KST 날짜 기준, 모든 배치/재시도가 공유한다.
+model TourApiDailyUsage {
+  day DateTime @id @db.Date
+  calls Int
+  lastStartedAt DateTime @map("last_started_at") @db.Timestamptz(3)
+  @@map("tour_api_daily_usage")
 }

@@ -1,17 +1,11 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
-  buildSearchKeywords,
-  pickRelevantCandidate,
-} from "../tourism/place-name-matching.js";
-import {
   RankingPlaceLinkService,
   type RankingPlaceLinker,
 } from "../tourism/ranking-place-link.service.js";
-import type { TourApiPort } from "../tourism/tour-api.types.js";
-import { TOUR_API_PORT } from "../tourism/tourism.constants.js";
 import {
   parsePlaceRankingDirectory,
   type ParsedPlaceRankingRow,
@@ -93,13 +87,8 @@ export function normalizePlaceTitle(value: string): string {
 
 @Injectable()
 export class PlaceRankingImportService {
-  private readonly logger = new Logger(PlaceRankingImportService.name);
-
   constructor(
     @Inject(PrismaService) private readonly prisma: PlaceRankingPrisma,
-    @Optional()
-    @Inject(TOUR_API_PORT)
-    private readonly tourApi: TourApiPort | null = null,
     @Optional()
     @Inject(RankingPlaceLinkService)
     private readonly placeLinks: RankingPlaceLinker | null = null,
@@ -131,7 +120,6 @@ export class PlaceRankingImportService {
         candidateIndex,
       ),
     );
-    await this.fillDisplayImages(rows);
     const matchedCount = rows.filter((row) => row.placeId !== null).length;
     const snapshotIdentity = {
       source: snapshot.source,
@@ -158,38 +146,9 @@ export class PlaceRankingImportService {
   }
 
   /**
-   * 매칭된 관광지 이미지가 없는 행에 대해 TourAPI 키워드 검색으로 대표 이미지를 채운다.
-   * 데이터랩 관광지 식별자 단위로 결과를 캐싱해 세대별 파일에 걸친 중복 호출을 없애고,
-   * 검색 실패는 조용히 건너뛰어(이미지 null 유지) 스냅샷 적재 자체는 막지 않는다.
-   */
-  private async fillDisplayImages(
-    rows: PlaceRankingCreateManyInput[],
-  ): Promise<void> {
-    if (this.tourApi === null) return;
-
-    const imageCache = new Map<string, string | null>();
-    const copyrightCache = new Map<string, string | null>();
-
-    for (const row of rows) {
-      if (row.primaryImageUrl != null) continue;
-
-      const key = row.sourcePlaceId;
-
-      if (!imageCache.has(key)) {
-        const resolved = await this.resolveDisplayImage(row.sourcePlaceName);
-        imageCache.set(key, resolved.imageUrl);
-        copyrightCache.set(key, resolved.copyrightType);
-      }
-
-      row.primaryImageUrl = imageCache.get(key) ?? null;
-      row.imageCopyrightType = copyrightCache.get(key) ?? null;
-    }
-  }
-
-  /**
    * 이미 적재된 스냅샷 중 대표 이미지가 비어 있는 행을 다시 채운다.
-   * CSV 재적재 없이 실행할 수 있는 복구용 경로이며, 매칭된 관광지 이미지 →
-   * TourAPI 키워드 검색 순으로 확정하고 데이터랩 관광지 식별자 단위로 캐싱한다.
+   * CSV 재적재 없이 실행할 수 있는 복구용 경로이며, 유일하게 이름이 일치하는
+   * 저장 관광지의 이미지와 저작권 정보만 사용한다.
    */
   async backfillDisplayImages(): Promise<RankingImageBackfillSummary> {
     const rows = await this.prisma.placeRanking.findMany({
@@ -197,7 +156,7 @@ export class PlaceRankingImportService {
       select: { id: true, sourcePlaceId: true, sourcePlaceName: true },
     });
 
-    if (rows.length === 0 || this.tourApi === null) {
+    if (rows.length === 0) {
       return { scanned: rows.length, updated: 0 };
     }
 
@@ -211,40 +170,24 @@ export class PlaceRankingImportService {
       },
     });
     const candidateIndex = buildCandidateIndex(places);
-    const cache = new Map<
-      string,
-      { imageUrl: string | null; copyrightType: string | null }
-    >();
     let updated = 0;
 
     for (const row of rows) {
       const matched = candidateIndex.get(
         normalizePlaceTitle(row.sourcePlaceName),
       );
-      const matchedImage =
+      const imageUrl =
         matched?.length === 1
           ? httpsImageUrl(matched[0]?.primaryImageUrl ?? undefined)
           : null;
-      let resolved =
-        matchedImage != null
-          ? {
-              imageUrl: matchedImage,
-              copyrightType: matched?.[0]?.imageCopyrightType ?? null,
-            }
-          : cache.get(row.sourcePlaceId);
 
-      if (resolved === undefined) {
-        resolved = await this.resolveDisplayImage(row.sourcePlaceName);
-        cache.set(row.sourcePlaceId, resolved);
-      }
-
-      if (resolved.imageUrl === null) continue;
+      if (imageUrl === null) continue;
 
       await this.prisma.placeRanking.update({
         where: { id: row.id },
         data: {
-          primaryImageUrl: resolved.imageUrl,
-          imageCopyrightType: resolved.copyrightType,
+          primaryImageUrl: imageUrl,
+          imageCopyrightType: matched?.[0]?.imageCopyrightType ?? null,
         },
       });
       updated += 1;
@@ -253,12 +196,7 @@ export class PlaceRankingImportService {
     return { scanned: rows.length, updated };
   }
 
-  /**
-   * 관광지와 연결되지 않은 행을 TourAPI 키워드 검색으로 다시 연결한다.
-   * 지역 기반 동기화가 담지 않는 콘텐츠 타입 때문에 이름 정확매칭이 실패한 행이
-   * 대부분이며, 연결되지 않으면 카드가 링크로 렌더되지 않아 상세 화면으로 갈 수 없다.
-   * 데이터랩 관광지 식별자 단위로 캐싱해 세대별 행에 걸친 중복 호출을 없앤다.
-   */
+  /** 저장된 관광지와 연결되지 않은 행을 정확한 이름으로 다시 연결한다. */
   async backfillPlaceLinks(): Promise<RankingPlaceLinkBackfillSummary> {
     const rows = await this.prisma.placeRanking.findMany({
       where: { placeId: null },
@@ -294,37 +232,6 @@ export class PlaceRankingImportService {
     }
 
     return { scanned: rows.length, linked };
-  }
-
-  private async resolveDisplayImage(
-    placeName: string,
-  ): Promise<{ imageUrl: string | null; copyrightType: string | null }> {
-    if (this.tourApi === null) {
-      return { imageUrl: null, copyrightType: null };
-    }
-
-    try {
-      for (const keyword of buildSearchKeywords(placeName)) {
-        const candidates = await this.tourApi.searchPlaceCandidates({
-          keyword,
-        });
-        const match = pickRelevantCandidate(candidates, keyword);
-        const imageUrl = httpsImageUrl(match?.firstimage ?? match?.firstimage2);
-
-        if (imageUrl === null) continue;
-
-        return { imageUrl, copyrightType: match?.cpyrhtDivCd ?? null };
-      }
-
-      return { imageUrl: null, copyrightType: null };
-    } catch (error) {
-      this.logger.warn(
-        `TourAPI 이미지 조회 실패 (${placeName}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return { imageUrl: null, copyrightType: null };
-    }
   }
 }
 

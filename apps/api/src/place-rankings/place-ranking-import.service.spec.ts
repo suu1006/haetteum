@@ -256,7 +256,7 @@ describe("PlaceRankingImportService", () => {
     expect(prisma.deletedSnapshot).toBeUndefined();
   });
 
-  it("copies the matched place image and fills the rest from TourAPI", async () => {
+  it("copies only images and copyright stored on matched places", async () => {
     const prisma = new FakePrisma();
     prisma.places = [
       {
@@ -281,39 +281,23 @@ describe("PlaceRankingImportService", () => {
         }),
       ]),
     );
-    const searchPlaceCandidates = jest.fn(
-      async (input: { keyword: string }) => [
-        {
-          contentid: "9",
-          contenttypeid: "12",
-          title: input.keyword,
-          firstimage2: `http://tong.visitkorea.or.kr/${input.keyword}.jpg`,
-          cpyrhtDivCd: "Type3",
-        },
-      ],
-    );
-
-    const service = new PlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
+    const service = new PlaceRankingImportService(prisma);
 
     await service.importDirectory("/tmp/rankings");
 
-    expect(searchPlaceCandidates).toHaveBeenCalledTimes(1);
-    expect(searchPlaceCandidates).toHaveBeenCalledWith({ keyword: "남이섬" });
     expect(prisma.createdRows[0]).toMatchObject({
       primaryImageUrl: "https://cdn.test/everland.jpg",
       imageCopyrightType: "Type1",
     });
     expect(prisma.createdRows[1]).toMatchObject({
-      primaryImageUrl: "https://tong.visitkorea.or.kr/남이섬.jpg",
-      imageCopyrightType: "Type3",
+      primaryImageUrl: null,
+      imageCopyrightType: null,
     });
   });
 });
 
 describe("PlaceRankingImportService.backfillDisplayImages", () => {
-  it("prefers a matched place image and falls back to a cached TourAPI lookup", async () => {
+  it("fills only unique exact matches from stored place images", async () => {
     const prisma = new FakePrisma();
     prisma.places = [
       {
@@ -329,44 +313,43 @@ describe("PlaceRankingImportService.backfillDisplayImages", () => {
       { id: "row-b", sourcePlaceId: "s-2", sourcePlaceName: "남이섬" },
       { id: "row-c", sourcePlaceId: "s-2", sourcePlaceName: "남이섬" },
     ];
-    const searchPlaceCandidates = jest.fn(async () => [
+    prisma.places.push(
       {
-        contentid: "9",
-        contenttypeid: "12",
-        title: "남이섬",
-        firstimage: "http://tong.visitkorea.or.kr/namiseom.jpg",
+        id: "place-2",
+        title: "중복명",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/duplicate-a.jpg",
       },
-    ]);
+      {
+        id: "place-3",
+        title: "중복명",
+        isVisible: true,
+        primaryImageUrl: "https://cdn.test/duplicate-b.jpg",
+      },
+    );
+    prisma.imagelessRows[1] = {
+      id: "row-b",
+      sourcePlaceId: "s-2",
+      sourcePlaceName: "중복명",
+    };
+    prisma.imagelessRows[2] = {
+      id: "row-c",
+      sourcePlaceId: "s-3",
+      sourcePlaceName: "남이섬",
+    };
 
-    const service = new PlaceRankingImportService(prisma, {
-      searchPlaceCandidates,
-    } as never);
+    const service = new PlaceRankingImportService(prisma);
 
     await expect(service.backfillDisplayImages()).resolves.toEqual({
       scanned: 3,
-      updated: 3,
+      updated: 1,
     });
-    expect(searchPlaceCandidates).toHaveBeenCalledTimes(1);
     expect(prisma.updates).toEqual([
       {
         id: "row-a",
         data: {
           primaryImageUrl: "https://cdn.test/everland.jpg",
           imageCopyrightType: "Type1",
-        },
-      },
-      {
-        id: "row-b",
-        data: {
-          primaryImageUrl: "https://tong.visitkorea.or.kr/namiseom.jpg",
-          imageCopyrightType: null,
-        },
-      },
-      {
-        id: "row-c",
-        data: {
-          primaryImageUrl: "https://tong.visitkorea.or.kr/namiseom.jpg",
-          imageCopyrightType: null,
         },
       },
     ]);
@@ -383,7 +366,7 @@ describe("PlaceRankingImportService.backfillDisplayImages", () => {
       input.placeName === "코엑스" ? "place-coex" : null,
     );
 
-    const service = new PlaceRankingImportService(prisma, null, {
+    const service = new PlaceRankingImportService(prisma, {
       resolvePlaceId,
     });
 

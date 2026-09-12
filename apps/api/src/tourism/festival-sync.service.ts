@@ -1,14 +1,16 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
   FestivalRepository,
   type FestivalSyncCounters,
   type FestivalSyncSummary,
 } from "./festival.repository.js";
+import { createFestivalDetailSnapshot } from "./festival-detail-snapshot.js";
 import { TourApiError } from "./tour-api.client.js";
+import { TourApiPolicyError } from "./tour-api-policy.js";
 import { mapFestival } from "./tour-api.mapper.js";
-import type { FestivalApiPort } from "./tour-api.types.js";
-import { FESTIVAL_API_PORT } from "./tourism.constants.js";
+import type { FestivalApiPort, TourApiPort } from "./tour-api.types.js";
+import { FESTIVAL_API_PORT, TOUR_API_PORT } from "./tourism.constants.js";
 
 export type FestivalSyncRange = {
   eventStartDate: string;
@@ -19,8 +21,11 @@ class SafeFestivalSyncError extends Error {}
 
 @Injectable()
 export class FestivalSyncService {
+  private readonly logger = new Logger(FestivalSyncService.name);
+
   constructor(
     @Inject(FESTIVAL_API_PORT) private readonly provider: FestivalApiPort,
+    @Inject(TOUR_API_PORT) private readonly details: TourApiPort,
     private readonly repository: FestivalRepository,
   ) {}
 
@@ -36,6 +41,7 @@ export class FestivalSyncService {
       insertedCount: 0,
       updatedCount: 0,
       deactivatedCount: 0,
+      failedCount: 0,
     };
     const seenExternalIds = new Set<string>();
     const lastSyncedAt = new Date();
@@ -87,13 +93,56 @@ export class FestivalSyncService {
         lastSyncedAt,
       });
 
+      const pendingDetails = await this.repository.findPendingDetails();
+      for (const festival of pendingDetails) {
+        try {
+          await this.enrichDetail(festival);
+        } catch (error) {
+          if (isFatalTourApiError(error)) throw error;
+          counters.failedCount += 1;
+          this.logger.warn(
+            `Festival detail synchronization failed for content ${festival.externalId}`,
+          );
+        }
+      }
+
       return await this.repository.completeSyncRun(run.id, counters);
     } catch (error) {
       const sanitized = sanitizeFestivalSyncError(error);
       await this.repository.failSyncRun(run.id, counters, sanitized.message);
+      if (error instanceof TourApiPolicyError) throw error;
       throw sanitized;
     }
   }
+
+  private async enrichDetail(festival: {
+    id: string;
+    externalId: string;
+    providerModifiedAt: Date;
+  }): Promise<void> {
+    const common = await this.details.getPlaceCommonDetail(festival.externalId);
+    const intro = await this.details.getFestivalIntro(festival.externalId);
+    const images = await this.details.getPlaceImages(festival.externalId);
+    const snapshot = createFestivalDetailSnapshot({
+      contentId: festival.externalId,
+      common,
+      intro,
+      images,
+    });
+    await this.repository.saveDetailSnapshot({
+      id: festival.id,
+      providerModifiedAt: festival.providerModifiedAt,
+      snapshot,
+      detailSyncedAt: new Date(),
+    });
+  }
+}
+
+function isFatalTourApiError(error: unknown): boolean {
+  return (
+    error instanceof TourApiPolicyError ||
+    (error instanceof TourApiError && error.providerCode === "22")
+  );
 }
 
 function parseRangeDate(value: string): Date {

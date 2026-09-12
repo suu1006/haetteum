@@ -2,10 +2,15 @@
 import type { FestivalRepository } from "./festival.repository.js";
 import { FestivalSyncService } from "./festival-sync.service.js";
 import { TourApiError } from "./tour-api.client.js";
+import { TourApiPolicyError } from "./tour-api-policy.js";
 import type {
   FestivalApiPort,
   TourApiFestival,
+  TourApiFestivalIntro,
   TourApiPage,
+  TourApiPlaceDetail,
+  TourApiPlaceImage,
+  TourApiPort,
 } from "./tour-api.types.js";
 
 const RANGE = {
@@ -64,6 +69,13 @@ class FakeFestivalRepository {
   completeCalls = 0;
   upsertError: Error | undefined;
   deactivatedCount = 0;
+  readonly pendingDetails: Array<{
+    id: string;
+    externalId: string;
+    providerModifiedAt: Date;
+  }> = [];
+  readonly savedDetails: Array<Record<string, unknown>> = [];
+  saveDetailError: Error | undefined;
 
   async createSyncRun(rangeStart: Date) {
     expect(rangeStart).toEqual(new Date("2026-01-01T00:00:00.000Z"));
@@ -99,6 +111,15 @@ class FakeFestivalRepository {
     return this.deactivatedCount;
   }
 
+  async findPendingDetails() {
+    return this.pendingDetails;
+  }
+
+  async saveDetailSnapshot(input: Record<string, unknown>) {
+    if (this.saveDetailError) throw this.saveDetailError;
+    this.savedDetails.push(input);
+  }
+
   async completeSyncRun(
     runId: string,
     counters: {
@@ -106,6 +127,7 @@ class FakeFestivalRepository {
       insertedCount: number;
       updatedCount: number;
       deactivatedCount: number;
+      failedCount: number;
     },
   ) {
     this.completeCalls += 1;
@@ -113,7 +135,6 @@ class FakeFestivalRepository {
       runId,
       status: "SUCCEEDED" as const,
       ...counters,
-      failedCount: 0 as const,
     };
   }
 
@@ -122,14 +143,56 @@ class FakeFestivalRepository {
   }
 }
 
+class FakeTourApi {
+  readonly calls: string[] = [];
+  common: TourApiPlaceDetail = {
+    contentid: "festival-1",
+    contenttypeid: "15",
+    overview: "축제 소개",
+  };
+  intro: TourApiFestivalIntro = {
+    contentid: "festival-1",
+    contenttypeid: "15",
+    eventplace: "축제장",
+  };
+  images: readonly TourApiPlaceImage[] = [
+    {
+      contentid: "festival-1",
+      serialnum: "1",
+      originimgurl: "https://tong.visitkorea.or.kr/festival.jpg",
+    },
+  ];
+  error: Error | undefined;
+
+  async getPlaceCommonDetail(contentId: string) {
+    this.calls.push(`common:${contentId}`);
+    if (this.error) throw this.error;
+    return this.common;
+  }
+
+  async getFestivalIntro(contentId: string) {
+    this.calls.push(`intro:${contentId}`);
+    if (this.error) throw this.error;
+    return this.intro;
+  }
+
+  async getPlaceImages(contentId: string) {
+    this.calls.push(`images:${contentId}`);
+    if (this.error) throw this.error;
+    return this.images;
+  }
+}
+
 function setup() {
   const provider = new FakeFestivalApi();
+  const details = new FakeTourApi();
   const repository = new FakeFestivalRepository();
   const service = new FestivalSyncService(
     provider,
+    details as unknown as TourApiPort,
     repository as unknown as FestivalRepository,
   );
-  return { provider, repository, service };
+  return { details, provider, repository, service };
 }
 
 describe("FestivalSyncService", () => {
@@ -154,6 +217,118 @@ describe("FestivalSyncService", () => {
     expect(repository.pages).toEqual([["festival-1"], ["festival-2"]]);
     expect(repository.completeCalls).toBe(1);
     expect(repository.failures).toHaveLength(0);
+  });
+
+  it("enriches only repository-selected festival detail versions after deactivation", async () => {
+    const { details, provider, repository, service } = setup();
+    const providerModifiedAt = new Date("2026-08-23T15:00:00.000Z");
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push({
+      id: "festival-row-1",
+      externalId: "festival-1",
+      providerModifiedAt,
+    });
+
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      failedCount: 0,
+    });
+
+    expect(details.calls).toEqual([
+      "common:festival-1",
+      "intro:festival-1",
+      "images:festival-1",
+    ]);
+    expect(repository.savedDetails).toHaveLength(1);
+    expect(repository.savedDetails[0]).toMatchObject({
+      id: "festival-row-1",
+      providerModifiedAt,
+      snapshot: {
+        common: details.common,
+        intro: details.intro,
+        images: details.images,
+      },
+    });
+    expect(repository.savedDetails[0]?.detailSyncedAt).toBeInstanceOf(Date);
+    expect(repository.deactivateCalls).toHaveLength(1);
+  });
+
+  it("counts an individual detail failure and leaves its completion marker untouched for retry", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push({
+      id: "festival-row-1",
+      externalId: "festival-1",
+      providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+    });
+    details.error = new TourApiError("detailCommon2", "EMPTY_RESPONSE");
+
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      status: "SUCCEEDED",
+      failedCount: 1,
+    });
+    expect(repository.savedDetails).toHaveLength(0);
+    expect(repository.failures).toHaveLength(0);
+  });
+
+  it("propagates a shared TourAPI policy failure immediately", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push(
+      {
+        id: "festival-row-1",
+        externalId: "festival-1",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+      {
+        id: "festival-row-2",
+        externalId: "festival-2",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+    );
+    details.error = new TourApiPolicyError("TOUR_API_DAILY_LIMIT");
+
+    await expect(service.fullSync(RANGE)).rejects.toBe(details.error);
+    expect(details.calls).toEqual(["common:festival-1"]);
+    expect(repository.failures).toHaveLength(1);
+  });
+
+  it("stops detail enrichment immediately when the provider quota is exhausted", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push(
+      {
+        id: "festival-row-1",
+        externalId: "festival-1",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+      {
+        id: "festival-row-2",
+        externalId: "festival-2",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+    );
+    details.error = new TourApiError("detailCommon2", "22", 200);
+
+    await expect(service.fullSync(RANGE)).rejects.toThrow(
+      "Festival synchronization failed (22)",
+    );
+    expect(details.calls).toEqual(["common:festival-1"]);
+  });
+
+  it("counts mismatched detail identities without storing a mixed snapshot", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push({
+      id: "festival-row-1",
+      externalId: "festival-1",
+      providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+    });
+    details.intro = { ...details.intro, contentid: "other-festival" };
+
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      failedCount: 1,
+    });
+    expect(repository.savedDetails).toHaveLength(0);
   });
 
   it.each([

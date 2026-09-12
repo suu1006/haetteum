@@ -17,6 +17,7 @@ function createScheduler(
     get: () => enabled,
   } as unknown as ConfigService<ApiEnvironment, true>;
   const sync = {
+    enrichPendingPlaceDetails: () => Promise.resolve({ failedCount: 0 }),
     incrementalSync: () => {
       incrementalCalls += 1;
       return incrementalSync();
@@ -24,7 +25,9 @@ function createScheduler(
   } as unknown as TourismSyncService;
 
   return {
-    scheduler: new TourismSyncScheduler(config, sync),
+    scheduler: new TourismSyncScheduler(config, sync, {
+      batch: (work: () => Promise<unknown>) => work(),
+    } as never),
     get incrementalCalls() {
       return incrementalCalls;
     },

@@ -656,7 +656,7 @@ describe("TourismSyncService PostgreSQL integration (e2e)", () => {
       orderBy: { startedAt: "desc" },
     });
     expect(failed).toMatchObject({
-      requestedFrom: watermark.finishedAt,
+      requestedFrom: watermark.checkpointAt ?? watermark.finishedAt,
       fetchedCount: 1,
       insertedCount: 1,
       failedCount: 1,

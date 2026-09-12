@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 
@@ -69,6 +70,7 @@ export class TourApiClient
     private readonly config: ConfigService<ApiEnvironment, true>,
     @Inject(TOUR_API_FETCH) private readonly fetch: TourApiFetch,
     @Inject(TOUR_API_SLEEP) private readonly sleep: TourApiSleep,
+    private readonly policy: TourApiPolicy,
   ) {}
 
   getDistrictPage(input: {
@@ -343,8 +345,9 @@ export class TourApiClient
 
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       try {
-        return await this.requestOnce(url, options);
+        return await this.policy.request(() => this.requestOnce(url, options));
       } catch (error) {
+        if (error instanceof TourApiPolicyError) throw error;
         const sanitizedError = this.sanitizeError(error, options.operation);
 
         if (
@@ -398,6 +401,14 @@ export class TourApiClient
     const response = await this.fetchWithTimeout(url);
 
     if (!response.ok) {
+      if (response.status === 429) {
+        const errorBody = await response.text();
+        if (
+          errorBody.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR")
+        ) {
+          throw new TourApiError(options.operation, "22", response.status);
+        }
+      }
       throw new TourApiError(
         options.operation,
         `HTTP_${response.status}`,
@@ -467,6 +478,7 @@ export class TourApiClient
   }
 
   private isRetryable(error: TourApiError): boolean {
+    if (error.providerCode === "22") return false;
     return (
       error.providerCode === "NETWORK_ERROR" ||
       error.providerCode === "TIMEOUT" ||

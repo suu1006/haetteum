@@ -1,3 +1,4 @@
+import { TourApiPolicy } from "./tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,12 +12,14 @@ const USAGE = [
   "  pnpm tourism:sync -- --mode=incremental",
   "  pnpm tourism:enrich -- --content-id=2704412",
   "  pnpm tourism:enrich-ranked",
+  "  pnpm tourism:sync -- --mode=enrich-pending",
 ].join("\n");
 
 type SyncCommand =
   | { mode: "full" }
   | { mode: "incremental" }
   | { mode: "enrich-ranked" }
+  | { mode: "enrich-pending" }
   | { mode: "enrich"; contentId: string };
 
 class UsageError extends Error {
@@ -57,7 +60,10 @@ export function parseCommandArguments(args: readonly string[]): SyncCommand {
     return { mode };
   }
 
-  if (mode === "enrich-ranked" && contentId === undefined) {
+  if (
+    (mode === "enrich-ranked" || mode === "enrich-pending") &&
+    contentId === undefined
+  ) {
     return { mode };
   }
 
@@ -87,6 +93,7 @@ function printSummary(
 }
 
 async function run(): Promise<void> {
+  process.env.SCHEDULERS_ENABLED = "false";
   let command: SyncCommand;
 
   try {
@@ -115,34 +122,52 @@ async function run(): Promise<void> {
     });
     const sync = app.get(TourismSyncService);
 
-    if (command.mode === "full") {
-      printSummary("full", await sync.fullSync());
-      return;
-    }
+    await app.get(TourApiPolicy).batch(async () => {
+      if (command.mode === "full") {
+        printSummary("full", await sync.fullSync());
+        const details = await sync.enrichPendingPlaceDetails();
+        console.log(
+          JSON.stringify({ operation: "enrich-pending", ...details }),
+        );
+        if (details.failedCount > 0) process.exitCode = 1;
+        return;
+      }
 
-    if (command.mode === "incremental") {
-      printSummary("incremental", await sync.incrementalSync());
-      return;
-    }
+      if (command.mode === "incremental") {
+        printSummary("incremental", await sync.incrementalSync());
+        const details = await sync.enrichPendingPlaceDetails();
+        console.log(
+          JSON.stringify({ operation: "enrich-pending", ...details }),
+        );
+        if (details.failedCount > 0) process.exitCode = 1;
+        return;
+      }
 
-    if (command.mode === "enrich-ranked") {
+      if (command.mode === "enrich-pending") {
+        const details = await sync.enrichPendingPlaceDetails();
+        console.log(
+          JSON.stringify({ operation: "enrich-pending", ...details }),
+        );
+        if (details.failedCount > 0) process.exitCode = 1;
+        return;
+      }
+
+      if (command.mode === "enrich-ranked") {
+        const details = await sync.enrichRankedPlaceDetails();
+        console.log(JSON.stringify({ operation: "enrich-ranked", ...details }));
+        if (details.failedCount > 0) process.exitCode = 1;
+        return;
+      }
+
+      await sync.enrichPlaceDetails(command.contentId);
       console.log(
         JSON.stringify({
-          operation: "enrich-ranked",
-          ...(await sync.enrichRankedPlaceDetails()),
+          operation: "enrich",
+          result: "SUCCEEDED",
+          contentId: command.contentId,
         }),
       );
-      return;
-    }
-
-    await sync.enrichPlaceDetails(command.contentId);
-    console.log(
-      JSON.stringify({
-        operation: "enrich",
-        result: "SUCCEEDED",
-        contentId: command.contentId,
-      }),
-    );
+    });
   } catch {
     console.error("Tourism sync command failed.");
     process.exitCode = 1;

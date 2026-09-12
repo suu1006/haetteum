@@ -14,6 +14,7 @@ type FestivalRow = {
   address2: string | null;
   category3: string | null;
   primaryImageUrl: string | null;
+  detailSnapshot: unknown;
 };
 
 type FindManyArguments = {
@@ -39,6 +40,7 @@ function row(
     address2: " 테스트로 1 ",
     category3: "EV010300",
     primaryImageUrl: "https://tong.visitkorea.or.kr/test.jpg",
+    detailSnapshot: null,
     ...overrides,
   };
 }
@@ -62,45 +64,11 @@ function setup(ongoing: FestivalRow[] = [], upcoming: FestivalRow[] = []) {
     async <T>(operation: (client: typeof prisma) => Promise<T>) =>
       operation(prisma),
   );
-  const service = new FestivalsService(
-    {
-      ...prisma,
-      $transaction: transaction,
-    } as never,
-    stubTourApi(),
-  );
+  const service = new FestivalsService({
+    ...prisma,
+    $transaction: transaction,
+  } as never);
   return { count, findMany, service, transaction };
-}
-
-function stubTourApi(
-  overrides: Partial<{
-    getPlaceCommonDetail: (
-      contentId: string,
-    ) => Promise<{ overview?: string; homepage?: string }>;
-    getFestivalIntro: (contentId: string) => Promise<{
-      eventplace?: string;
-      playtime?: string;
-      usetimefestival?: string;
-      program?: string;
-      sponsor1?: string;
-      sponsor1tel?: string;
-      sponsor2?: string;
-      sponsor2tel?: string;
-    }>;
-    getPlaceImages: (
-      contentId: string,
-    ) => Promise<ReadonlyArray<{ originimgurl: string; imgname?: string }>>;
-  }> = {},
-) {
-  return {
-    getPlaceCommonDetail:
-      overrides.getPlaceCommonDetail ??
-      (() => Promise.reject(new Error("EMPTY_RESPONSE"))),
-    getFestivalIntro:
-      overrides.getFestivalIntro ??
-      (() => Promise.reject(new Error("EMPTY_RESPONSE"))),
-    getPlaceImages: overrides.getPlaceImages ?? (() => Promise.resolve([])),
-  } as never;
 }
 
 type DetailRow = FestivalRow & {
@@ -109,7 +77,7 @@ type DetailRow = FestivalRow & {
   latitude: { toNumber(): number } | null;
 };
 
-function setupDetail(festival: DetailRow | null, tourApi = stubTourApi()) {
+function setupDetail(festival: DetailRow | null) {
   const findFirst = jest
     .fn<
       (args: {
@@ -117,10 +85,7 @@ function setupDetail(festival: DetailRow | null, tourApi = stubTourApi()) {
       }) => Promise<DetailRow | null>
     >()
     .mockResolvedValue(festival);
-  const service = new FestivalsService(
-    { festival: { findFirst } } as never,
-    tourApi,
-  );
+  const service = new FestivalsService({ festival: { findFirst } } as never);
   return { findFirst, service };
 }
 
@@ -192,12 +157,12 @@ describe("FestivalsService", () => {
         eventEndDate: { gte: asOfDate },
       },
       orderBy: [{ eventEndDate: "asc" }, { externalId: "asc" }],
-      take: 3,
+      take: 5,
     });
     expect(findMany).toHaveBeenNthCalledWith(2, {
       where: { isVisible: true, eventStartDate: { gt: asOfDate } },
       orderBy: [{ eventStartDate: "asc" }, { externalId: "asc" }],
-      take: 3,
+      take: 5,
     });
     for (const [query] of findMany.mock.calls) {
       expect(query.take).toBeLessThanOrEqual(20);
@@ -247,8 +212,15 @@ describe("FestivalsService", () => {
     }
   });
 
-  it("keeps the ranking at the top three regardless of the requested list page", async () => {
-    const ongoing = [row("1"), row("2"), row("3"), row("4")];
+  it("keeps the ranking at the top five regardless of the requested list page", async () => {
+    const ongoing = [
+      row("1"),
+      row("2"),
+      row("3"),
+      row("4"),
+      row("5"),
+      row("6"),
+    ];
     const { findMany, service } = setup(ongoing, []);
 
     const result = await service.list(
@@ -260,9 +232,11 @@ describe("FestivalsService", () => {
       "1",
       "2",
       "3",
+      "4",
+      "5",
     ]);
     expect(result.items.map((item) => item.externalId)).toEqual(["3", "4"]);
-    expect(result.totalCount).toBe(4);
+    expect(result.totalCount).toBe(6);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 2, take: 2 }),
     );
@@ -292,15 +266,18 @@ describe("FestivalsService#detail", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
-  it("enriches with TourAPI overview and https provider images", async () => {
-    const tourApi = stubTourApi({
-      getPlaceCommonDetail: () =>
-        Promise.resolve({
+  it("returns the persisted overview and https provider images without a request-time API dependency", async () => {
+    const festival = detailRow({
+      detailSnapshot: {
+        common: {
+          contentid: "3351268",
+          contenttypeid: "15",
           overview: "  도심형 여름 축제  ",
           homepage: '<a href="https://www.ddmac.or.kr/" target="_blank">홈</a>',
-        }),
-      getFestivalIntro: () =>
-        Promise.resolve({
+        },
+        intro: {
+          contentid: "3351268",
+          contenttypeid: "15",
           eventplace: " 장안1수변공원 ",
           playtime: "17:00~22:00",
           usetimefestival: "입장료 무료 (주류, 식음료 유료)",
@@ -310,20 +287,31 @@ describe("FestivalsService#detail", () => {
           sponsor1tel: "02-3291-5506",
           sponsor2: "동대문문화재단",
           sponsor2tel: "",
-        }),
-      getPlaceImages: () =>
-        Promise.resolve([
+        },
+        images: [
           {
+            contentid: "3351268",
+            serialnum: "1",
             originimgurl: "https://tong.visitkorea.or.kr/a.jpg",
             imgname: "정문",
           },
-          { originimgurl: "https://tong.visitkorea.or.kr/b.jpg" },
-          { originimgurl: "https://example.com/evil.jpg", imgname: "차단" },
-        ]),
+          {
+            contentid: "3351268",
+            serialnum: "2",
+            originimgurl: "https://tong.visitkorea.or.kr/b.jpg",
+          },
+          {
+            contentid: "3351268",
+            serialnum: "3",
+            originimgurl: "https://example.com/evil.jpg",
+            imgname: "차단",
+          },
+        ],
+      },
     });
-    const { service } = setupDetail(detailRow(), tourApi);
+    const { service } = setupDetail(festival);
 
-    const result = await service.detail(detailRow().id, detailNow);
+    const result = await service.detail(festival.id, detailNow);
 
     expect(result).toMatchObject({
       status: "ONGOING",
@@ -349,23 +337,26 @@ describe("FestivalsService#detail", () => {
     });
   });
 
-  it("still returns the festival when TourAPI enrichment fails", async () => {
-    const { service } = setupDetail(detailRow());
-    const result = await service.detail(detailRow().id, detailNow);
-    expect(result).toMatchObject({
-      overview: null,
-      homepage: null,
-      eventPlace: null,
-      eventTime: null,
-      feeInfo: null,
-      program: null,
-      organizer: null,
-      organizerTel: null,
-      hostAgency: null,
-      hostAgencyTel: null,
-      images: [],
-    });
-  });
+  it.each([null, { common: {}, intro: {}, images: "invalid" }])(
+    "still returns the festival when the persisted detail snapshot is %p",
+    async (detailSnapshot) => {
+      const { service } = setupDetail(detailRow({ detailSnapshot }));
+      const result = await service.detail(detailRow().id, detailNow);
+      expect(result).toMatchObject({
+        overview: null,
+        homepage: null,
+        eventPlace: null,
+        eventTime: null,
+        feeInfo: null,
+        program: null,
+        organizer: null,
+        organizerTel: null,
+        hostAgency: null,
+        hostAgencyTel: null,
+        images: [],
+      });
+    },
+  );
 
   it("marks a past festival as ENDED", async () => {
     const { service } = setupDetail(

@@ -364,7 +364,7 @@ describe("festival discovery contracts", () => {
       FestivalDiscoveryResponseSchema.parse({
         asOfDate: "2026-08-25",
         region: "all",
-        ranking: [{ ...item, rank: 1 }],
+        ranking: [1, 2, 3, 4, 5].map((rank) => ({ ...item, rank })),
         items: [item],
         page: 1,
         pageSize: 20,
@@ -372,14 +372,14 @@ describe("festival discovery contracts", () => {
       }),
     ).toMatchObject({
       asOfDate: "2026-08-25",
-      ranking: [{ rank: 1 }],
+      ranking: [1, 2, 3, 4, 5].map((rank) => ({ rank })),
       totalCount: 1,
     });
     expect(() =>
       FestivalDiscoveryResponseSchema.parse({
         asOfDate: "2026-08-25",
         region: "all",
-        ranking: [{ ...item, rank: 4 }],
+        ranking: [{ ...item, rank: 6 }],
         items: [item],
         page: 1,
         pageSize: 20,

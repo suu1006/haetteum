@@ -1,3 +1,4 @@
+import { TourApiPolicy } from "../tourism/tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,6 +46,7 @@ function parseLimitArg(argv: string[]): number | undefined {
 }
 
 async function run(): Promise<void> {
+  process.env.SCHEDULERS_ENABLED = "false";
   let app:
     | Awaited<ReturnType<typeof NestFactory.createApplicationContext>>
     | undefined;
@@ -58,11 +60,13 @@ async function run(): Promise<void> {
       logger: ["error", "warn"],
     });
     const service = app.get(CourseSyncService);
-    const exitCode = await executeCourseSync(
-      service,
-      process.argv.slice(2),
-      (message) => console.log(message),
-      (message) => console.error(message),
+    const exitCode = await app.get(TourApiPolicy).batch(() =>
+      executeCourseSync(
+        service,
+        process.argv.slice(2),
+        (message) => console.log(message),
+        (message) => console.error(message),
+      ),
     );
     if (exitCode !== 0) process.exitCode = exitCode;
   } catch {

@@ -50,6 +50,8 @@ const ApiEnvironmentSchema = z
       z.string().url().optional(),
     ),
     TOURISM_SYNC_ENABLED: booleanFromString,
+    TOUR_API_DAILY_LIMIT: z.coerce.number().int().min(1).default(1000),
+    TOUR_API_MIN_INTERVAL_MS: z.coerce.number().int().min(1).default(1000),
     WEEKLY_RECOMMENDATIONS_ENABLED: booleanFromString,
     WEEKLY_THUMBNAIL_PUBLIC_BASE_URL: z.string().url().optional(),
     YOUTUBE_API_KEY: providerSecret,

@@ -1,3 +1,4 @@
+import { TourApiPolicy } from "./tour-api-policy.js";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
@@ -11,6 +12,7 @@ export class FestivalSyncScheduler {
   constructor(
     private readonly config: ConfigService<ApiEnvironment, true>,
     private readonly sync: FestivalSyncService,
+    private readonly policy: TourApiPolicy,
   ) {}
 
   /**
@@ -26,6 +28,12 @@ export class FestivalSyncScheduler {
   async runDailySync(): Promise<void> {
     if (!this.config.get("TOURISM_SYNC_ENABLED", { infer: true })) return;
 
-    await this.sync.fullSync(FESTIVAL_SYNC_RANGE);
+    const summary = await this.policy.batch(() =>
+      this.sync.fullSync(FESTIVAL_SYNC_RANGE),
+    );
+    if (summary.failedCount > 0)
+      throw new Error(
+        `Festival detail sync failed for ${summary.failedCount} festivals`,
+      );
   }
 }

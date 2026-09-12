@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await */
+import { TourApiPolicyError } from "./tour-api-policy.js";
 import type { PrismaService } from "../prisma/prisma.service.js";
 import type {
   TourApiChangedPlace,
@@ -327,6 +328,11 @@ class FakePrisma {
         if (args.where.regionId && placeRow.regionId !== args.where.regionId) {
           return false;
         }
+        if (
+          args.where.isVisible !== undefined &&
+          placeRow.isVisible !== args.where.isVisible
+        )
+          return false;
         const ids = args.where.externalId?.in;
         return ids == null || ids.includes(placeRow.externalId);
       }),
@@ -579,8 +585,8 @@ describe("TourismSyncService", () => {
     expect(result).toEqual({
       runId: "run-1",
       status: "SUCCEEDED",
-      fetchedCount: 10,
-      insertedCount: 10,
+      fetchedCount: 34,
+      insertedCount: 34,
       updatedCount: 0,
       deactivatedCount: 0,
       failedCount: 0,
@@ -597,7 +603,33 @@ describe("TourismSyncService", () => {
     expect(prisma.syncRuns[0]?.finishedAt).toBeInstanceOf(Date);
   });
 
-  it("paginates districts and places for all five configured regions", async () => {
+  it("persists places from all 17 provinces including Jeonbuk's current legal code", async () => {
+    const { prisma, service } = setup();
+
+    await service.fullSync();
+
+    expect(prisma.places.map((place) => place.externalId).sort()).toEqual([
+      "11-place-1",
+      "26-place-1",
+      "27-place-1",
+      "28-place-1",
+      "29-place-1",
+      "30-place-1",
+      "31-place-1",
+      "36-place-1",
+      "41-place-1",
+      "43-place-1",
+      "44-place-1",
+      "46-place-1",
+      "47-place-1",
+      "48-place-1",
+      "50-place-1",
+      "51-place-1",
+      "52-place-1",
+    ]);
+  });
+
+  it("paginates districts and places for all 17 configured regions", async () => {
     const { prisma, provider, service } = setup();
     for (const regionCode of TOURISM_REGION_CODES) {
       provider.districtPages.set(
@@ -625,17 +657,17 @@ describe("TourismSyncService", () => {
 
     const result = await service.fullSync();
 
-    expect(provider.districtCalls).toHaveLength(10);
-    expect(provider.placeCalls).toHaveLength(10);
+    expect(provider.districtCalls).toHaveLength(34);
+    expect(provider.placeCalls).toHaveLength(34);
     expect(
       new Set(provider.districtCalls.map((call) => call.regionCode)),
     ).toEqual(new Set(TOURISM_REGION_CODES));
     expect(new Set(provider.placeCalls.map((call) => call.regionCode))).toEqual(
       new Set(TOURISM_REGION_CODES),
     );
-    expect(prisma.districts).toHaveLength(10);
-    expect(prisma.places).toHaveLength(10);
-    expect(result.fetchedCount).toBe(20);
+    expect(prisma.districts).toHaveLength(34);
+    expect(prisma.places).toHaveLength(34);
+    expect(result.fetchedCount).toBe(68);
   });
 
   it("stops after the cumulative item count reaches totalCount when the last page reports a smaller numOfRows", async () => {
@@ -663,7 +695,7 @@ describe("TourismSyncService", () => {
       { regionCode: "11", pageNo: 1 },
       { regionCode: "11", pageNo: 2 },
     ]);
-    expect(result.fetchedCount).toBe(12);
+    expect(result.fetchedCount).toBe(36);
   });
 
   it("fails when an empty page arrives before the cumulative item count reaches totalCount", async () => {
@@ -803,12 +835,12 @@ describe("TourismSyncService", () => {
     await service.fullSync();
     const result = await service.fullSync();
 
-    expect(prisma.districts).toHaveLength(5);
-    expect(prisma.places).toHaveLength(5);
+    expect(prisma.districts).toHaveLength(17);
+    expect(prisma.places).toHaveLength(17);
     expect(result).toMatchObject({
-      fetchedCount: 10,
+      fetchedCount: 34,
       insertedCount: 0,
-      updatedCount: 10,
+      updatedCount: 34,
       deactivatedCount: 0,
     });
   });
@@ -985,12 +1017,16 @@ describe("TourismSyncService", () => {
       new Date("2026-08-23T00:00:00.000Z"),
     );
 
-    const expectedCalls = ["20260821", "20260822", "20260823"].flatMap(
-      (modifiedDate) =>
-        TOURISM_REGION_CODES.flatMap((regionCode) => [
-          { regionCode, modifiedDate, showflag: "1", pageNo: 1 },
-          { regionCode, modifiedDate, showflag: "0", pageNo: 1 },
-        ]),
+    const expectedCalls = [
+      "20260820",
+      "20260821",
+      "20260822",
+      "20260823",
+    ].flatMap((modifiedDate) =>
+      TOURISM_REGION_CODES.flatMap((regionCode) => [
+        { regionCode, modifiedDate, showflag: "1", pageNo: 1 },
+        { regionCode, modifiedDate, showflag: "0", pageNo: 1 },
+      ]),
     );
     expect(provider.changedCalls).toEqual(expectedCalls);
     expect(result).toMatchObject({
@@ -1083,7 +1119,74 @@ describe("TourismSyncService", () => {
     );
     provider.changedPages.delete("20260824:11:1:2");
     await service.incrementalSync(new Date("2026-08-24T00:00:00.000Z"));
-    expect(provider.changedCalls[0]?.modifiedDate).toBe("20260824");
+    expect(provider.changedCalls[0]?.modifiedDate).toBe("20260823");
+  });
+
+  it("restarts pending details from DB and does not revisit completed or hidden places", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    const version = new Date("2026-09-01T00:00:00Z");
+    prisma.seedPlace("50", "pending", { providerModifiedAt: version });
+    prisma.seedPlace("50", "complete", {
+      providerModifiedAt: version,
+      detailSourceModifiedAt: version,
+    });
+    prisma.seedPlace("50", "hidden", {
+      providerModifiedAt: version,
+      isVisible: false,
+    });
+    provider.detail = { contentid: "wrong" };
+    provider.intro = { contentid: "pending" };
+    expect(await service.enrichPendingPlaceDetails()).toEqual({
+      requestedCount: 1,
+      succeededCount: 0,
+      failedCount: 1,
+    });
+    provider.detail = { contentid: "pending" };
+    const restarted = new TourismSyncService(
+      provider,
+      prisma as unknown as PrismaService,
+    );
+    expect(await restarted.enrichPendingPlaceDetails()).toEqual({
+      requestedCount: 1,
+      succeededCount: 1,
+      failedCount: 0,
+    });
+    provider.detailCalls.length = 0;
+    expect(await restarted.enrichPendingPlaceDetails()).toEqual({
+      requestedCount: 0,
+      succeededCount: 0,
+      failedCount: 0,
+    });
+    expect(provider.detailCalls).toEqual([]);
+  });
+
+  it("skips completed source versions but retries changed and previously failed detail", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    const place = prisma.seedPlace("50", "versioned", {
+      providerModifiedAt: new Date("2026-09-01T00:00:00Z"),
+    });
+    provider.detail = { contentid: "versioned", overview: "first" };
+    provider.intro = { contentid: "versioned" };
+    await service.enrichPlaceDetails("versioned");
+    await service.enrichPlaceDetails("versioned");
+    expect(provider.detailCalls).toHaveLength(4);
+    expect(place.detailSourceModifiedAt).toEqual(
+      new Date("2026-09-01T00:00:00Z"),
+    );
+    place.providerModifiedAt = new Date("2026-09-02T00:00:00Z");
+    provider.detail = { contentid: "wrong" };
+    await expect(service.enrichPlaceDetails("versioned")).rejects.toThrow();
+    expect(place.detailSourceModifiedAt).toEqual(
+      new Date("2026-09-01T00:00:00Z"),
+    );
+    provider.detail = { contentid: "versioned", overview: "second" };
+    await service.enrichPlaceDetails("versioned");
+    expect(place.overview).toBe("second");
+    expect(place.detailSourceModifiedAt).toEqual(
+      new Date("2026-09-02T00:00:00Z"),
+    );
   });
 
   it("atomically enriches common, intro, repeat and image detail for one content ID", async () => {
@@ -1140,6 +1243,23 @@ describe("TourismSyncService", () => {
     });
     expect(prisma.placeImages).toHaveLength(1);
     expect(prisma.placeDetailInfos).toHaveLength(1);
+  });
+
+  it("records a stopped ranked detail batch as failed when its quota is exhausted", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    const place = prisma.seedPlace("50", "quota-place");
+    prisma.rankedPlaceIds.push(place.id);
+    provider.getPlaceCommonDetail = async () => {
+      throw new TourApiPolicyError("TOUR_API_DAILY_LIMIT");
+    };
+    await expect(service.enrichRankedPlaceDetails()).rejects.toThrow(
+      "DAILY_LIMIT",
+    );
+    expect(prisma.syncRuns.at(-1)).toMatchObject({
+      status: "FAILED",
+      failedCount: 1,
+    });
   });
 
   it("enriches each unique ranked place and records a safe batch summary", async () => {

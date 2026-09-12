@@ -3,6 +3,7 @@ import { Injectable } from "@nestjs/common";
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import type { NormalizedFestival } from "./tour-api.mapper.js";
+import type { FestivalDetailSnapshot } from "./festival-detail-snapshot.js";
 import { TOUR_API_SOURCE } from "./tourism.constants.js";
 
 export type FestivalSyncCounters = {
@@ -10,6 +11,7 @@ export type FestivalSyncCounters = {
   insertedCount: number;
   updatedCount: number;
   deactivatedCount: number;
+  failedCount: number;
 };
 
 export type FestivalPageDelta = Pick<
@@ -20,7 +22,12 @@ export type FestivalPageDelta = Pick<
 export type FestivalSyncSummary = FestivalSyncCounters & {
   runId: string;
   status: "SUCCEEDED";
-  failedCount: 0;
+};
+
+export type PendingFestivalDetail = {
+  id: string;
+  externalId: string;
+  providerModifiedAt: Date;
 };
 
 @Injectable()
@@ -110,6 +117,58 @@ export class FestivalRepository {
     return result.count;
   }
 
+  async findPendingDetails(): Promise<PendingFestivalDetail[]> {
+    const rows = await this.prisma.festival.findMany({
+      where: { source: TOUR_API_SOURCE, isVisible: true },
+      select: {
+        id: true,
+        externalId: true,
+        providerModifiedAt: true,
+        detailSourceModifiedAt: true,
+      },
+      orderBy: { id: "asc" },
+    });
+    return rows.flatMap((festival) =>
+      festival.detailSourceModifiedAt == null ||
+      festival.detailSourceModifiedAt.getTime() !==
+        festival.providerModifiedAt.getTime()
+        ? [
+            {
+              id: festival.id,
+              externalId: festival.externalId,
+              providerModifiedAt: festival.providerModifiedAt,
+            },
+          ]
+        : [],
+    );
+  }
+
+  async saveDetailSnapshot(input: {
+    id: string;
+    providerModifiedAt: Date;
+    snapshot: FestivalDetailSnapshot;
+    detailSyncedAt: Date;
+  }): Promise<void> {
+    const result = await this.prisma.festival.updateMany({
+      where: {
+        id: input.id,
+        source: TOUR_API_SOURCE,
+        isVisible: true,
+        providerModifiedAt: input.providerModifiedAt,
+      },
+      data: {
+        detailSnapshot: input.snapshot,
+        detailSourceModifiedAt: input.providerModifiedAt,
+        detailSyncedAt: input.detailSyncedAt,
+      },
+    });
+    if (result.count !== 1) {
+      throw new Error(
+        "Festival source version changed during detail synchronization",
+      );
+    }
+  }
+
   async completeSyncRun(
     runId: string,
     counters: FestivalSyncCounters,
@@ -120,8 +179,10 @@ export class FestivalRepository {
         status: "SUCCEEDED",
         finishedAt: new Date(),
         ...counters,
-        failedCount: 0,
-        errorSummary: null,
+        errorSummary:
+          counters.failedCount === 0
+            ? null
+            : `Festival detail synchronization failed for ${counters.failedCount} festival(s).`,
       },
     });
 
@@ -129,7 +190,6 @@ export class FestivalRepository {
       runId,
       status: "SUCCEEDED",
       ...counters,
-      failedCount: 0,
     };
   }
 
@@ -144,7 +204,7 @@ export class FestivalRepository {
         status: "FAILED",
         finishedAt: new Date(),
         ...counters,
-        failedCount: 1,
+        failedCount: counters.failedCount + 1,
         errorSummary,
       },
     });

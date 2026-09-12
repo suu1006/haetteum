@@ -11,12 +11,16 @@ import { FestivalsService } from "../src/festivals/festivals.service.js";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 import { FestivalSyncService } from "../src/tourism/festival-sync.service.js";
+import { TourApiError } from "../src/tourism/tour-api.client.js";
 import type {
   FestivalApiPort,
   TourApiFestival,
   TourApiPage,
 } from "../src/tourism/tour-api.types.js";
-import { FESTIVAL_API_PORT } from "../src/tourism/tourism.constants.js";
+import {
+  FESTIVAL_API_PORT,
+  TOUR_API_PORT,
+} from "../src/tourism/tourism.constants.js";
 
 import { applyMigrations } from "./apply-migrations.js";
 
@@ -25,7 +29,11 @@ const RANGE = {
   eventEndDate: "20271231",
 } as const;
 
-function festival(externalId: string, title: string): TourApiFestival {
+function festival(
+  externalId: string,
+  title: string,
+  modifiedtime = "20260824000000",
+): TourApiFestival {
   return {
     contentid: externalId,
     contenttypeid: "15",
@@ -35,7 +43,7 @@ function festival(externalId: string, title: string): TourApiFestival {
     addr1: "서울특별시 테스트로 1",
     mapx: "126.1234567",
     mapy: "37.1234567",
-    modifiedtime: "20260824000000",
+    modifiedtime,
     lDongRegnCd: "11",
     lDongSignguCd: "110",
     lclsSystm1: "EV",
@@ -57,6 +65,9 @@ class DatabaseFestivalApi implements FestivalApiPort {
   duplicatePage = false;
   /** TourAPI가 콘텐츠를 회수해 더 이상 내려주지 않는 상황을 재현한다. */
   readonly withdrawnIds = new Set<string>();
+  readonly modifiedTimes = new Map<string, string>();
+  readonly detailFailureIds = new Set<string>();
+  readonly detailCalls: string[] = [];
 
   async getFestivalPage(input: {
     eventStartDate: string;
@@ -76,11 +87,58 @@ class DatabaseFestivalApi implements FestivalApiPort {
       );
     }
     const published = [
-      festival("festival-1", "첫 번째 축제"),
-      festival("festival-2", "두 번째 축제"),
+      festival(
+        "festival-1",
+        "첫 번째 축제",
+        this.modifiedTimes.get("festival-1"),
+      ),
+      festival(
+        "festival-2",
+        "두 번째 축제",
+        this.modifiedTimes.get("festival-2"),
+      ),
     ].filter((item) => !this.withdrawnIds.has(item.contentid));
     const item = published[input.pageNo - 1];
     return page(item ? [item] : [], input.pageNo, published.length);
+  }
+
+  async getPlaceCommonDetail(contentId: string) {
+    this.detailCalls.push(`common:${contentId}`);
+    this.throwDetailFailure(contentId, "detailCommon2");
+    return {
+      contentid: contentId,
+      contenttypeid: "15",
+      overview: `${contentId} 소개`,
+      homepage: "https://example.com/festival",
+    };
+  }
+
+  async getFestivalIntro(contentId: string) {
+    this.detailCalls.push(`intro:${contentId}`);
+    this.throwDetailFailure(contentId, "detailIntro2");
+    return {
+      contentid: contentId,
+      contenttypeid: "15",
+      eventplace: `${contentId} 행사장`,
+    };
+  }
+
+  async getPlaceImages(contentId: string) {
+    this.detailCalls.push(`images:${contentId}`);
+    this.throwDetailFailure(contentId, "detailImage2");
+    return [
+      {
+        contentid: contentId,
+        serialnum: "1",
+        originimgurl: `https://tong.visitkorea.or.kr/${contentId}.jpg`,
+      },
+    ];
+  }
+
+  private throwDetailFailure(contentId: string, operation: string): void {
+    if (this.detailFailureIds.has(contentId)) {
+      throw new TourApiError(operation, "EMPTY_RESPONSE");
+    }
   }
 }
 
@@ -123,6 +181,8 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       .useValue(prisma)
       .overrideProvider(FESTIVAL_API_PORT)
       .useValue(provider)
+      .overrideProvider(TOUR_API_PORT)
+      .useValue(provider)
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
@@ -164,7 +224,57 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       failedCount: 0,
     });
     expect(firstRows).toHaveLength(2);
+    expect(firstRows[0]?.detailSnapshot).toEqual({
+      common: {
+        contentid: "festival-1",
+        contenttypeid: "15",
+        homepage: "https://example.com/festival",
+        overview: "festival-1 소개",
+      },
+      intro: {
+        contentid: "festival-1",
+        contenttypeid: "15",
+        eventplace: "festival-1 행사장",
+      },
+      images: [
+        {
+          contentid: "festival-1",
+          serialnum: "1",
+          originimgurl: "https://tong.visitkorea.or.kr/festival-1.jpg",
+        },
+      ],
+    });
+    expect(firstRows[0]?.detailSourceModifiedAt).toEqual(
+      firstRows[0]?.providerModifiedAt,
+    );
+    expect(firstRows[0]?.detailSyncedAt).toBeInstanceOf(Date);
+    expect(firstRows[1]?.detailSnapshot).toEqual({
+      common: {
+        contentid: "festival-2",
+        contenttypeid: "15",
+        homepage: "https://example.com/festival",
+        overview: "festival-2 소개",
+      },
+      intro: {
+        contentid: "festival-2",
+        contenttypeid: "15",
+        eventplace: "festival-2 행사장",
+      },
+      images: [
+        {
+          contentid: "festival-2",
+          serialnum: "1",
+          originimgurl: "https://tong.visitkorea.or.kr/festival-2.jpg",
+        },
+      ],
+    });
+    expect(firstRows[1]?.detailSourceModifiedAt).toEqual(
+      firstRows[1]?.providerModifiedAt,
+    );
+    expect(firstRows[1]?.detailSyncedAt).toBeInstanceOf(Date);
     expect(await prisma.place.count()).toBe(0);
+    expect(provider.detailCalls).toHaveLength(6);
+    provider.detailCalls.length = 0;
 
     const second = await service.fullSync(RANGE);
     const secondRows = await prisma.festival.findMany({
@@ -179,6 +289,7 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       failedCount: 0,
     });
     expect(secondRows.map((item) => item.id)).toEqual(firstIds);
+    expect(provider.detailCalls).toEqual([]);
     expect(await prisma.festival.count()).toBe(2);
     expect(
       await prisma.tourismSyncRun.count({
@@ -186,6 +297,49 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       }),
     ).toBe(2);
     expect(await prisma.place.count()).toBe(0);
+  });
+
+  it("retries a failed changed detail version on the next batch and serves the last complete snapshot meanwhile", async () => {
+    if (!prisma) throw new Error("Prisma test client is missing");
+
+    await service.fullSync(RANGE);
+    provider.detailCalls.length = 0;
+    provider.modifiedTimes.set("festival-1", "20260825000000");
+    provider.detailFailureIds.add("festival-1");
+
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      status: "SUCCEEDED",
+      failedCount: 1,
+    });
+    const stale = await prisma.festival.findFirstOrThrow({
+      where: { externalId: "festival-1" },
+    });
+    expect(stale.detailSourceModifiedAt).toEqual(
+      new Date("2026-08-23T15:00:00.000Z"),
+    );
+    expect(stale.providerModifiedAt).toEqual(
+      new Date("2026-08-24T15:00:00.000Z"),
+    );
+    const festivals = app?.get(FestivalsService);
+    if (!festivals) throw new Error("FestivalsService is missing");
+    await expect(festivals.detail(stale.id)).resolves.toMatchObject({
+      overview: "festival-1 소개",
+    });
+
+    provider.detailFailureIds.clear();
+    provider.detailCalls.length = 0;
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      failedCount: 0,
+    });
+    expect(provider.detailCalls).toEqual([
+      "common:festival-1",
+      "intro:festival-1",
+      "images:festival-1",
+    ]);
+    const retried = await prisma.festival.findFirstOrThrow({
+      where: { externalId: "festival-1" },
+    });
+    expect(retried.detailSourceModifiedAt).toEqual(retried.providerModifiedAt);
   });
 
   it("hides festivals TourAPI withdrew and keeps them out of discovery", async () => {
@@ -216,11 +370,14 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
     const withdrawn = await prisma.festival.findFirstOrThrow({
       where: { externalId: "festival-2" },
     });
-    const discovery = await festivals.list({
-      region: "all",
-      page: 1,
-      pageSize: 20,
-    });
+    const discovery = await festivals.list(
+      {
+        region: "all",
+        page: 1,
+        pageSize: 20,
+      },
+      new Date("2026-08-15T00:00:00Z"),
+    );
 
     expect(discovery.items.map((item) => item.externalId)).toEqual([
       "festival-1",

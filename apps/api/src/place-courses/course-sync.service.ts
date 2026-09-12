@@ -1,9 +1,14 @@
+import { TourApiError } from "../tourism/tour-api.client.js";
+import { TourApiPolicyError } from "../tourism/tour-api-policy.js";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import type { ApiEnvironment } from "../config/environment.js";
 import { PrismaService } from "../prisma/prisma.service.js";
-import { mapCourseBundle } from "../tourism/tour-api.mapper.js";
+import {
+  mapCourseBundle,
+  providerTimestamp,
+} from "../tourism/tour-api.mapper.js";
 import type { NormalizedCourse } from "../tourism/tour-api.mapper.js";
 import type {
   CourseApiPort,
@@ -69,6 +74,27 @@ export class CourseSyncService {
       if (index > 0) await this.sleep(COURSE_DETAIL_THROTTLE_MS);
 
       try {
+        const existing = await this.prisma.tourCourse.findUnique({
+          where: {
+            source_externalId: {
+              source: TOUR_API_SOURCE,
+              externalId: item.contentid,
+            },
+          },
+          select: {
+            providerModifiedAt: true,
+            stops: {
+              select: { id: true, externalPlaceId: true, placeId: true },
+            },
+          },
+        });
+        if (
+          existing?.providerModifiedAt.getTime() ===
+          providerTimestamp(item.modifiedtime).getTime()
+        ) {
+          summary.linkedStops += await this.repairStopLinks(existing.stops);
+          continue;
+        }
         const course = await this.loadCourse(item);
         const linked = await this.persistCourse(course);
         summary.syncedCourses += 1;
@@ -76,6 +102,11 @@ export class CourseSyncService {
         summary.linkedStops += linked;
         if (course.stops.length === 0) summary.emptyCourses += 1;
       } catch (error) {
+        if (
+          error instanceof TourApiPolicyError ||
+          (error instanceof TourApiError && error.providerCode === "22")
+        )
+          throw error;
         summary.failedCourses += 1;
         this.logger.warn(
           `여행코스 동기화 실패 (contentId=${item.contentid}): ${errorReason(error)}`,
@@ -84,6 +115,35 @@ export class CourseSyncService {
     }
 
     return summary;
+  }
+
+  private async repairStopLinks(
+    stops: { id: string; externalPlaceId: string; placeId: string | null }[],
+  ): Promise<number> {
+    const pending = stops.filter((stop) => stop.placeId === null);
+    if (pending.length === 0) return 0;
+    const places = await this.prisma.place.findMany({
+      where: {
+        source: TOUR_API_SOURCE,
+        isVisible: true,
+        externalId: { in: pending.map((stop) => stop.externalPlaceId) },
+      },
+      select: { id: true, externalId: true },
+    });
+    const byExternalId = new Map(
+      places.map((place) => [place.externalId, place.id]),
+    );
+    let linked = 0;
+    for (const stop of pending) {
+      const placeId = byExternalId.get(stop.externalPlaceId);
+      if (!placeId) continue;
+      const result = await this.prisma.tourCourseStop.updateMany({
+        where: { id: stop.id, placeId: null },
+        data: { placeId },
+      });
+      linked += result.count;
+    }
+    return linked;
   }
 
   /**

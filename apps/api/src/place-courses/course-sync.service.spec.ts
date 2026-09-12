@@ -87,6 +87,25 @@ function buildPrisma(matchedPlaces: { id: string; externalId: string }[]) {
 
   return {
     prisma: {
+      tourCourseStop: {
+        updateMany: jest
+          .fn<(...args: unknown[]) => Promise<{ count: number }>>()
+          .mockResolvedValue({ count: 1 }),
+      },
+      tourCourse: {
+        findUnique: jest
+          .fn<
+            () => Promise<{
+              providerModifiedAt: Date;
+              stops: {
+                id: string;
+                externalPlaceId: string;
+                placeId: string | null;
+              }[];
+            } | null>
+          >()
+          .mockResolvedValue(null),
+      },
       place: {
         findMany: jest
           .fn<() => Promise<typeof matchedPlaces>>()
@@ -108,6 +127,48 @@ const enabledConfig = { get: jest.fn().mockReturnValue(true) };
 const sleep = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 
 describe("CourseSyncService", () => {
+  it("does not refetch a course whose stored source version is unchanged", async () => {
+    const courseApi = buildCourseApi();
+    const { prisma } = buildPrisma([]);
+    prisma.tourCourse.findUnique.mockResolvedValue({
+      providerModifiedAt: new Date("2026-08-27T00:02:44Z"),
+      stops: [],
+    });
+    const service = new CourseSyncService(
+      prisma as never,
+      enabledConfig as never,
+      courseApi,
+      sleep,
+    );
+    await service.syncCourses();
+    expect(courseApi.getCourseCommonDetail).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("repairs stored stop links after a place is imported without refetching course details", async () => {
+    const courseApi = buildCourseApi();
+    const { prisma } = buildPrisma([
+      { id: "new-place", externalId: "2350389" },
+    ]);
+    prisma.tourCourse.findUnique.mockResolvedValue({
+      providerModifiedAt: new Date("2026-08-27T00:02:44Z"),
+      stops: [{ id: "stop-1", externalPlaceId: "2350389", placeId: null }],
+    });
+    const service = new CourseSyncService(
+      prisma as never,
+      enabledConfig as never,
+      courseApi,
+      sleep,
+    );
+    const result = await service.syncCourses();
+    expect(courseApi.getCourseCommonDetail).not.toHaveBeenCalled();
+    expect(prisma.tourCourseStop.updateMany).toHaveBeenCalledWith({
+      where: { id: "stop-1", placeId: null },
+      data: { placeId: "new-place" },
+    });
+    expect(result.linkedStops).toBe(1);
+  });
+
   it("skips every provider call while tourism sync is disabled", async () => {
     const courseApi = buildCourseApi();
     const service = new CourseSyncService(

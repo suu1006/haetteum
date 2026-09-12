@@ -23,7 +23,12 @@ function createScheduler(
     },
   } as unknown as FestivalSyncService;
 
-  return { scheduler: new FestivalSyncScheduler(config, sync), calls };
+  return {
+    scheduler: new FestivalSyncScheduler(config, sync, {
+      batch: (work: () => Promise<unknown>) => work(),
+    } as never),
+    calls,
+  };
 }
 
 describe("FestivalSyncScheduler", () => {
@@ -41,6 +46,13 @@ describe("FestivalSyncScheduler", () => {
     await scheduler.runDailySync();
 
     expect(calls).toEqual([FESTIVAL_SYNC_RANGE]);
+  });
+
+  it("reports partial detail failures to the scheduler", async () => {
+    const { scheduler } = createScheduler(true, () =>
+      Promise.resolve({ failedCount: 2 }),
+    );
+    await expect(scheduler.runDailySync()).rejects.toThrow("2");
   });
 
   it("propagates sync failures without exposing credentials", async () => {

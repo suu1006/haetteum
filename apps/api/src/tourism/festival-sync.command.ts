@@ -1,3 +1,4 @@
+import { TourApiPolicy } from "./tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +33,7 @@ export async function executeFestivalSync(
         runId: summary.runId,
       }),
     );
-    return 0;
+    return summary.failedCount > 0 ? 1 : 0;
   } catch {
     errorOutput("Festival sync command failed.");
     return 1;
@@ -40,6 +41,7 @@ export async function executeFestivalSync(
 }
 
 async function run(): Promise<void> {
+  process.env.SCHEDULERS_ENABLED = "false";
   let app:
     | Awaited<ReturnType<typeof NestFactory.createApplicationContext>>
     | undefined;
@@ -53,10 +55,12 @@ async function run(): Promise<void> {
       logger: false,
     });
     const service = app.get(FestivalSyncService);
-    const exitCode = await executeFestivalSync(
-      service,
-      (message) => console.log(message),
-      (message) => console.error(message),
+    const exitCode = await app.get(TourApiPolicy).batch(() =>
+      executeFestivalSync(
+        service,
+        (message) => console.log(message),
+        (message) => console.error(message),
+      ),
     );
     if (exitCode !== 0) process.exitCode = exitCode;
   } catch {

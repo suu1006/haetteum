@@ -134,7 +134,7 @@ function requiredText(value: string | undefined, field: string): string {
   return text;
 }
 
-function providerTimestamp(value: string): Date {
+export function providerTimestamp(value: string): Date {
   if (!/^\d{14}$/.test(value)) throw new Error("Invalid TourAPI timestamp");
   const iso = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(8, 10)}:${value.slice(10, 12)}:${value.slice(12, 14)}+09:00`;
   const parsed = new Date(iso);
