@@ -15,7 +15,7 @@ export class ChatRequestError extends Error {
     super(CHAT_ERRORS[normalized].message);
     this.status = normalized;
   }
-  get retryable(): boolean { return this.status === 502 || this.status === 503 || this.status === 504; }
+  get retryable(): boolean { return this.status === 409 || this.status === 502 || this.status === 503 || this.status === 504; }
 }
 
 export function toChatRequestError(error: unknown): ChatRequestError {

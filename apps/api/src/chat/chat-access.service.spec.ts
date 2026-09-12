@@ -3,8 +3,10 @@ import { ChatAccessService } from "./chat-access.service.js";
 import type { ResolvedSession } from "../auth/session.service.js";
 import type { Request, Response } from "express";
 
+const payload = { messages: [{ role: "user" as const, content: "서울" }] };
+
 function setup(enabled = true) {
-  const consume = jest
+  const reserve = jest
     .fn<(...args: unknown[]) => Promise<unknown>>()
     .mockResolvedValue({ remaining: 4, resetsAt: "2026-09-11T15:00:00.000Z" });
   const resolve = jest
@@ -17,31 +19,36 @@ function setup(enabled = true) {
   };
   const service = new ChatAccessService(
     { isConfigured: () => enabled } as never,
-    { consume } as never,
+    { reserve } as never,
     { resolve } as never,
     cookies as never,
   );
   const response = { setHeader: jest.fn() } as unknown as Response;
-  return { service, consume, resolve, cookies, response };
+  return { service, reserve, resolve, cookies, response };
 }
 
 it("rejects missing, empty, and expired sessions before consuming quota", async () => {
   for (const enabled of [true, false]) {
     for (const cookies of [{}, { session: "" }, { session: "expired" }]) {
-      const { service, consume, response } = setup(enabled);
+      const { service, reserve, response } = setup(enabled);
       await expect(
         service.prepare(
-          { cookies, ip: "192.0.2.1", body: { userId: "forged" } } as Request,
+          {
+            cookies,
+            ip: "192.0.2.1",
+            body: { userId: "forged" },
+          } as unknown as Request,
           response,
+          payload,
         ),
       ).rejects.toMatchObject({ status: 401 });
-      expect(consume).not.toHaveBeenCalled();
+      expect(reserve).not.toHaveBeenCalled();
     }
   }
 });
 
 it("uses only the server-resolved user ID", async () => {
-  const { service, consume, resolve, response } = setup();
+  const { service, reserve, resolve, response } = setup();
   resolve.mockResolvedValue({
     userId: "real-user",
     user: { id: "real-user" },
@@ -52,34 +59,40 @@ it("uses only the server-resolved user ID", async () => {
       cookies: { session: "token" },
       ip: "192.0.2.1",
       body: { userId: "forged" },
-    } as Request,
+    } as unknown as Request,
     response,
+    payload,
   );
-  expect(consume).toHaveBeenCalledWith({ userId: "real-user" });
+  expect(reserve).toHaveBeenCalledWith({ userId: "real-user" }, payload);
 });
 
 it("authenticates but does not charge when the provider is disabled", async () => {
-  const { service, consume, resolve, response } = setup(false);
+  const { service, reserve, resolve, response } = setup(false);
   resolve.mockResolvedValue({
     userId: "real-user",
     user: { id: "real-user" },
     refreshedExpiresAt: null,
   } as ResolvedSession);
   await expect(
-    service.prepare({ cookies: { session: "token" } } as Request, response),
+    service.prepare(
+      { cookies: { session: "token" } } as unknown as Request,
+      response,
+      payload,
+    ),
   ).rejects.toMatchObject({ status: 503 });
-  expect(consume).not.toHaveBeenCalled();
+  expect(reserve).not.toHaveBeenCalled();
   expect(resolve).toHaveBeenCalledWith("token");
 });
 
 it("does not downgrade a session store failure to anonymous access", async () => {
-  const { service, consume, resolve, response } = setup();
+  const { service, reserve, resolve, response } = setup();
   resolve.mockRejectedValue(new Error("database offline"));
   await expect(
     service.prepare(
-      { cookies: { session: "token" }, ip: "192.0.2.1" } as Request,
+      { cookies: { session: "token" }, ip: "192.0.2.1" } as unknown as Request,
       response,
+      payload,
     ),
   ).rejects.toMatchObject({ status: 503 });
-  expect(consume).not.toHaveBeenCalled();
+  expect(reserve).not.toHaveBeenCalled();
 });

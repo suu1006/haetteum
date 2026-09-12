@@ -22,7 +22,9 @@ describe("travel chat", () => {
   it("retries the same conversation without duplicating the failed question", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000/api/v1");
     let attempts = 0;
+    const ids: string[] = [];
     vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
+      ids.push(JSON.parse(init.body as string).requestId);
       if (++attempts === 1) throw new Error("offline");
       const { messages } = JSON.parse(init.body as string);
       return streamReply(`질문 ${messages.length}개에 대한 답변`);
@@ -34,6 +36,8 @@ describe("travel chat", () => {
     await user.click(await screen.findByRole("button", { name: "다시 시도" }));
     expect(await screen.findByText("질문 1개에 대한 답변")).toBeVisible();
     expect(screen.getAllByText("제주 여행")).toHaveLength(1);
+    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(ids[1]).toBe(ids[0]);
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 });
@@ -144,7 +148,7 @@ it("restores a rejected question for editing instead of retrying the same invali
   await user.type(screen.getByRole("textbox", { name: "여행 질문" }), "서울");
   await user.click(screen.getByRole("button", { name: "메시지 보내기" }));
   expect(await screen.findByText("추천 답변")).toBeVisible();
-  expect(histories[1]).toEqual({ messages: [{ role: "user", content: "서울" }] });
+  expect(histories[1]).toEqual({ requestId: expect.any(String), messages: [{ role: "user", content: "서울" }] });
 });
 
 it("preserves a received provider error when timeout fires during text animation", async () => {

@@ -784,6 +784,21 @@ model WeeklyRecommendationLease {
   @@map("weekly_recommendation_leases")
 }
 
+/// 요청 중복 실행 방지와 사용량 예약/확정/복구 기록. 답변은 재전송을 위해 7일 보관한다.
+model ChatRequestUsage {
+  subjectKey String @map("subject_key")
+  requestId String @map("request_id") @db.Uuid
+  payloadHash String @map("payload_hash")
+  day DateTime @db.Date
+  status String @db.VarChar(20)
+  attemptId String @map("attempt_id") @db.Uuid
+  reply String?
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  @@id([subjectKey, requestId])
+  @@index([day])
+  @@map("chat_requests")
+}
+
 /// TourAPI 호출 시도 예산. KST 날짜 기준, 모든 배치/재시도가 공유한다.
 model TourApiDailyUsage {
   day DateTime @id @db.Date

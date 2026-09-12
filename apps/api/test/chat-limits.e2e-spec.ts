@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Server } from "node:http";
@@ -54,6 +55,15 @@ beforeAll(async () => {
       readFileSync(
         new URL(
           "../prisma/migrations/20260911093000_add_chat_daily_usage/migration.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    await client.query(
+      readFileSync(
+        new URL(
+          "../prisma/migrations/20260912140000_chat_request_reservations/migration.sql",
           import.meta.url,
         ),
         "utf8",
@@ -138,6 +148,7 @@ beforeEach(async () => {
   providerError = new Error("private AWS provider details");
   partialBeforeFailure = false;
   providerCalls = 0;
+  await prisma.$executeRaw`DELETE FROM chat_requests`;
   await prisma.chatDailyUsage.deleteMany();
 });
 
@@ -236,7 +247,7 @@ it("cannot bypass login or user quota with forged user IDs and forwarding header
   );
 });
 
-it("does not charge invalid requests or a disabled provider but charges failed provider attempts", async () => {
+it("does not charge invalid requests or a disabled provider and restores failed provider attempts", async () => {
   await send(false, "valid")
     .send({ messages: [{ role: "user", content: "가".repeat(2001) }] })
     .expect(400);
@@ -248,7 +259,7 @@ it("does not charge invalid requests or a disabled provider but charges failed p
   failProvider = true;
   await send(false, "valid").send(body).expect(502);
   await send(true, "valid").send(body).expect(502);
-  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(2);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
   expect(providerCalls).toBe(2);
 });
 
@@ -313,7 +324,7 @@ it.each([
       expect(result.body).toMatchObject({ status, detail });
       expect(result.text).not.toContain("private AWS");
     }
-    expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(2);
+    expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
   },
 );
 
@@ -335,6 +346,142 @@ it.each([
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({ type: "delta", text: "부분 답변" });
     expect(events[1]).toMatchObject({ type: "error", status });
+    expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
     expect(result.text).not.toContain("private AWS");
   },
 );
+
+it("replays a completed request across both routes without another charge", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  await send(false, "valid").send(payload).expect(201);
+  const replay = await send(true, "another-device").send(payload).expect(201);
+  expect(replay.text).toContain('"type":"done"');
+  expect(replay.text).toContain("추천");
+  expect(providerCalls).toBe(1);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+});
+
+it("retries a refunded request once and rejects a changed payload for its ID", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  failProvider = true;
+  await send(true, "valid").send(payload).expect(502);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
+  failProvider = false;
+  await send(true, "valid").send(payload).expect(201);
+  await send(false, "valid").send(payload).expect(201);
+  expect(providerCalls).toBe(2);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+  await send(false, "valid")
+    .send({ ...payload, messages: [{ role: "user", content: "다른 질문" }] })
+    .expect(409);
+});
+
+it("admits only one simultaneous request for an ID", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  const results = await Promise.all(
+    Array.from({ length: 15 }, () => send(true, "valid").send(payload)),
+  );
+  expect(
+    results.every((result) => result.status === 201 || result.status === 409),
+  ).toBe(true);
+  expect(results.some((result) => result.status === 201)).toBe(true);
+  expect(providerCalls).toBe(1);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+});
+
+it("refunds the original day once and fences stale callbacks after retry", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  const first = await quota.reserve({ userId: "real-user" }, payload as never);
+  now = Date.parse("2026-09-11T15:00:00.000Z");
+  await Promise.all([
+    quota.settle(first, "REFUNDED"),
+    quota.settle(first, "REFUNDED"),
+  ]);
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
+  const retry = await quota.reserve({ userId: "real-user" }, payload as never);
+  await quota.settle(first, "REFUNDED");
+  await quota.settle(first, "COMPLETED", "stale");
+  const rows = await prisma.chatDailyUsage.findMany({
+    orderBy: { day: "asc" },
+  });
+  expect(rows.map((row) => row.used)).toEqual([0, 1]);
+  await expect(
+    quota.reserve({ userId: "real-user" }, payload as never),
+  ).rejects.toMatchObject({ status: 409 });
+  await quota.settle(retry, "COMPLETED", "fresh");
+  expect(
+    (await quota.reserve({ userId: "real-user" }, payload as never)).reply,
+  ).toBe("fresh");
+});
+
+it("keeps cancelled usage and does not rerun a cancelled ID", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  const reservation = await quota.reserve(
+    { userId: "real-user" },
+    payload as never,
+  );
+  await quota.settle(reservation, "CANCELLED");
+  await quota.settle(reservation, "REFUNDED");
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+  await expect(
+    quota.reserve({ userId: "real-user" }, payload as never),
+  ).rejects.toMatchObject({ status: 409 });
+});
+
+it("has persisted COMPLETED and the reply when done is received", async () => {
+  const requestId = randomUUID();
+  const result = await send(true, "valid")
+    .send({ ...body, requestId })
+    .expect(201);
+  expect(result.text).toContain('"type":"done"');
+  const rows = await prisma.$queryRaw<
+    { status: string; reply: string }[]
+  >`SELECT status, reply FROM chat_requests WHERE request_id = ${requestId}::uuid`;
+  expect(rows).toEqual([{ status: "COMPLETED", reply: "추천" }]);
+});
+
+it("uses one clock snapshot for reservation and refund across midnight", async () => {
+  let reads = 0;
+  const boundary = new ChatQuotaService(prisma as PrismaService, () =>
+    Date.parse(
+      ++reads === 1 ? "2026-09-11T14:59:59.999Z" : "2026-09-11T15:00:00.000Z",
+    ),
+  );
+  const reservation = await boundary.reserve(
+    { userId: "real-user" },
+    body as never,
+  );
+  await boundary.settle(reservation, "REFUNDED");
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
+});
+
+it("canonicalizes UUID case before deduplication", async () => {
+  const requestId = "aabbccdd-1234-4abc-8abc-aabbccddeeff";
+  const reservation = await quota.reserve({ userId: "real-user" }, {
+    ...body,
+    requestId: requestId.toUpperCase(),
+  } as never);
+  expect(reservation.requestId).toBe(requestId);
+  await expect(
+    quota.reserve({ userId: "real-user" }, { ...body, requestId } as never),
+  ).rejects.toMatchObject({ status: 409 });
+});
+
+it("recovers a transient refund-store error without marking user cancellation", async () => {
+  failProvider = true;
+  const spy = jest
+    .spyOn(quota, "settle")
+    .mockRejectedValueOnce(new Error("transient database failure"));
+  try {
+    await send(true, "valid")
+      .send({ ...body, requestId: randomUUID() })
+      .expect(503);
+    expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
+    const rows = await prisma.$queryRaw<
+      { status: string }[]
+    >`SELECT status FROM chat_requests`;
+    expect(rows).toEqual([{ status: "REFUNDED" }]);
+  } finally {
+    spy.mockRestore();
+  }
+});

@@ -18,7 +18,7 @@ it("redirects anonymous visitors to login with a return path to chat", async () 
   await expect(ChatLayout({ children: "chat" })).rejects.toThrow("redirect:/login?returnTo=%2Fchat");
 });
 it("renders chat for a server-verified session", async () => {
-  vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1", displayName: "여행자", profileImageUrl: null })));
+  vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: "447a6484-d0a7-4e5b-8f31-8872a563d9b1", displayName: "여행자", profileImageUrl: null, provider: "KAKAO" })));
   await expect(ChatLayout({ children: "chat" })).resolves.toBe("chat");
 });
 it("does not render chat when session verification is unavailable", async () => {

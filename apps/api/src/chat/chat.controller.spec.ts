@@ -16,7 +16,15 @@ describe("ChatController", () => {
     };
     const controller = new ChatController(
       chat as never,
-      { prepare: () => Promise.resolve() } as never,
+      {
+        prepare: () =>
+          Promise.resolve({
+            subjectKey: "user:1",
+            requestId: "id",
+            attemptId: "attempt",
+          }),
+        settle: () => Promise.resolve(),
+      } as never,
     );
     const request: ChatRequest = {
       messages: [{ role: "user", content: "안녕" }],
