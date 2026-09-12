@@ -1,5 +1,5 @@
 import { WeeklyRecommendationsResponseSchema, type WeeklyPlaceItem } from "@haetteum/contracts";
-import { getApiBaseUrl } from "@/lib/api-base";
+import { getApiBaseUrl, joinApiUrl } from "@/lib/api-base";
 
 export type WeeklyPlacesLoadState =
   | { status: "ready"; items: WeeklyPlaceItem[] }
@@ -11,7 +11,7 @@ export async function loadWeeklyPlaces(
 ): Promise<WeeklyPlacesLoadState> {
   if (!baseUrl) return { status: "error" };
   try {
-    const url = `${baseUrl}/places/recommendations/weekly`;
+    const url = joinApiUrl(baseUrl, "/places/recommendations/weekly");
     const response = await fetchImpl(url, { cache: "no-store" });
     if (!response.ok) return { status: "error" };
     const { items } = WeeklyRecommendationsResponseSchema.parse(await response.json());
