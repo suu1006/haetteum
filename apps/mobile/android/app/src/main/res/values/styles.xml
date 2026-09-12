@@ -13,6 +13,11 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- BridgeActivity.onCreate() calls setTheme(R.style.AppTheme_NoActionBar)
+             as its very first step, so this (not the base "AppTheme" block
+             above) is the theme actually in effect while the app runs. -->
+        <item name="android:statusBarColor">#FCFCFD</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 
