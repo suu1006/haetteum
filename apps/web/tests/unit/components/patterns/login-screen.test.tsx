@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe("LoginScreen", () => {
-  it("renders the email/password form alongside the kakao and google actions", () => {
+  it("renders the email/password form alongside the kakao action", () => {
     renderScreen();
 
     expect(screen.getByRole("img", { name: "해뜸" })).toBeVisible();
@@ -83,8 +83,8 @@ describe("LoginScreen", () => {
       screen.getByRole("link", { name: "카카오로 로그인하기" }),
     ).toHaveAttribute("href", loginHref);
     expect(
-      screen.getByRole("button", { name: "구글로 로그인하기" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "구글로 로그인하기" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "회원가입하기" }),
     ).toBeVisible();
@@ -141,13 +141,8 @@ describe("LoginScreen", () => {
     expect(routerMocks.push).not.toHaveBeenCalled();
   });
 
-  it("shows a coming-soon notice for google login and forgot password", () => {
+  it("shows a coming-soon notice for forgot password", () => {
     renderScreen();
-
-    fireEvent.click(screen.getByRole("button", { name: "구글로 로그인하기" }));
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "구글 로그인은 아직 준비 중이에요",
-    );
 
     fireEvent.click(
       screen.getByRole("button", { name: "비밀번호를 잊으셨나요?" }),
