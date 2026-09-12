@@ -1,6 +1,8 @@
 package kr.haetteum.app;
 
+import android.os.Bundle;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -17,12 +19,20 @@ public class MainActivity extends BridgeActivity {
   // resolution (different origin, no bridge JS injection).
 
   @Override
-  public void onBackPressed() {
-    WebView webView = getBridge().getWebView();
-    if (webView.canGoBack()) {
-      webView.goBack();
-      return;
-    }
-    super.onBackPressed();
+  public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+      @Override
+      public void handleOnBackPressed() {
+        WebView webView = getBridge().getWebView();
+        if (webView.canGoBack()) {
+          webView.goBack();
+          return;
+        }
+        setEnabled(false);
+        getOnBackPressedDispatcher().onBackPressed();
+      }
+    });
   }
 }
