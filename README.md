@@ -5,6 +5,7 @@ Haetteum은 Next.js 웹, NestJS API, 공유 계약 패키지를 pnpm Workspace�
 ## 프로젝트 문서
 
 - [전체 기술 아키텍처](./ARCHITECTURE.md): 프론트엔드·백엔드 구조, 의존 방향과 데이터 흐름
+- [프론트엔드 구현 구조](./FRONTEND.md): `apps/web`의 라우트, 컴포넌트 계층, feature adapter, 상태 관리
 - [디자인 시스템](./DESIGN.md): UI/UX 원칙, 디자인 토큰과 컴포넌트 소유권
 - [관광 데이터 ERD](./docs/ERD.md): 지역·시군구·관광지·동기화 실행 관계와 제약
 - [챗봇 동작 구조](./docs/chatbot.md): 질문 전송, Bedrock 응답 생성, 스트리밍, 대화 문맥과 사용량 제한
