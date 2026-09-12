@@ -1,5 +1,5 @@
 import type { AuthUser } from "@haetteum/contracts";
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
 import type { ExecutionContext } from "@nestjs/common";
 
 import { CurrentUser } from "./current-user.decorator.js";

@@ -8,12 +8,16 @@ const userId = "10000000-0000-4000-8000-000000000005";
 function createService(options?: {
   updateResult?: { travelStyles: string[]; interestedRegions: string[] };
 }) {
-  const update = jest.fn().mockResolvedValue(
-    options?.updateResult ?? {
-      travelStyles: ["nature_healing"],
-      interestedRegions: ["seoul"],
-    },
-  );
+  const update = jest
+    .fn<
+      () => Promise<{ travelStyles: string[]; interestedRegions: string[] }>
+    >()
+    .mockResolvedValue(
+      options?.updateResult ?? {
+        travelStyles: ["nature_healing"],
+        interestedRegions: ["seoul"],
+      },
+    );
   const prisma = { user: { update } } as unknown as PrismaService;
 
   return { service: new ProfileService(prisma), update };

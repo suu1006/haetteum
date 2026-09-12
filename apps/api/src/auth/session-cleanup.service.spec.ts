@@ -8,13 +8,17 @@ import { SessionCleanupService } from "./session-cleanup.service.js";
 describe("SessionCleanupService", () => {
   it("deletes sessions expired at or before the injected current time and logs only the count", async () => {
     const now = new Date("2026-08-26T12:00:00.000Z");
-    const deleteMany = jest.fn().mockResolvedValue({ count: 3 });
+    const deleteMany = jest
+      .fn<() => Promise<{ count: number }>>()
+      .mockResolvedValue({ count: 3 });
     const prisma = {
       session: {
         deleteMany,
       },
     } as unknown as PrismaService;
-    const log = jest.spyOn(Logger.prototype, "log").mockImplementation();
+    const log = jest
+      .spyOn(Logger.prototype, "log")
+      .mockImplementation(() => undefined);
     const service = new SessionCleanupService(prisma, () => now.getTime());
 
     await expect(service.removeExpired()).resolves.toBeUndefined();

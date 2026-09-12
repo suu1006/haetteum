@@ -368,6 +368,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
         userId: foreignUser.id,
         placeId: reviewPlaceId,
         rating: 3,
+        title: "다른 사용자의 후기",
         content: "다른 사용자의 후기",
       },
     });

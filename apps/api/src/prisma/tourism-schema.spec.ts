@@ -87,6 +87,7 @@ const review = {
   userId: reviewOwner.id,
   placeId: "6c9bc5a5-836e-420c-bce4-ef68ff421233",
   rating: 5,
+  title: "다시 방문하고 싶은 곳",
   content: "다시 방문하고 싶은 곳이에요.",
 } satisfies Prisma.ReviewUncheckedCreateInput;
 

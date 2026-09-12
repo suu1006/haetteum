@@ -53,7 +53,7 @@ describe("PlacesService", () => {
       $transaction: transaction,
       place: { findMany, count },
     };
-    const service = new PlacesService(prisma as never);
+    const service = new PlacesService(prisma as never, {} as never);
 
     await expect(
       service.list({ region: "jeju", page: 2, pageSize: 10, q: "성산" }),
@@ -115,10 +115,13 @@ describe("PlacesService", () => {
     const transaction = jest.fn(async (queries: readonly Promise<unknown>[]) =>
       Promise.all(queries),
     );
-    const service = new PlacesService({
-      $transaction: transaction,
-      place: { findMany, count },
-    } as never);
+    const service = new PlacesService(
+      {
+        $transaction: transaction,
+        place: { findMany, count },
+      } as never,
+      {} as never,
+    );
 
     await expect(
       service.list({ region: "busan", page: 1, pageSize: 20, q: "" }),
