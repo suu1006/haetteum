@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   MySavedCoursesResponseSchema,
   SavedCourseItemSchema,
@@ -19,9 +20,9 @@ export type SavedCourseLoadResult =
 export async function loadMySavedCourses(
   cookieHeader: string | null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<MySavedCoursesLoadResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) return { status: "error" };
 
   try {
@@ -49,9 +50,9 @@ export async function loadSavedCourseById(
   id: string,
   cookieHeader: string | null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<SavedCourseLoadResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) return { status: "error" };
 
   try {

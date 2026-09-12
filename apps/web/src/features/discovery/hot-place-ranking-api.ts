@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/lib/api-base";
 import {
   HotPlaceRankingResponseSchema,
   type HotPlaceRankingAudience,
@@ -11,11 +12,11 @@ export type HotPlaceRankingLoadState =
 export async function loadHotPlaceRankings(
   audience: HotPlaceRankingAudience,
 ): Promise<HotPlaceRankingLoadState> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
-  if (!baseUrl.trim()) return { status: "error" };
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return { status: "error" };
 
   try {
-    const url = new URL(`${baseUrl.replace(/\/+$/, "")}/hot-place-rankings`);
+    const url = new URL(`${baseUrl}/hot-place-rankings`);
     url.searchParams.set("audience", audience);
     url.searchParams.set("limit", "10");
 

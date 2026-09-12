@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/lib/api-base";
 import {
   FavoritePlaceItemSchema,
   MyFavoritesResponseSchema,
@@ -8,9 +9,7 @@ import {
 const favoritesApiError = "Unable to reach favorites API.";
 
 function apiBaseUrl(): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error(favoritesApiError);
   return baseUrl;
 }

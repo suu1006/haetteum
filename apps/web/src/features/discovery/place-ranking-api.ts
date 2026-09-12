@@ -1,3 +1,4 @@
+import { getServerApiBaseUrl } from "@/lib/api-base";
 import {
   PlaceRankingResponseSchema,
   type PlaceRankingAudience,
@@ -11,14 +12,11 @@ export type PlaceRankingLoadState =
 export async function loadPlaceRankings(
   audience: PlaceRankingAudience,
 ): Promise<PlaceRankingLoadState> {
-  const baseUrl =
-    typeof window === "undefined"
-      ? (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-      : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "");
-  if (!baseUrl.trim()) return { status: "error" };
+  const baseUrl = getServerApiBaseUrl();
+  if (!baseUrl) return { status: "error" };
 
   try {
-    const url = new URL(`${baseUrl.replace(/\/+$/, "")}/place-rankings`);
+    const url = new URL(`${baseUrl}/place-rankings`);
     url.searchParams.set("audience", audience);
     url.searchParams.set("limit", "10");
 

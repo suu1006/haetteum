@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/lib/api-base";
 import {
   MySavedCoursesResponseSchema,
   SavedCourseItemSchema,
@@ -10,9 +11,7 @@ import {
 const savedCoursesApiError = "Unable to reach saved courses API.";
 
 function apiBaseUrl(): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error(savedCoursesApiError);
   return baseUrl;
 }

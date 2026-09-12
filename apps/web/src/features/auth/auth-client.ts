@@ -1,6 +1,7 @@
 import { AuthUserSchema, ProblemDetailsSchema } from "@haetteum/contracts";
 
 import type { AuthUser } from "@/features/auth/auth-model";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 const loadCurrentUserError = "Unable to load current user.";
 const logoutError = "Unable to log out.";
@@ -73,9 +74,7 @@ export async function logout(): Promise<void> {
 }
 
 function apiBaseUrl(): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error(loadCurrentUserError);
   return baseUrl;
 }

@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   ProblemDetailsSchema,
   ProfilePreferencesResponseSchema,
@@ -16,9 +17,9 @@ export async function updateProfilePreferences(
   travelStyles: TravelStyle[],
   interestedRegions: PlaceRegion[],
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<UpdateProfilePreferencesResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) {
     return { ok: false, message: genericErrorMessage };
   }

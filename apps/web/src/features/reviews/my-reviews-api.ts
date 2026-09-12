@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   MyReviewsResponseSchema,
   type ReviewItem,
@@ -19,9 +20,9 @@ export type MyReviewsLoadResult =
 export async function loadMyReviews(
   cookieHeader: string | null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<MyReviewsLoadResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) return { status: "error" };
 
   try {

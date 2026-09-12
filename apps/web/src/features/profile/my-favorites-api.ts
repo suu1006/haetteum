@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   MyFavoritesResponseSchema,
   type MyFavoritesResponse,
@@ -12,9 +13,9 @@ export type MyFavoritesLoadResult =
 export async function loadMyFavorites(
   cookieHeader: string | null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<MyFavoritesLoadResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) return { status: "error" };
 
   try {

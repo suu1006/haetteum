@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   PlacesPageSchema,
   type PlaceListItem,
@@ -9,7 +10,7 @@ export type PlaceSearchLoadState =
   | { status: "error" };
 
 function apiUrl(baseUrl: string | undefined, path: string): string | null {
-  const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   return normalizedBaseUrl ? `${normalizedBaseUrl}${path}` : null;
 }
 
@@ -17,7 +18,7 @@ export async function searchPlaces(
   region: PlaceRegion,
   query: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<PlaceSearchLoadState> {
   const url = apiUrl(baseUrl, "/places");
   if (url == null) return { status: "error" };

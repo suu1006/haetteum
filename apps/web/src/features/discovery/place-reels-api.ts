@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   PlaceReelListResponseSchema,
   PopularReelsResponseSchema,
@@ -19,7 +20,7 @@ export type PlaceReelsLoadState =
   | { status: "error" };
 
 function apiBaseUrl(value: string | undefined): string | null {
-  const baseUrl = value?.trim();
+  const baseUrl = normalizeApiBaseUrl(value);
   return baseUrl ? baseUrl.replace(/\/+$/, "") : null;
 }
 
@@ -32,7 +33,7 @@ export async function loadPopularReels(
   audience: PlaceRankingAudience,
   region: PopularReelRegion = "all",
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
   page: PopularReelsPage = {},
 ): Promise<PopularReelsLoadState> {
   const api = apiBaseUrl(baseUrl);
@@ -63,7 +64,7 @@ export async function loadPopularReels(
 export async function loadPlaceReels(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<PlaceReelsLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };

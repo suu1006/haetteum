@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   ProblemDetailsSchema,
   MyReviewsResponseSchema,
@@ -46,7 +47,7 @@ export type ReviewPlacesLoadState = PlaceSearchLoadState;
 export async function loadMyReviews(
   cookieHeader: string | null = null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<MyWrittenReviewsLoadState> {
   const url = apiUrl(baseUrl, "/reviews/mine");
   if (url == null) return { status: "error" };
@@ -74,7 +75,7 @@ export async function loadReview(
   reviewId: string,
   cookieHeader: string | null = null,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ReviewDetailLoadState> {
   if (!ReviewIdParamsSchema.safeParse({ reviewId }).success) {
     return { status: "error" };
@@ -103,7 +104,7 @@ export async function loadReview(
 export async function createReview(
   input: CreateReviewRequest,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ReviewMutationResult> {
   return mutateReview("/reviews", "POST", input, fetchImpl, baseUrl);
 }
@@ -112,7 +113,7 @@ export async function updateReview(
   reviewId: string,
   input: UpdateReviewRequest,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ReviewMutationResult> {
   if (!ReviewIdParamsSchema.safeParse({ reviewId }).success) {
     return reviewMutationError();
@@ -130,7 +131,7 @@ export async function updateReview(
 export async function deleteReview(
   reviewId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ReviewDeleteResult> {
   if (!ReviewIdParamsSchema.safeParse({ reviewId }).success) {
     return { status: "error", message: reviewDeleteErrorMessage };
@@ -158,7 +159,7 @@ export function searchReviewPlaces(
   region: PlaceRegion,
   query: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ReviewPlacesLoadState> {
   return searchPlaces(region, query, fetchImpl, baseUrl);
 }
@@ -229,7 +230,7 @@ function reviewMutationError(): ReviewMutationResult {
 }
 
 function apiUrl(baseUrl: string | undefined, path: string): string | null {
-  const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   return normalizedBaseUrl ? `${normalizedBaseUrl}${path}` : null;
 }
 

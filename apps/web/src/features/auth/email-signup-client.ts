@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/lib/api-base";
 import {
   EmailSignupStartResponseSchema,
   EmailSignupVerifyResponseSchema,
@@ -71,5 +72,5 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 function apiBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  return getApiBaseUrl();
 }

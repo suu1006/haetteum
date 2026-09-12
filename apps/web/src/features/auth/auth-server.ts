@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { safeReturnTo, type AuthUser } from "@/features/auth/auth-model";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 const loadCurrentUserError = "Unable to load current user.";
 
@@ -36,9 +37,7 @@ export async function requireCurrentUser(returnTo: string): Promise<AuthUser> {
 }
 
 function apiBaseUrl(): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error(loadCurrentUserError);
   return baseUrl;
 }

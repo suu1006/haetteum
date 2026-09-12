@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/lib/api-base";
 import {
   FestivalDiscoveryResponseSchema,
   type FestivalBrowseRegion,
@@ -23,7 +24,7 @@ const FESTIVAL_REGIONS: FestivalDiscoveryData["regions"] = [
 export async function loadFestivalDiscovery(
   region: FestivalBrowseRegion,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<FestivalDiscoveryData> {
   if (!baseUrl.trim()) return emptyFestivalDiscovery("error");
 
@@ -69,7 +70,7 @@ const MONTHLY_FESTIVAL_LIMIT = 4;
 export async function loadMonthlyFestivals(
   region: FestivalBrowseRegion,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
   now: Date = new Date(),
 ): Promise<MonthlyFestivalsLoadState> {
   if (!baseUrl.trim()) return { status: "error" };

@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   FestivalDetailResponseSchema,
   type FestivalDetailResponse,
@@ -9,14 +10,14 @@ export type FestivalDetailLoadState =
   | { status: "error" };
 
 function apiBaseUrl(value: string | undefined): string | null {
-  const baseUrl = value?.trim();
+  const baseUrl = normalizeApiBaseUrl(value);
   return baseUrl ? baseUrl.replace(/\/+$/, "") : null;
 }
 
 export async function loadFestivalDetail(
   festivalId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<FestivalDetailLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };

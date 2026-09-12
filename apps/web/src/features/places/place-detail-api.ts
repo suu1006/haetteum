@@ -1,3 +1,4 @@
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 import {
   GeneratedCourseResponseSchema,
   NearbyPlacesResponseSchema,
@@ -18,14 +19,14 @@ export type PlaceDetailLoadState =
   | { status: "error" };
 
 function apiBaseUrl(value: string | undefined): string | null {
-  const baseUrl = value?.trim();
+  const baseUrl = normalizeApiBaseUrl(value);
   return baseUrl ? baseUrl.replace(/\/+$/, "") : null;
 }
 
 export async function loadPlaceDetail(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<PlaceDetailLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };
@@ -49,7 +50,7 @@ export async function loadNearbyPlaces(
   placeId: string,
   category: NearbyPlaceCategory,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<NearbyPlacesResponse> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) {
@@ -75,7 +76,7 @@ export async function loadNearbyPlaces(
 export async function loadGeneratedCourse(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<GeneratedCourseResponse> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) {
@@ -111,7 +112,7 @@ export type PlaceCoursesLoadState =
 export async function loadPlaceReviews(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<PlaceReviewsLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };
@@ -133,7 +134,7 @@ export async function loadPlaceReviews(
 export async function loadPlaceCourses(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseUrl = getApiBaseUrl(),
 ): Promise<PlaceCoursesLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };

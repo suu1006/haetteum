@@ -10,6 +10,7 @@ import { CHAT_MAX_QUESTION_CHARS, selectChatContext, type ChatMessage } from "@h
 import { ChatRequestError, readChatStream, toChatRequestError } from "@/features/chat/read-chat-stream";
 
 import { createSmoothChatText } from "@/features/chat/smooth-chat-text";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 const ChatMarkdown = memo(function ChatMarkdown({ content }: { content: string }) {
   return <ReactMarkdown>{content}</ReactMarkdown>;
@@ -53,7 +54,7 @@ export default function ChatPage() {
     abort.signal.addEventListener("abort", smooth.cancel, { once: true });
     const timeout = AbortSignal.timeout(60_000);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
+      const baseUrl = getApiBaseUrl();
       if (!baseUrl) throw new ChatRequestError(503);
       const response = await fetch(`${baseUrl}/chat/messages/stream`, {
         method: "POST",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { LoginScreen } from "@/components/patterns/login-screen";
 import { loginErrorMessage } from "@/features/auth/auth-model";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 export const metadata: Metadata = {
   title: "로그인 | 해뜸",
@@ -16,9 +17,7 @@ type LoginPageProps = {
 };
 
 function kakaoLoginHref(returnTo: string): string {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
+  const baseUrl = getApiBaseUrl();
   const query = new URLSearchParams({ returnTo });
   return `${baseUrl}/auth/kakao/start?${query.toString()}`;
 }

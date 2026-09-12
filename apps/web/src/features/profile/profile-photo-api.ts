@@ -1,4 +1,5 @@
 import { ProfilePhotoResponseSchema } from "@haetteum/contracts";
+import { getApiBaseUrl, normalizeApiBaseUrl } from "@/lib/api-base";
 
 const profilePhotoUploadErrorMessage =
   "사진을 업로드하지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -10,9 +11,9 @@ export type ProfilePhotoUploadResult =
 export async function uploadProfilePhoto(
   file: File,
   fetchImpl: typeof fetch = fetch,
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+  baseUrl = getApiBaseUrl(),
 ): Promise<ProfilePhotoUploadResult> {
-  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) {
     return { status: "error", message: profilePhotoUploadErrorMessage };
   }
