@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getApiBaseUrl,
   getServerApiBaseUrl,
+  joinApiUrl,
   normalizeApiBaseUrl,
 } from "@/lib/api-base";
 
@@ -15,6 +16,38 @@ describe("normalizeApiBaseUrl", () => {
 
   it("returns empty string for blank input", () => {
     expect(normalizeApiBaseUrl("   ")).toBe("");
+  });
+});
+
+describe("joinApiUrl", () => {
+  it("joins a base with a trailing slash and a path with a leading slash", () => {
+    expect(joinApiUrl("https://example.com/api/v1/", "/places")).toBe(
+      "https://example.com/api/v1/places",
+    );
+  });
+
+  it("joins a base with no trailing slash and a path with a leading slash", () => {
+    expect(joinApiUrl("https://example.com/api/v1", "/places")).toBe(
+      "https://example.com/api/v1/places",
+    );
+  });
+
+  it("joins a base with a trailing slash and a path with no leading slash", () => {
+    expect(joinApiUrl("https://example.com/api/v1/", "places")).toBe(
+      "https://example.com/api/v1/places",
+    );
+  });
+
+  it("joins a base with no trailing slash and a path with no leading slash", () => {
+    expect(joinApiUrl("https://example.com/api/v1", "places")).toBe(
+      "https://example.com/api/v1/places",
+    );
+  });
+
+  it("collapses multiple trailing/leading slashes at the seam", () => {
+    expect(joinApiUrl("https://example.com/api/v1///", "//places")).toBe(
+      "https://example.com/api/v1/places",
+    );
   });
 });
 
