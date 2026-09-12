@@ -14,8 +14,7 @@ public class MainActivity extends BridgeActivity {
   // active for every Bridge instance by default, so subclassing
   // BridgeWebViewClient here to loadUrl("file:///android_asset/public/offline.html")
   // would be redundant and would actually bypass the correct local-server
-  // resolution (different origin, no bridge JS injection). See
-  // task-4-report.md for the full trace.
+  // resolution (different origin, no bridge JS injection).
 
   @Override
   public void onBackPressed() {

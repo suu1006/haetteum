@@ -32,6 +32,12 @@
   </head>
   <body>
     <p>인터넷 연결을 확인할 수 없습니다.</p>
+    <!-- Known, accepted limitation: the retry target is intentionally hardcoded
+         to the production URL. capacitor.config.ts's server.url supports a
+         CAPACITOR_SERVER_URL override for local dev/testing, but that override
+         is a dev/test-only convenience never used in real distributed builds
+         (which always point at production), so this static file is not
+         templated to follow it. -->
     <button onclick="location.href = 'https://haetteum.kr'">다시 시도</button>
   </body>
 </html>
