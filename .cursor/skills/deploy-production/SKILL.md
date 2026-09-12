@@ -10,7 +10,7 @@ description: Use when deploying Haetteum web or API changes to the production EC
   - `scripts/deploy/activate-release.sh`
   - `scripts/deploy/smoke-release.sh`
   - `scripts/deploy/rollback-release.sh`
-  - `.github/workflows/deploy-to-ec2.yml`
+  - `.github/workflows/deploy.yml`
 
 ## 2) Validation before deployment
 - 최소 실행: 타입체크/배포 대상 lint/test/build
