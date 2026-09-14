@@ -26,14 +26,19 @@ function ChatHistoryPanel({ open, onOpenChange, onSelectConversation }: ChatHist
 
   useEffect(() => {
     if (!open) return;
-    setState("loading");
-    listChatConversations()
-      .then((response) => {
-        setItems(response.items);
-        setNextCursor(response.nextCursor);
-        setState("ready");
-      })
-      .catch(() => setState("error"));
+
+    const timeoutId = setTimeout(() => {
+      setState("loading");
+      listChatConversations()
+        .then((response) => {
+          setItems(response.items);
+          setNextCursor(response.nextCursor);
+          setState("ready");
+        })
+        .catch(() => setState("error"));
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [open]);
 
   function loadMore() {
