@@ -1,8 +1,7 @@
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { NestFactory } from "@nestjs/core";
-
+import {
+  isMainModule,
+  runRankingCommand,
+} from "../common/ranking-import/ranking-command-runner.js";
 import type { HotPlaceRankingImportService } from "../hot-place-rankings/hot-place-ranking-import.service.js";
 import type {
   PlaceRankingImportService,
@@ -34,55 +33,39 @@ export async function executeRankingImageBackfill(
 }
 
 async function run(): Promise<void> {
-  let app:
-    | Awaited<ReturnType<typeof NestFactory.createApplicationContext>>
-    | undefined;
-
-  try {
-    const [
-      { AppModule },
-      { PlaceRankingImportService: PlaceService },
-      { HotPlaceRankingImportService: HotService },
-    ] = await Promise.all([
-      import("../app.module.js"),
-      import("./place-ranking-import.service.js"),
-      import("../hot-place-rankings/hot-place-ranking-import.service.js"),
-    ]);
-    app = await NestFactory.createApplicationContext(AppModule, {
-      logger: ["error", "warn"],
-    });
-    const placeRankings = app.get<PlaceRankingImportService>(PlaceService);
-    const hotPlaceRankings = app.get<HotPlaceRankingImportService>(HotService);
-    const exitCode = await executeRankingImageBackfill(
-      placeRankings,
-      hotPlaceRankings,
-      (message) => console.log(message),
-      (message) => console.error(message),
-    );
-    if (exitCode !== 0) process.exitCode = exitCode;
-  } catch {
-    console.error("Ranking image backfill command failed.");
-    process.exitCode = 1;
-  } finally {
-    if (app != null) {
-      try {
-        await app.close();
-      } catch {
-        console.error("Ranking image backfill command shutdown failed.");
-        process.exitCode = 1;
-      }
-    }
-  }
-}
-
-function isMainModule(): boolean {
-  const commandPath = process.argv[1];
-  return (
-    commandPath !== undefined &&
-    resolve(commandPath) === fileURLToPath(import.meta.url)
+  await runRankingCommand(
+    "Ranking image backfill command",
+    ["error", "warn"],
+    () =>
+      Promise.all([
+        import("../app.module.js"),
+        import("./place-ranking-import.service.js"),
+        import("../hot-place-rankings/hot-place-ranking-import.service.js"),
+      ]).then(([appModule, placeModule, hotModule]) => ({
+        AppModule: appModule.AppModule,
+        PlaceRankingImportService: placeModule.PlaceRankingImportService,
+        HotPlaceRankingImportService: hotModule.HotPlaceRankingImportService,
+      })),
+    async (
+      app,
+      { PlaceRankingImportService, HotPlaceRankingImportService },
+    ) => {
+      const placeRankings = app.get<PlaceRankingImportService>(
+        PlaceRankingImportService,
+      );
+      const hotPlaceRankings = app.get<HotPlaceRankingImportService>(
+        HotPlaceRankingImportService,
+      );
+      return executeRankingImageBackfill(
+        placeRankings,
+        hotPlaceRankings,
+        (message) => console.log(message),
+        (message) => console.error(message),
+      );
+    },
   );
 }
 
-if (isMainModule()) {
+if (isMainModule(import.meta.url)) {
   void run();
 }

@@ -1,6 +1,13 @@
 import { ConfigService } from "@nestjs/config";
-import { Controller, Get, Req, type INestApplication } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Logger,
+  Req,
+  type INestApplication,
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { jest } from "@jest/globals";
 import type { Server } from "node:http";
 import type { Request } from "express";
 import request from "supertest";
@@ -57,5 +64,24 @@ describe("configureApp", () => {
       .expect(200);
 
     expect(response.body).toEqual({ session: "value" });
+  });
+
+  it("logs the completed request with its request id and status", async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, "log")
+      .mockImplementation(() => undefined);
+
+    const response = await request(getHttpServer(app))
+      .get("/api/v1/cookie")
+      .expect(200);
+    const requestId = response.headers["x-request-id"];
+
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `requestId=${requestId} method=GET path=/api/v1/cookie status=200`,
+      ),
+    );
+
+    logSpy.mockRestore();
   });
 });

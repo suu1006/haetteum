@@ -108,8 +108,8 @@ function parseOutput(line: string): Record<string, unknown> {
 
 function expectSafeText(text: string): void {
   expect(text).not.toContain("serviceKey");
-  expect(text).not.toContain("SERVICE_KEY");
-  expect(text).not.toContain("END_POINT");
+  expect(text).not.toContain("TOUR_API_SERVICE_KEY");
+  expect(text).not.toContain("TOUR_API_ENDPOINT");
   expect(text).not.toContain("http://");
   expect(text).not.toContain("https://");
 }

@@ -15,7 +15,6 @@ import {
   placeKind,
   placeIdentity,
   recommendationWeek,
-  validComposition,
   visitAvailability,
   weekDate,
 } from "./weekly-selection.js";
@@ -62,37 +61,80 @@ export class WeeklyRecommendationsService {
   ) {}
 
   async current(now = new Date()): Promise<WeeklyRecommendationsResponse> {
-    const edition = await this.prisma.weeklyRecommendationEdition.findFirst({
-      where: {
-        status: "PUBLISHED",
-        week: { lte: weekDate(recommendationWeek(now)) },
-      },
-      orderBy: { week: "desc" },
-      include: {
-        candidates: {
-          where: { status: "PASSED", position: { not: null } },
-          orderBy: { position: "asc" },
-          take: 20,
+    const week = recommendationWeek(now);
+    const cutoff = new Date(now.getTime() - 7 * DAY);
+    const candidates = await this.prisma.weeklyRecommendationCandidate.findMany(
+      {
+        where: {
+          status: "PASSED",
+          checkedAt: { gte: cutoff, lte: now },
+          edition: { week: { lte: weekDate(week) } },
         },
+        include: { edition: true },
+        orderBy: [
+          { edition: { week: "desc" } },
+          { position: { sort: "asc", nulls: "last" } },
+          { checkedAt: "desc" },
+          { id: "asc" },
+        ],
       },
-    });
-    if (!edition) return { week: null, items: [] };
-    // Requests never select replacements or contact providers. Hidden entries are suppressed immediately.
-    const visible = await this.prisma.place.findMany({
+    );
+    const places = await this.prisma.place.findMany({
       where: {
-        id: { in: edition.candidates.map((p) => p.placeId) },
+        id: { in: candidates.map((c) => c.placeId) },
         isVisible: true,
         region: { is: { isActive: true } },
       },
-      select: { id: true },
+      include: placeInclude,
     });
-    const ids = new Set(visible.map((p) => p.id));
-    return {
-      week: edition.week.toISOString().slice(0, 10),
-      items: edition.candidates
-        .filter((p) => ids.has(p.placeId))
-        .map((p) => WeeklyPlaceItemSchema.parse(p.snapshot)),
-    };
+    const byId = new Map(places.map((p) => [p.id, p]));
+    const items: WeeklyPlaceItem[] = [];
+    const identities = new Set<string>();
+    let responseWeek: string | null = null;
+    for (const candidate of candidates) {
+      const place = byId.get(candidate.placeId);
+      const checks = (candidate.checks ?? {}) as Record<string, unknown>;
+      const parsed = WeeklyPlaceItemSchema.safeParse(candidate.snapshot);
+      if (
+        !place ||
+        place.source !== "TOUR_API" ||
+        place.contentTypeId !== 12 ||
+        !place.isVisible ||
+        !place.region.isActive ||
+        candidate.status !== "PASSED" ||
+        !candidate.checkedAt ||
+        candidate.checkedAt < cutoff ||
+        candidate.checkedAt > now ||
+        candidate.edition.week > weekDate(week) ||
+        checks.policyVersion !== 2 ||
+        checks.source !== "PASSED" ||
+        checks.fields !== "PASSED" ||
+        checks.thumbnail !== "PASSED" ||
+        !place.detailSyncedAt ||
+        !place.detailSourceModifiedAt ||
+        place.detailSourceModifiedAt.getTime() !==
+          place.providerModifiedAt.getTime() ||
+        checks.sourceModifiedAt !== place.providerModifiedAt.toISOString() ||
+        visitAvailability(place.restDate ?? "", place.useSeason ?? "", week) ===
+          "CLOSED" ||
+        !parsed.success ||
+        parsed.data.id !== place.id ||
+        !parsed.data.primaryImageUrl ||
+        parsed.data.imageCopyrightType !== "Type1"
+      )
+        continue;
+      const identity = placeIdentity({ ...parsed.data, kind: candidate.kind });
+      if (
+        identities.has(identity) ||
+        items.some((item) => item.id === place.id)
+      )
+        continue;
+      identities.add(identity);
+      items.push(parsed.data);
+      responseWeek ??= candidate.edition.week.toISOString().slice(0, 10);
+      if (items.length === 20) break;
+    }
+    return { week: responseWeek, items };
   }
 
   async bootstrap(now = new Date()): Promise<void> {
@@ -121,8 +163,6 @@ export class WeeklyRecommendationsService {
         create: { week: weekDate(week) },
         update: {},
       });
-      if (edition.status === "PUBLISHED" || edition.status === "VERIFIED")
-        return;
       await this.fenced(token, (tx) =>
         tx.weeklyRecommendationEdition.update({
           where: { id: edition.id },
@@ -130,7 +170,7 @@ export class WeeklyRecommendationsService {
         }),
       );
       await this.prepareCandidates(edition, week, token, true);
-    });
+    }, week);
   }
 
   private async prepareCandidates(
@@ -214,18 +254,18 @@ export class WeeklyRecommendationsService {
             placeId: candidate.id,
             kind: candidate.kind,
             ...result,
-            status: result.status === "PASSED" ? "PREPARED" : "REJECTED",
+            status: result.status,
           },
           update: {
             ...result,
-            status: result.status === "PASSED" ? "PREPARED" : "REJECTED",
+            status: result.status,
             kind: candidate.kind,
           },
         }),
       );
       if (result.status === "PASSED") prepared.add(candidate.id);
     }
-    if (prepared.size < 25)
+    if (prepared.size === 0)
       await this.fail(edition.id, "INSUFFICIENT_PREPARED_CANDIDATES", token);
   }
 
@@ -247,7 +287,6 @@ export class WeeklyRecommendationsService {
         );
         return;
       }
-      if (edition.status === "PUBLISHED") return;
       await this.fenced(token, (tx) =>
         tx.weeklyRecommendationEdition.update({
           where: { id: edition.id },
@@ -294,13 +333,8 @@ export class WeeklyRecommendationsService {
         if (round === 0) await this.prepareCandidates(edition, week, token);
       }
       const passed = await this.passed(edition.id);
-      const selected = balancedSelection(passed, week, 20);
-      if (!validComposition(selected) || passed.length < 25) {
-        await this.fail(
-          edition.id,
-          "INSUFFICIENT_VERIFIED_DIVERSITY_OR_RESERVES",
-          token,
-        );
+      if (passed.length === 0) {
+        await this.fail(edition.id, "NO_VERIFIED_CANDIDATES", token);
         return;
       }
       await this.fenced(token, async (tx) => {
@@ -309,7 +343,7 @@ export class WeeklyRecommendationsService {
           data: { status: "VERIFIED", verifiedAt: new Date(), errorCode: null },
         });
       });
-    });
+    }, week);
   }
 
   async publish(now = new Date()): Promise<void> {
@@ -356,7 +390,7 @@ export class WeeklyRecommendationsService {
           week,
           20,
         );
-        if (!validComposition(selected))
+        if (selected.length === 0)
           throw new Error("PUBLICATION_COVERAGE_FAILED");
         await tx.weeklyRecommendationCandidate.updateMany({
           where: { editionId: edition.id },
@@ -374,108 +408,25 @@ export class WeeklyRecommendationsService {
           data: { status: "PUBLISHED", publishedAt: now, errorCode: null },
         });
       });
-    });
+    }, week);
   }
 
   async repair(now = new Date()): Promise<void> {
-    await this.locked(async (token) => {
-      const edition = await this.prisma.weeklyRecommendationEdition.findFirst({
-        where: {
-          status: "PUBLISHED",
-          week: { lte: weekDate(recommendationWeek(now)) },
-        },
-        orderBy: { week: "desc" },
-        include: {
-          candidates: {
-            where: { status: "PASSED" },
-            orderBy: { position: "asc" },
-          },
-        },
-      });
-      if (!edition) return;
-      const visible = await this.prisma.place.findMany({
-        where: {
-          id: { in: edition.candidates.map((p) => p.placeId) },
-          isVisible: true,
-          region: { is: { isActive: true } },
-        },
-        select: { id: true },
-      });
-      const ids = new Set(visible.map((p) => p.id));
-      const current = edition.candidates.filter((p) => p.position !== null);
-      const healthy = current.filter((p) => ids.has(p.placeId));
-      if (healthy.length === 20) return;
-      const items = healthy.map((p) =>
-        selection(WeeklyPlaceItemSchema.parse(p.snapshot), p.kind),
+    const week = recommendationWeek(now);
+    await this.prepare(now, week);
+    await this.validate(now, week);
+    await this.publish(now);
+    const result = await this.current(
+      new Date(Math.max(now.getTime(), Date.now())),
+    );
+    if (result.items.length < 20)
+      this.logger.warn(
+        JSON.stringify({
+          event: "weekly_supply_low",
+          count: result.items.length,
+          week,
+        }),
       );
-      const replacements: { id: string; position: number }[] = [];
-      for (const missing of current.filter((p) => !ids.has(p.placeId))) {
-        for (const reserve of edition.candidates.filter(
-          (p) =>
-            p.position === null &&
-            ids.has(p.placeId) &&
-            !replacements.some((r) => r.id === p.id),
-        )) {
-          await this.renew(token);
-          const place = await this.prisma.place.findUnique({
-            where: { id: reserve.placeId },
-            include: placeInclude,
-          });
-          if (!place) continue;
-          const checked = await this.check(place, recommendationWeek(now));
-          await this.fenced(token, (tx) =>
-            tx.weeklyRecommendationCandidate.update({
-              where: { id: reserve.id },
-              data: { ...checked, kind: placeKind(place.category1) },
-            }),
-          );
-          if (checked.status !== "PASSED") continue;
-          const item = selection(
-            WeeklyPlaceItemSchema.parse(checked.snapshot),
-            placeKind(place.category1),
-          );
-          const sameRegion = items.filter(
-            (p) => p.region === item.region,
-          ).length;
-          const sameKind = items.filter((p) => p.kind === item.kind).length;
-          if (
-            sameRegion >= 4 ||
-            sameKind >= 10 ||
-            items.some((p) => placeIdentity(p) === placeIdentity(item))
-          )
-            continue;
-          items.push(item);
-          replacements.push({ id: reserve.id, position: missing.position! });
-          break;
-        }
-      }
-      if (!validComposition(items)) {
-        this.logger.error(
-          JSON.stringify({
-            event: "weekly_failed",
-            editionId: edition.id,
-            reason: "REPAIR_RESERVES_EXHAUSTED",
-          }),
-        );
-        return;
-      }
-      await this.fenced(token, async (tx) => {
-        for (const missing of current.filter((p) => !ids.has(p.placeId)))
-          await tx.weeklyRecommendationCandidate.update({
-            where: { id: missing.id },
-            data: {
-              position: null,
-              status: "REJECTED",
-              reason: "HIDDEN_AFTER_PUBLICATION",
-            },
-          });
-        for (const replacement of replacements)
-          await tx.weeklyRecommendationCandidate.update({
-            where: { id: replacement.id },
-            data: { position: replacement.position },
-          });
-      });
-    });
   }
 
   private async passed(editionId: string) {
@@ -555,6 +506,8 @@ export class WeeklyRecommendationsService {
             }),
           ),
           checks: json({
+            policyVersion: 2,
+            sourceModifiedAt: place.providerModifiedAt.toISOString(),
             source: "PASSED",
             fields: "PASSED",
             availability,
@@ -620,7 +573,7 @@ export class WeeklyRecommendationsService {
       { timeout: 30_000 },
     );
   }
-  private async locked(work: (token: string) => Promise<void>) {
+  private async locked(work: (token: string) => Promise<void>, week?: string) {
     const token = randomUUID();
     const rows = await this.prisma.$queryRaw<
       { token: string }[]
@@ -629,6 +582,17 @@ export class WeeklyRecommendationsService {
     try {
       await work(token);
     } catch (error) {
+      if (week && !(error instanceof Error && error.message === "LEASE_LOST")) {
+        try {
+          const edition =
+            await this.prisma.weeklyRecommendationEdition.findUnique({
+              where: { week: weekDate(week) },
+            });
+          if (edition) await this.fail(edition.id, "BATCH_FAILED", token);
+        } catch {
+          /* Preserve the original error; a DB outage may prevent recording failure. */
+        }
+      }
       this.logger.error(
         JSON.stringify({
           event: "weekly_failed",

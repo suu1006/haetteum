@@ -130,7 +130,32 @@ export class TourApiPolicy implements OnModuleDestroy {
     }
   }
 
+  /** 헬스체크 전용: 락/배치 상태와 무관하게 풀 연결만 확인한다. */
+  async ping(timeoutMs: number): Promise<void> {
+    await withTimeout(timeoutMs, this.pool.query("SELECT 1"));
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
   }
+}
+
+function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`timeout of ${ms}ms exceeded`)),
+      ms,
+    );
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
 }

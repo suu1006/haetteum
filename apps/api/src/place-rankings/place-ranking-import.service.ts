@@ -1,5 +1,12 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
+import {
+  buildPlaceCandidateIndex,
+  formatRankingDateOnly,
+  httpsImageUrl,
+  normalizePlaceTitle,
+  type RankingPlaceCandidate,
+} from "../common/ranking-import/ranking-place-matching.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import {
@@ -10,6 +17,8 @@ import {
   parsePlaceRankingDirectory,
   type ParsedPlaceRankingRow,
 } from "./place-ranking-csv.js";
+
+export { normalizePlaceTitle };
 
 export interface PlaceRankingImportSummary {
   source: string;
@@ -22,12 +31,7 @@ export interface PlaceRankingImportSummary {
   unmatchedCount: number;
 }
 
-interface PlaceCandidate {
-  id: string;
-  title: string;
-  primaryImageUrl: string | null;
-  imageCopyrightType: string | null;
-}
+type PlaceCandidate = RankingPlaceCandidate;
 
 type SnapshotIdentity = {
   source: string;
@@ -81,10 +85,6 @@ export interface RankingPlaceLinkBackfillSummary {
   linked: number;
 }
 
-export function normalizePlaceTitle(value: string): string {
-  return value.normalize("NFC").trim().replace(/\s+/gu, " ");
-}
-
 @Injectable()
 export class PlaceRankingImportService {
   constructor(
@@ -107,7 +107,7 @@ export class PlaceRankingImportService {
         },
       }),
     ]);
-    const candidateIndex = buildCandidateIndex(places);
+    const candidateIndex = buildPlaceCandidateIndex(places);
     const importedAt = new Date();
     const rows = snapshot.rows.map((row) =>
       toCreateManyInput(
@@ -136,8 +136,8 @@ export class PlaceRankingImportService {
     return {
       source: snapshot.source,
       scope: snapshot.scope,
-      periodStart: formatDateOnly(snapshot.periodStart),
-      periodEnd: formatDateOnly(snapshot.periodEnd),
+      periodStart: formatRankingDateOnly(snapshot.periodStart),
+      periodEnd: formatRankingDateOnly(snapshot.periodEnd),
       audienceCount: new Set(snapshot.rows.map((row) => row.audience)).size,
       importedCount: rows.length,
       matchedCount,
@@ -169,7 +169,7 @@ export class PlaceRankingImportService {
         imageCopyrightType: true,
       },
     });
-    const candidateIndex = buildCandidateIndex(places);
+    const candidateIndex = buildPlaceCandidateIndex(places);
     let updated = 0;
 
     for (const row of rows) {
@@ -235,19 +235,6 @@ export class PlaceRankingImportService {
   }
 }
 
-function buildCandidateIndex(places: PlaceCandidate[]) {
-  const candidateIndex = new Map<string, PlaceCandidate[]>();
-
-  for (const place of places) {
-    const normalizedTitle = normalizePlaceTitle(place.title);
-    const candidates = candidateIndex.get(normalizedTitle) ?? [];
-    candidates.push(place);
-    candidateIndex.set(normalizedTitle, candidates);
-  }
-
-  return candidateIndex;
-}
-
 function toCreateManyInput(
   source: string,
   scope: string,
@@ -279,18 +266,4 @@ function toCreateManyInput(
     sourceFileName: row.sourceFileName,
     importedAt,
   };
-}
-
-function httpsImageUrl(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-
-  if (trimmed === "") return null;
-  if (trimmed.startsWith("https://")) return trimmed;
-  if (trimmed.startsWith("http://")) return `https://${trimmed.slice(7)}`;
-
-  return null;
-}
-
-function formatDateOnly(value: Date): string {
-  return value.toISOString().slice(0, 10);
 }

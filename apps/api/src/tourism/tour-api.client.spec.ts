@@ -127,8 +127,8 @@ function createClient(
   const fetch: FetchMock = jest.fn();
   const sleep: SleepMock = jest.fn(() => Promise.resolve());
   const config = {
-    get: jest.fn((key: "END_POINT" | "SERVICE_KEY") => {
-      if (key === "END_POINT") {
+    get: jest.fn((key: "TOUR_API_ENDPOINT" | "TOUR_API_SERVICE_KEY") => {
+      if (key === "TOUR_API_ENDPOINT") {
         return options.endpoint ?? "https://example.test/KorService2/";
       }
 
@@ -235,8 +235,12 @@ describe("TourApiClient", () => {
     expect(url.searchParams.get("contentTypeId")).toBe("12");
     expect(url.searchParams.get("lDongRegnCd")).toBe("50");
     expect(url.searchParams.get("arrange")).toBe("C");
-    expect(config.get).toHaveBeenCalledWith("END_POINT", { infer: true });
-    expect(config.get).toHaveBeenCalledWith("SERVICE_KEY", { infer: true });
+    expect(config.get).toHaveBeenCalledWith("TOUR_API_ENDPOINT", {
+      infer: true,
+    });
+    expect(config.get).toHaveBeenCalledWith("TOUR_API_SERVICE_KEY", {
+      infer: true,
+    });
 
     const rawKeyClient = createClient({ serviceKey: "portal+service/key=" });
     rawKeyClient.fetch.mockResolvedValueOnce(jsonResponse(pageResponse));

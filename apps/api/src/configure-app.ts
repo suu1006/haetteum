@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import { VersioningType, type INestApplication } from "@nestjs/common";
 import cookieParser from "cookie-parser";
 
+import { LoggingInterceptor } from "./common/http/logging.interceptor.js";
 import { ProblemDetailsFilter } from "./common/http/problem-details.filter.js";
 import { RequestIdMiddleware } from "./common/http/request-id.middleware.js";
 import type { ApiEnvironment } from "./config/environment.js";
@@ -24,5 +25,6 @@ export function configureApp(app: INestApplication): void {
     exposedHeaders: ["Retry-After"],
   });
   app.useGlobalFilters(new ProblemDetailsFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
   app.enableShutdownHooks();
 }

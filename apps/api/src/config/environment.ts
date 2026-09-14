@@ -20,7 +20,9 @@ const providerEndpoint = z.preprocess(
           endpoint.pathname.replace(/\/+$/, "") === "/B551011/KorService2"
         );
       },
-      { message: "END_POINT must be the approved HTTPS KorService2 URL" },
+      {
+        message: "TOUR_API_ENDPOINT must be the approved HTTPS KorService2 URL",
+      },
     )
     .optional(),
 );
@@ -35,14 +37,35 @@ const ApiEnvironmentSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]),
     API_PORT: z.coerce.number().int().min(1).max(65535),
     WEB_ORIGIN: z.string().url(),
+    UPLOADED_IMAGE_PUBLIC_ORIGIN: z
+      .string()
+      .url()
+      .refine(
+        (value) => {
+          const url = new URL(value);
+          return (
+            ["http:", "https:"].includes(url.protocol) &&
+            !url.username &&
+            !url.password &&
+            url.pathname === "/" &&
+            !url.search &&
+            !url.hash
+          );
+        },
+        {
+          message:
+            "UPLOADED_IMAGE_PUBLIC_ORIGIN must be an HTTP(S) origin without a path",
+        },
+      )
+      .optional(),
     DATABASE_URL: z
       .string()
       .url()
       .refine((value) => value.startsWith("postgresql://"), {
         message: "DATABASE_URL must use postgresql://",
       }),
-    END_POINT: providerEndpoint,
-    SERVICE_KEY: providerSecret,
+    TOUR_API_ENDPOINT: providerEndpoint,
+    TOUR_API_SERVICE_KEY: providerSecret,
     KAKAO_REST_API_KEY: z.string().trim().min(1),
     KAKAO_CLIENT_SECRET: z.string().trim().min(1),
     KAKAO_REDIRECT_URI: z.preprocess(
@@ -51,6 +74,7 @@ const ApiEnvironmentSchema = z
     ),
     TOURISM_SYNC_ENABLED: booleanFromString,
     TOUR_API_DAILY_LIMIT: z.coerce.number().int().min(1).default(1000),
+    TOUR_API_POLICY_POOL_MAX: z.coerce.number().int().min(1).default(4),
     TOUR_API_MIN_INTERVAL_MS: z.coerce.number().int().min(1).default(1000),
     WEEKLY_RECOMMENDATIONS_ENABLED: booleanFromString,
     WEEKLY_THUMBNAIL_PUBLIC_BASE_URL: z.string().url().optional(),
@@ -98,8 +122,8 @@ const ApiEnvironmentSchema = z
 
     if (value.WEEKLY_RECOMMENDATIONS_ENABLED) {
       for (const key of [
-        "END_POINT",
-        "SERVICE_KEY",
+        "TOUR_API_ENDPOINT",
+        "TOUR_API_SERVICE_KEY",
         "WEEKLY_THUMBNAIL_PUBLIC_BASE_URL",
       ] as const) {
         if (!value[key])
@@ -112,19 +136,20 @@ const ApiEnvironmentSchema = z
     }
 
     if (value.TOURISM_SYNC_ENABLED) {
-      if (!value.END_POINT) {
+      if (!value.TOUR_API_ENDPOINT) {
         context.addIssue({
           code: "custom",
-          path: ["END_POINT"],
-          message: "END_POINT is required when tourism sync is enabled",
+          path: ["TOUR_API_ENDPOINT"],
+          message: "TOUR_API_ENDPOINT is required when tourism sync is enabled",
         });
       }
 
-      if (!value.SERVICE_KEY) {
+      if (!value.TOUR_API_SERVICE_KEY) {
         context.addIssue({
           code: "custom",
-          path: ["SERVICE_KEY"],
-          message: "SERVICE_KEY is required when tourism sync is enabled",
+          path: ["TOUR_API_SERVICE_KEY"],
+          message:
+            "TOUR_API_SERVICE_KEY is required when tourism sync is enabled",
         });
       }
     }

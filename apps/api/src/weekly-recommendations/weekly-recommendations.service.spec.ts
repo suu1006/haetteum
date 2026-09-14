@@ -214,50 +214,125 @@ function enableSuccessfulValidation(f: ReturnType<typeof fixture>) {
 }
 
 describe("WeeklyRecommendationsService", () => {
-  it("reads published positions in order and immediately suppresses hidden places without contacting providers", async () => {
+  it("serves individually checked draft cards and fills from prior weeks", async () => {
     const f = fixture();
-    f.prisma.place.findMany.mockResolvedValue([
-      { id: snapshot(2).id },
-      { id: snapshot(0).id },
-    ]);
-    expect(await f.service.current(now)).toEqual({
-      week: "2026-09-14",
-      items: [snapshot(0), snapshot(2)],
+    enableSuccessfulValidation(f);
+    const place = await f.prisma.place.findUnique({
+      where: { id: snapshot(0).id },
     });
-    expect(f.prisma.weeklyRecommendationEdition.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { status: "PUBLISHED", week: { lte: now } },
-        orderBy: { week: "desc" },
-        include: {
-          candidates: {
-            where: { status: "PASSED", position: { not: null } },
-            orderBy: { position: "asc" },
-            take: 20,
-          },
+    f.prisma.place.findMany.mockResolvedValue([place]);
+    f.prisma.weeklyRecommendationCandidate.findMany.mockResolvedValue([
+      {
+        ...f.candidates[0],
+        checkedAt: now,
+        checks: {
+          policyVersion: 2,
+          source: "PASSED",
+          fields: "PASSED",
+          thumbnail: "PASSED",
+          sourceModifiedAt: now.toISOString(),
         },
-      }),
-    );
-    expect(f.provider.getPlaceCommonDetail).not.toHaveBeenCalled();
-    expect(f.thumbnails.prepare).not.toHaveBeenCalled();
-  });
-  it("returns the previous published edition while a new edition is unavailable", async () => {
-    const f = fixture();
-    f.prisma.weeklyRecommendationEdition.findFirst.mockResolvedValue({
-      week: new Date("2026-09-07T00:00:00Z"),
-      candidates: [f.candidates[0]],
-    });
+        edition: { week: new Date("2026-09-07T00:00:00Z"), status: "DRAFT" },
+      },
+    ]);
     expect(await f.service.current(now)).toEqual({
       week: "2026-09-07",
       items: [snapshot(0)],
     });
-    f.prisma.weeklyRecommendationEdition.findFirst.mockResolvedValue(null);
-    f.prisma.place.findMany.mockImplementation((input) => {
-      const where = (input as { where: { source?: string } }).where;
-      return Promise.resolve(
-        where.source ? [] : f.candidates.map((p) => ({ id: p.placeId })),
-      );
+    expect(f.thumbnails.prepare).not.toHaveBeenCalled();
+    expect(f.provider.getPlaceCommonDetail).not.toHaveBeenCalled();
+  });
+  it("prioritizes this week, deduplicates fallback cards and caps the response at twenty", async () => {
+    const f = fixture();
+    enableSuccessfulValidation(f);
+    const places = await Promise.all(
+      f.candidates.map((c) =>
+        f.prisma.place.findUnique({ where: { id: c.placeId } }),
+      ),
+    );
+    f.prisma.place.findMany.mockResolvedValue(places);
+    const candidates = f.candidates.map((c, i) => ({
+      ...c,
+      checkedAt: now,
+      checks: {
+        policyVersion: 2,
+        source: "PASSED",
+        fields: "PASSED",
+        thumbnail: "PASSED",
+        sourceModifiedAt: now.toISOString(),
+      },
+      edition: { week: new Date(i < 2 ? "2026-09-14" : "2026-09-07") },
+    }));
+    f.prisma.weeklyRecommendationCandidate.findMany.mockResolvedValue([
+      candidates[0],
+      candidates[1],
+      candidates[0],
+      ...candidates.slice(2),
+    ]);
+    const result = await f.service.current(now);
+    expect(result.week).toBe("2026-09-14");
+    expect(result.items).toEqual(
+      Array.from({ length: 20 }, (_, i) => snapshot(i)),
+    );
+  });
+  it("keeps the first successful card readable when a later validation crashes", async () => {
+    const f = fixture();
+    enableSuccessfulValidation(f);
+    f.candidates.splice(2);
+    const place = await f.prisma.place.findUnique({
+      where: { id: f.candidates[0].placeId },
     });
-    expect(await f.service.current(now)).toEqual({ week: null, items: [] });
+    f.prisma.place.findUnique
+      .mockResolvedValueOnce(place)
+      .mockRejectedValueOnce(new Error("offline"));
+    await expect(f.service.validate(now, "2026-09-14")).rejects.toThrow(
+      "offline",
+    );
+    expect(f.edition.status).toBe("FAILED");
+    expect(f.candidates[0]).toMatchObject({
+      status: "PASSED",
+      checks: { policyVersion: 2, thumbnail: "PASSED" },
+    });
+  });
+  it.each(["expired", "legacy", "changed", "hidden", "future"])(
+    "rejects %s cards",
+    async (reason) => {
+      const f = fixture();
+      enableSuccessfulValidation(f);
+      const place = (await f.prisma.place.findUnique({
+        where: { id: snapshot(0).id },
+      })) as Record<string, unknown>;
+      if (reason === "changed")
+        place.providerModifiedAt = new Date(now.getTime() + 1);
+      if (reason === "hidden") place.isVisible = false;
+      f.prisma.place.findMany.mockResolvedValue([place]);
+      f.prisma.weeklyRecommendationCandidate.findMany.mockResolvedValue([
+        {
+          ...f.candidates[0],
+          checkedAt: new Date(
+            now.getTime() - (reason === "expired" ? 8 * 86400000 : 0),
+          ),
+          checks: {
+            policyVersion: reason === "legacy" ? 1 : 2,
+            source: "PASSED",
+            fields: "PASSED",
+            thumbnail: "PASSED",
+            sourceModifiedAt: now.toISOString(),
+          },
+          edition: {
+            week: new Date(reason === "future" ? "2026-09-21" : "2026-09-14"),
+          },
+        },
+      ]);
+      expect(await f.service.current(now)).toEqual({ week: null, items: [] });
+    },
+  );
+  it("publishes a single verified place without a diversity or reserve minimum", async () => {
+    const f = fixture();
+    f.candidates.splice(1);
+    await f.service.publish(now);
+    expect(f.edition.status).toBe("PUBLISHED");
+    expect(f.tx.weeklyRecommendationCandidate.update).toHaveBeenCalledTimes(1);
   });
   it("assigns twenty positions and publishes inside the fenced transaction, then skips a repeated publish", async () => {
     const f = fixture();
@@ -271,24 +346,6 @@ describe("WeeklyRecommendationsService", () => {
     await f.service.publish(now);
     expect(f.prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(f.provider.getPlaceCommonDetail).not.toHaveBeenCalled();
-  });
-  it("does not mutate positions or publish when visibility removes nationwide coverage", async () => {
-    const f = fixture();
-    f.tx.place.findMany.mockResolvedValue(
-      f.candidates
-        .filter((p) => p.snapshot.region !== "jeju")
-        .map((p) => ({ id: p.placeId })),
-    );
-    await expect(f.service.publish(now)).rejects.toThrow(
-      "PUBLICATION_COVERAGE_FAILED",
-    );
-    expect(
-      f.tx.weeklyRecommendationCandidate.updateMany,
-    ).not.toHaveBeenCalled();
-    expect(f.tx.weeklyRecommendationEdition.update).not.toHaveBeenCalled();
-    expect(f.prisma.weeklyRecommendationLease.deleteMany).toHaveBeenCalledTimes(
-      1,
-    );
   });
   it("refuses publication if the lease is lost or verification is stale", async () => {
     const f = fixture();
@@ -437,7 +494,7 @@ describe("WeeklyRecommendationsService", () => {
     await expect(
       f.service.validate(new Date("2026-09-13T00:00:00Z")),
     ).rejects.toThrow("database unavailable");
-    expect(f.edition.status).toBe("DRAFT");
+    expect(f.edition.status).toBe("FAILED");
     expect(f.edition.verifiedAt).toBeNull();
     await f.service.publish(now);
     expect(
@@ -464,66 +521,14 @@ describe("WeeklyRecommendationsService", () => {
       1,
     );
   });
-  it("repairs a hidden slot while preserving every healthy card position", async () => {
+  it("daily repair rechecks and replenishes the current week even without a publication", async () => {
     const f = fixture();
-    enableSuccessfulValidation(f);
-    f.candidates.splice(21);
-    f.candidates[20].position = null;
-    f.edition.status = "PUBLISHED";
-    f.prisma.weeklyRecommendationEdition.findFirst.mockResolvedValue({
-      ...f.edition,
-      candidates: f.candidates,
-    });
-    f.prisma.place.findMany.mockResolvedValue(
-      f.candidates.slice(1).map((p) => ({ id: p.placeId })),
-    );
-    const healthyPositions = f.candidates
-      .slice(1, 20)
-      .map((p) => [p.id, p.position]);
+    const prepare = jest.spyOn(f.service, "prepare").mockResolvedValue();
+    const validate = jest.spyOn(f.service, "validate").mockResolvedValue();
+    const publish = jest.spyOn(f.service, "publish").mockResolvedValue();
     await f.service.repair(now);
-    expect(f.candidates[0]).toMatchObject({
-      position: null,
-      status: "REJECTED",
-    });
-    expect(f.candidates[20]).toMatchObject({ position: 0, status: "PASSED" });
-    expect(f.candidates.slice(1, 20).map((p) => [p.id, p.position])).toEqual(
-      healthyPositions,
-    );
+    expect(prepare).toHaveBeenCalledWith(now, "2026-09-14");
+    expect(validate).toHaveBeenCalledWith(now, "2026-09-14");
+    expect(publish).toHaveBeenCalledWith(now);
   });
-  it.each(["changed kind", "duplicate identity"])(
-    "does not fill a slot with a reserve having %s",
-    async (failure) => {
-      const f = fixture();
-      enableSuccessfulValidation(f);
-      f.candidates.splice(21);
-      f.candidates[20].position = null;
-      f.edition.status = "PUBLISHED";
-      f.prisma.weeklyRecommendationEdition.findFirst.mockResolvedValue({
-        ...f.edition,
-        candidates: f.candidates,
-      });
-      f.prisma.place.findMany.mockResolvedValue(
-        f.candidates.slice(1).map((p) => ({ id: p.placeId })),
-      );
-      if (failure === "changed kind") {
-        const original = f.prisma.place.findUnique.getMockImplementation()!;
-        f.prisma.place.findUnique.mockImplementation(async (...args) => {
-          const place = (await original(...args)) as Record<string, unknown>;
-          return { ...place, category1: "HS" };
-        });
-      } else {
-        const original = f.prisma.place.findUnique.getMockImplementation()!;
-        f.prisma.place.findUnique.mockImplementation(async (...args) => ({
-          ...((await original(...args)) as Record<string, unknown>),
-          title: f.candidates[1].snapshot.title,
-        }));
-      }
-      const positions = f.candidates.map((p) => p.position);
-      await f.service.repair(now);
-      expect(f.candidates.map((p) => p.position)).toEqual(positions);
-      expect(f.candidates[20].position).toBeNull();
-      if (failure === "changed kind")
-        expect(f.candidates[20].kind).toBe("culture");
-    },
-  );
 });

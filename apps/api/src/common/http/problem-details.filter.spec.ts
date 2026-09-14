@@ -12,7 +12,9 @@ const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const EXISTING_REQUEST_ID = "f2e09553-1b48-40de-8d6e-a3d68a0d9636";
 
-function createHost(options: { requestId?: string | undefined } = {}) {
+function createHost(
+  options: { requestId?: string | undefined; originalUrl?: string } = {},
+) {
   let statusCode: number | undefined;
   let contentType: string | undefined;
   let body: unknown;
@@ -39,7 +41,7 @@ function createHost(options: { requestId?: string | undefined } = {}) {
   };
   const request = {
     requestId,
-    originalUrl: "/api/v1/missing",
+    originalUrl: options.originalUrl ?? "/api/v1/missing",
   };
   const host = {
     switchToHttp: () => ({
@@ -168,5 +170,23 @@ it.each([
     );
     expect(result().body).toMatchObject({ status, code, detail });
     expect(JSON.stringify(result().body)).not.toContain("credentials");
+  },
+);
+
+it.each([400, 500])(
+  "omits query secrets from the %i problem instance",
+  (status) => {
+    const { host, result } = createHost({
+      originalUrl:
+        "/api/v1/auth/kakao/callback?code=private-code&state=private-state",
+    });
+    new ProblemDetailsFilter().catch(
+      new HttpException("failure", status),
+      host,
+    );
+    expect(result().body).toMatchObject({
+      instance: "/api/v1/auth/kakao/callback",
+    });
+    expect(JSON.stringify(result().body)).not.toContain("private-");
   },
 );

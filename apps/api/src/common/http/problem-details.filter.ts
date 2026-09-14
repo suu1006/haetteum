@@ -19,6 +19,7 @@ import type { Response } from "express";
 import { z } from "zod";
 
 import type { RequestWithId } from "./request-id.middleware.js";
+import { requestPath } from "./request-path.js";
 
 const DEFAULT_ERROR_CODES: Record<number, string> = {
   400: "BAD_REQUEST",
@@ -92,7 +93,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           : typeof extensions.detail === "string"
             ? extensions.detail
             : title),
-      instance: request.originalUrl,
+      instance: requestPath(request.originalUrl),
       code:
         typeof extensions.code === "string" &&
         /^[A-Z][A-Z0-9_]*$/.test(extensions.code)

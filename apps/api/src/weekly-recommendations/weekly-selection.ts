@@ -82,12 +82,29 @@ export function balancedSelection<T extends SelectionPlace>(
       )
         best = i;
     }
+    if (best < 0)
+      best = pool.findIndex(
+        ({ place }) => !identities.has(placeIdentity(place)),
+      );
     if (best < 0) break;
     const p = pool.splice(best, 1)[0].place;
     selected.push(p);
     identities.add(placeIdentity(p));
     regions.set(p.region, (regions.get(p.region) ?? 0) + 1);
     kinds.set(p.kind, (kinds.get(p.kind) ?? 0) + 1);
+  }
+  // Prefer new places, but never let the four-week rotation rule starve a
+  // small pool. Reused places still pass the full batch validation.
+  if (selected.length < limit && recent.size > 0) {
+    selected.push(
+      ...balancedSelection(
+        items.filter(
+          (p) => recent.has(p.id) && !identities.has(placeIdentity(p)),
+        ),
+        week,
+        limit - selected.length,
+      ),
+    );
   }
   return selected;
 }

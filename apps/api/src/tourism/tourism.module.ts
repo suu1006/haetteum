@@ -5,6 +5,7 @@ import { TourApiPolicy, TOUR_API_POLICY_POOL } from "./tour-api-policy.js";
 import { Module } from "@nestjs/common";
 import { ScheduleModule } from "@nestjs/schedule";
 
+import type { ApiEnvironment } from "../config/environment.js";
 import { FestivalRepository } from "./festival.repository.js";
 import { FestivalSyncService } from "./festival-sync.service.js";
 import { FestivalSyncScheduler } from "./festival-sync.scheduler.js";
@@ -41,10 +42,10 @@ import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
     {
       provide: TOUR_API_POLICY_POOL,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
+      useFactory: (config: ConfigService<ApiEnvironment, true>) =>
         new Pool({
-          connectionString: config.get<string>("DATABASE_URL"),
-          max: 4,
+          connectionString: config.get("DATABASE_URL", { infer: true }),
+          max: config.get("TOUR_API_POLICY_POOL_MAX", { infer: true }),
           connectionTimeoutMillis: 5000,
         }),
     },

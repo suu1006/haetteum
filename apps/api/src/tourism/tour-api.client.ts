@@ -365,8 +365,10 @@ export class TourApiClient
   }
 
   private buildUrl<T extends z.ZodTypeAny>(options: RequestOptions<T>): URL {
-    const endpoint = this.config.get("END_POINT", { infer: true });
-    const serviceKey = this.config.get("SERVICE_KEY", { infer: true });
+    const endpoint = this.config.get("TOUR_API_ENDPOINT", { infer: true });
+    const serviceKey = this.config.get("TOUR_API_SERVICE_KEY", {
+      infer: true,
+    });
 
     if (!endpoint || !serviceKey) {
       throw new TourApiError(options.operation, "MISSING_CONFIGURATION");

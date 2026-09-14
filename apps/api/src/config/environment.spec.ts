@@ -34,13 +34,13 @@ describe("validateEnvironment", () => {
     expect(
       validateEnvironment({
         ...validEnvironment,
-        END_POINT: "",
-        SERVICE_KEY: "",
+        TOUR_API_ENDPOINT: "",
+        TOUR_API_SERVICE_KEY: "",
         TOURISM_SYNC_ENABLED: "false",
       }),
     ).toMatchObject({
-      END_POINT: undefined,
-      SERVICE_KEY: undefined,
+      TOUR_API_ENDPOINT: undefined,
+      TOUR_API_SERVICE_KEY: undefined,
       TOURISM_SYNC_ENABLED: false,
     });
   });
@@ -132,13 +132,13 @@ describe("validateEnvironment", () => {
     expect(
       validateEnvironment({
         ...validEnvironment,
-        END_POINT: "https://apis.data.go.kr/B551011/KorService2",
-        SERVICE_KEY: "secret-for-test-only",
+        TOUR_API_ENDPOINT: "https://apis.data.go.kr/B551011/KorService2",
+        TOUR_API_SERVICE_KEY: "secret-for-test-only",
         TOURISM_SYNC_ENABLED: "true",
       }),
     ).toMatchObject({
-      END_POINT: "https://apis.data.go.kr/B551011/KorService2",
-      SERVICE_KEY: "secret-for-test-only",
+      TOUR_API_ENDPOINT: "https://apis.data.go.kr/B551011/KorService2",
+      TOUR_API_SERVICE_KEY: "secret-for-test-only",
       TOURISM_SYNC_ENABLED: true,
     });
   });
@@ -149,40 +149,40 @@ describe("validateEnvironment", () => {
         ...validEnvironment,
         TOURISM_SYNC_ENABLED: "true",
       }),
-    ).toThrow("END_POINT");
+    ).toThrow("TOUR_API_ENDPOINT");
   });
 
   it("rejects enabled sync with a blank provider secret", () => {
     expect(() =>
       validateEnvironment({
         ...validEnvironment,
-        END_POINT: "https://apis.data.go.kr/B551011/KorService2",
-        SERVICE_KEY: "",
+        TOUR_API_ENDPOINT: "https://apis.data.go.kr/B551011/KorService2",
+        TOUR_API_SERVICE_KEY: "",
         TOURISM_SYNC_ENABLED: "true",
       }),
-    ).toThrow("SERVICE_KEY");
+    ).toThrow("TOUR_API_SERVICE_KEY");
   });
 
   it("rejects a provider URL outside the approved HTTPS service path", () => {
     expect(() =>
       validateEnvironment({
         ...validEnvironment,
-        END_POINT: "http://example.com/KorService2",
-        SERVICE_KEY: "secret-for-test-only",
+        TOUR_API_ENDPOINT: "http://example.com/KorService2",
+        TOUR_API_SERVICE_KEY: "secret-for-test-only",
         TOURISM_SYNC_ENABLED: "true",
       }),
-    ).toThrow("END_POINT");
+    ).toThrow("TOUR_API_ENDPOINT");
   });
 
   it("rejects a provider URL outside the approved TourAPI host", () => {
     expect(() =>
       validateEnvironment({
         ...validEnvironment,
-        END_POINT: "https://example.com/B551011/KorService2",
-        SERVICE_KEY: "secret-for-test-only",
+        TOUR_API_ENDPOINT: "https://example.com/B551011/KorService2",
+        TOUR_API_SERVICE_KEY: "secret-for-test-only",
         TOURISM_SYNC_ENABLED: "true",
       }),
-    ).toThrow("END_POINT");
+    ).toThrow("TOUR_API_ENDPOINT");
   });
 
   it("allows the API to boot with place reels disabled and no YouTube key", () => {

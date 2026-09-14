@@ -52,7 +52,7 @@ describe("weekly selection", () => {
       balancedSelection([...pool].reverse(), "2026-09-14", 20, new Set(["0"])),
     );
   });
-  it("does not fill a region quota by returning duplicates", () => {
+  it("relaxes diversity quotas without returning duplicates", () => {
     expect(
       balancedSelection([...pool, ...pool], "2026-09-14", 20),
     ).toHaveLength(20);
@@ -62,7 +62,18 @@ describe("weekly selection", () => {
         "2026-09-14",
         20,
       ),
-    ).toHaveLength(4);
+    ).toHaveLength(20);
+  });
+  it("reuses recent places when a small pool cannot fill the next week", () => {
+    const small = pool.slice(0, 16);
+    const selected = balancedSelection(
+      small,
+      "2026-09-21",
+      20,
+      new Set(small.map((p) => p.id)),
+    );
+    expect(selected).toHaveLength(16);
+    expect(new Set(selected.map((p) => p.id)).size).toBe(16);
   });
   it("distinguishes explicit unavailability from missing free-form operating data", () => {
     expect(visitAvailability("연중무휴", "", "2026-09-14")).toBe("OPEN");

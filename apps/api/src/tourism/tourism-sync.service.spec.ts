@@ -1237,7 +1237,7 @@ describe("TourismSyncService", () => {
     expect(original).toMatchObject({
       title: "원래 제목",
       overview: "새 설명",
-      homepage: "https://new.example.test",
+      homepage: "https://new.example.test/",
       useTime: "09:00~18:00",
       parking: "주차 가능",
     });

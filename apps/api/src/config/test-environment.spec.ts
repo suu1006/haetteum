@@ -113,8 +113,8 @@ describe("applyTestEnvironment", () => {
         KAKAO_REDIRECT_URI: "http://localhost:4000/api/v1/auth/kakao/callback",
         TOURISM_SYNC_ENABLED: "false",
       });
-      expect(environment.END_POINT).toBeUndefined();
-      expect(environment.SERVICE_KEY).toBeUndefined();
+      expect(environment.TOUR_API_ENDPOINT).toBeUndefined();
+      expect(environment.TOUR_API_SERVICE_KEY).toBeUndefined();
     } finally {
       process.chdir(originalDirectory);
       await rm(temporaryDirectory, { recursive: true, force: true });

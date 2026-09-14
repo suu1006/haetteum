@@ -20,6 +20,7 @@ function harness() {
   });
   const pool = Object.assign(new EventEmitter(), {
     connect: jest.fn(async () => connection),
+    query: jest.fn(async () => ({ rows: [] })),
     end: jest.fn(),
   });
   const config = {
@@ -103,5 +104,25 @@ describe("TourAPI execution policy", () => {
     const work = jest.fn(async () => undefined);
     await expect(policy.batch(work)).rejects.toThrow("BATCH_ALREADY_RUNNING");
     expect(work).not.toHaveBeenCalled();
+  });
+
+  describe("ping", () => {
+    it("resolves when the pool responds before the timeout", async () => {
+      const { policy, pool } = harness();
+      await expect(policy.ping(1000)).resolves.toBeUndefined();
+      expect(pool.query).toHaveBeenCalledWith("SELECT 1");
+    });
+
+    it("rejects when the pool query fails", async () => {
+      const { policy, pool } = harness();
+      pool.query.mockRejectedValueOnce(new Error("connection refused"));
+      await expect(policy.ping(1000)).rejects.toThrow("connection refused");
+    });
+
+    it("rejects when the pool does not respond before the timeout", async () => {
+      const { policy, pool } = harness();
+      pool.query.mockReturnValueOnce(new Promise(() => {}));
+      await expect(policy.ping(5)).rejects.toThrow("timeout of 5ms exceeded");
+    });
   });
 });
