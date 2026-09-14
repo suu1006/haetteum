@@ -25,7 +25,11 @@ export function toChatRequestError(error: unknown): ChatRequestError {
   return new ChatRequestError(502);
 }
 
-export async function readChatStream(response: Response, onText: (text: string) => void) {
+export async function readChatStream(
+  response: Response,
+  onText: (text: string) => void,
+  onMeta?: (conversationId: string) => void,
+) {
   if (!response.ok) {
     if (response.status === 429) {
       const problem = requestErrorSchema.safeParse(await response.json().catch(() => null));
@@ -48,6 +52,10 @@ export async function readChatStream(response: Response, onText: (text: string) 
         buffer = buffer.slice(newline + 1);
         if (!line) continue;
         const event = ChatStreamEventSchema.parse(JSON.parse(line));
+        if (event.type === "meta") {
+          onMeta?.(event.conversationId);
+          continue;
+        }
         if (event.type === "error") throw new ChatRequestError(event.status);
         if (event.type === "done") {
           if (!text.trim()) throw new ChatRequestError(502);
