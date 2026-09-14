@@ -18,7 +18,7 @@ export const ListChatConversationsQuerySchema = z.object({
 export const ChatConversationSummarySchema = z.object({
   id: z.uuid(),
   title: z.string(),
-  updatedAt: z.string().datetime(),
+  updatedAt: z.iso.datetime(),
   preview: z.string(),
 });
 
