@@ -1,3 +1,4 @@
+import { homepageUrl } from "../common/homepage-url.js";
 import { Prisma } from "../generated/prisma/client.js";
 
 import type {
@@ -350,7 +351,7 @@ export function mapPlaceDetail(
     detail.overview = optionalText(item.overview);
   }
   if (item.homepage !== undefined) {
-    detail.homepage = optionalText(item.homepage);
+    detail.homepage = homepageUrl(item.homepage);
   }
 
   return detail;

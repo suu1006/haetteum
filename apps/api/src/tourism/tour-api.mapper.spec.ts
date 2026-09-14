@@ -345,6 +345,24 @@ describe("TourAPI mapper", () => {
     expect(mapPlaceDetail({ contentid: "2704412" })).toEqual({});
   });
 
+  it("extracts a clean homepage URL from an HTML anchor or label-prefixed text", () => {
+    expect(
+      mapPlaceDetail({
+        contentid: "2704412",
+        homepage: '<a href="https://www.ddmac.or.kr/" target="_blank">홈</a>',
+      }),
+    ).toEqual({ homepage: "https://www.ddmac.or.kr/" });
+    expect(
+      mapPlaceDetail({
+        contentid: "2704412",
+        homepage: "연천 문화관광 https://www.yeoncheon.go.kr/tour/",
+      }),
+    ).toEqual({ homepage: "https://www.yeoncheon.go.kr/tour/" });
+    expect(
+      mapPlaceDetail({ contentid: "2704412", homepage: "문화관광" }),
+    ).toEqual({ homepage: null });
+  });
+
   it("maps an atomic place detail bundle without inventing fields", () => {
     const intro: TourApiPlaceIntro = {
       contentid: "2704412",

@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { PlaceDetailResponseSchema } from "@haetteum/contracts";
 
 import { Prisma } from "../generated/prisma/client.js";
 import type { KakaoLocalPlace } from "./kakao-local.client.js";
@@ -144,61 +145,76 @@ describe("PlacesService", () => {
     );
   });
 
-  it("returns one visible place detail from PostgreSQL without provider calls", async () => {
-    const id = "24684077-a907-45c3-85bf-b509dab12377";
-    const findFirst = jest.fn<() => Promise<any>>().mockResolvedValue({
-      id,
-      title: "에버랜드",
-      category1: "VE",
-      category2: null,
-      category3: null,
-      address1: " 경기 용인시 ",
-      address2: null,
-      longitude: new Prisma.Decimal("127.2025"),
-      latitude: new Prisma.Decimal("37.2939"),
-      telephone: null,
-      homepage: null,
-      overview: "테마파크",
-      primaryImageUrl: null,
-      primaryThumbnailUrl: null,
-      imageCopyrightType: null,
-      infoCenter: null,
-      restDate: null,
-      useSeason: null,
-      useTime: "09:00~18:00",
-      parking: "주차 가능",
-      experienceAgeRange: null,
-      experienceGuide: null,
-      babyCarriage: null,
-      creditCard: null,
-      pet: null,
-      detailSyncedAt: new Date("2026-08-26T00:00:00.000Z"),
-      region: { slug: "gyeonggi" },
-      district: { name: "용인시" },
-      images: [
-        {
-          name: "에버랜드 전경",
-          originalUrl: "https://tong.visitkorea.or.kr/image.jpg",
-          thumbnailUrl: null,
-          copyrightType: "Type1",
-        },
-      ],
-      detailInfos: [],
-    });
-    const service = new PlacesService(
-      { place: { findFirst } } as never,
-      { isConfigured: () => false } as never,
-    );
+  it.each([
+    [null, null],
+    [
+      '<a href="https://example.com/" target="_blank">홈페이지</a>',
+      "https://example.com/",
+    ],
+    ["문화관광 https://example.com/", "https://example.com/"],
+    ["홈페이지 없음", null],
+    ["javascript:alert(1)", null],
+  ])(
+    "returns valid detail from stored homepage %s without provider calls",
+    async (homepage, expectedHomepage) => {
+      const id = "24684077-a907-45c3-85bf-b509dab12377";
+      const findFirst = jest.fn<() => Promise<any>>().mockResolvedValue({
+        id,
+        title: "에버랜드",
+        category1: "VE",
+        category2: null,
+        category3: null,
+        address1: " 경기 용인시 ",
+        address2: null,
+        longitude: new Prisma.Decimal("127.2025"),
+        latitude: new Prisma.Decimal("37.2939"),
+        telephone: null,
+        homepage,
+        overview: "테마파크",
+        primaryImageUrl: null,
+        primaryThumbnailUrl: null,
+        imageCopyrightType: null,
+        infoCenter: null,
+        restDate: null,
+        useSeason: null,
+        useTime: "09:00~18:00",
+        parking: "주차 가능",
+        experienceAgeRange: null,
+        experienceGuide: null,
+        babyCarriage: null,
+        creditCard: null,
+        pet: null,
+        detailSyncedAt: new Date("2026-08-26T00:00:00.000Z"),
+        region: { slug: "gyeonggi" },
+        district: { name: "용인시" },
+        images: [
+          {
+            name: "에버랜드 전경",
+            originalUrl: "https://tong.visitkorea.or.kr/image.jpg",
+            thumbnailUrl: null,
+            copyrightType: "Type1",
+          },
+        ],
+        detailInfos: [],
+      });
+      const service = new PlacesService(
+        { place: { findFirst } } as never,
+        { isConfigured: () => false } as never,
+      );
 
-    await expect(service.detail(id)).resolves.toMatchObject({
-      id,
-      title: "에버랜드",
-      region: "gyeonggi",
-      address: "경기 용인시",
-      images: [{ alt: "에버랜드 전경", copyrightType: "Type1" }],
-      introduction: { useTime: "09:00~18:00", parking: "주차 가능" },
-    });
-  });
+      const result = await service.detail(id);
+      expect(PlaceDetailResponseSchema.safeParse(result).success).toBe(true);
+      expect(result.homepage).toBe(expectedHomepage);
+      expect(result).toMatchObject({
+        id,
+        title: "에버랜드",
+        region: "gyeonggi",
+        address: "경기 용인시",
+        images: [{ alt: "에버랜드 전경", copyrightType: "Type1" }],
+        introduction: { useTime: "09:00~18:00", parking: "주차 가능" },
+      });
+    },
+  );
 
   it("isolates an unconfigured Kakao provider from the nearby response", async () => {
     const findFirst = jest.fn<() => Promise<any>>().mockResolvedValue({

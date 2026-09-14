@@ -11,6 +11,7 @@ import type {
 
 import type { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { homepageUrl } from "../common/homepage-url.js";
 import { TtlCache } from "../common/cache/ttl-cache.js";
 import {
   KAKAO_LOCAL_PORT,
@@ -134,7 +135,7 @@ export class PlacesService {
       longitude: place.longitude?.toNumber() ?? null,
       latitude: place.latitude?.toNumber() ?? null,
       telephone: optionalText(place.telephone),
-      homepage: optionalText(place.homepage),
+      homepage: homepageUrl(place.homepage),
       overview: optionalText(place.overview),
       images,
       introduction: {
