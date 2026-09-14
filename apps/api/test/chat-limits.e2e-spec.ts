@@ -419,6 +419,28 @@ it("retries a refunded request once and rejects a changed payload for its ID", a
     .expect(409);
 });
 
+it("accepts a retry that carries the conversation id revealed by the failed attempt", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  failProvider = true;
+  partialBeforeFailure = true;
+  const failed = await send(true, "valid").send(payload).expect(201);
+  const meta = JSON.parse(failed.text.trim().split("\n")[0]) as {
+    type: string;
+    conversationId: string;
+  };
+  expect(meta.type).toBe("meta");
+  failProvider = false;
+  partialBeforeFailure = false;
+
+  // 클라이언트는 meta로 알게 된 대화 ID를 붙여 같은 requestId로 재시도한다.
+  const retry = await send(true, "valid")
+    .send({ ...payload, conversationId: meta.conversationId })
+    .expect(201);
+
+  expect(retry.text).toContain('"type":"done"');
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+});
+
 it("admits only one simultaneous request for an ID", async () => {
   const payload = { ...body, requestId: randomUUID() };
   const results = await Promise.all(

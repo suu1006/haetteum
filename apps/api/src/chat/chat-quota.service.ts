@@ -74,12 +74,7 @@ export class ChatQuotaService {
     const requestId = (request.requestId ?? randomUUID()).toLowerCase();
     const attemptId = randomUUID();
     const payloadHash = createHash("sha256")
-      .update(
-        JSON.stringify({
-          conversationId: request.conversationId ?? null,
-          messages: request.messages,
-        }),
-      )
+      .update(JSON.stringify(request.messages))
       .digest("hex");
     return this.prisma.$transaction(async (tx) => {
       // Transaction-scoped lock serializes the same logical request across instances.

@@ -60,10 +60,24 @@ export class ChatConversationService {
     userContent: string,
     assistantReply: string,
   ): Promise<void> {
+    // 같은 밀리초에 두 행이 들어가면 목록 미리보기가 어느 쪽을 고를지 알 수 없어
+    // 저장 시각을 명시적으로 1ms 벌려 둔다.
+    const userCreatedAt = new Date();
+    const assistantCreatedAt = new Date(userCreatedAt.getTime() + 1);
     await tx.chatMessage.createMany({
       data: [
-        { conversationId, role: "user", content: userContent },
-        { conversationId, role: "assistant", content: assistantReply },
+        {
+          conversationId,
+          role: "user",
+          content: userContent,
+          createdAt: userCreatedAt,
+        },
+        {
+          conversationId,
+          role: "assistant",
+          content: assistantReply,
+          createdAt: assistantCreatedAt,
+        },
       ],
     });
     await tx.chatConversation.update({
@@ -81,7 +95,7 @@ export class ChatConversationService {
   }> {
     const offset = cursor ?? 0;
     const conversations = await this.prisma.chatConversation.findMany({
-      where: { userId },
+      where: { userId, messages: { some: {} } },
       orderBy: { updatedAt: "desc" },
       skip: offset,
       take: limit + 1,

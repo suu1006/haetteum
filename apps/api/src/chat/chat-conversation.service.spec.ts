@@ -99,14 +99,43 @@ describe("ChatConversationService.appendExchange", () => {
 
     expect(tx.chatMessage.createMany).toHaveBeenCalledWith({
       data: [
-        { conversationId: CONVERSATION_ID, role: "user", content: "질문" },
-        { conversationId: CONVERSATION_ID, role: "assistant", content: "답변" },
+        {
+          conversationId: CONVERSATION_ID,
+          role: "user",
+          content: "질문",
+          createdAt: expect.any(Date) as Date,
+        },
+        {
+          conversationId: CONVERSATION_ID,
+          role: "assistant",
+          content: "답변",
+          createdAt: expect.any(Date) as Date,
+        },
       ],
     });
     expect(tx.chatConversation.update).toHaveBeenCalledWith({
       where: { id: CONVERSATION_ID },
       data: { updatedAt: expect.any(Date) as Date },
     });
+  });
+
+  it("orders the assistant reply strictly after the user question", async () => {
+    const tx = txMock();
+    const service = new ChatConversationService({} as never);
+
+    await service.appendExchange(tx as never, CONVERSATION_ID, "질문", "답변");
+
+    const { data } = (
+      tx.chatMessage.createMany.mock.calls[0] as [
+        { data: { role: string; createdAt: Date }[] },
+      ]
+    )[0];
+    const [userRow, assistantRow] = data;
+    expect(userRow.role).toBe("user");
+    expect(assistantRow.role).toBe("assistant");
+    expect(assistantRow.createdAt.getTime()).toBeGreaterThan(
+      userRow.createdAt.getTime(),
+    );
   });
 });
 
@@ -138,8 +167,29 @@ describe("ChatConversationService.listForUser", () => {
     ]);
     expect(result.nextCursor).toBe(1);
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: USER_ID }, skip: 0, take: 2 }),
+      expect.objectContaining({
+        where: { userId: USER_ID, messages: { some: {} } },
+        skip: 0,
+        take: 2,
+      }),
     );
+  });
+
+  it("excludes conversations that have no messages yet", async () => {
+    const findMany = jest
+      .fn<(...args: unknown[]) => Promise<unknown[]>>()
+      .mockResolvedValue([]);
+    const service = new ChatConversationService({
+      chatConversation: { findMany },
+    } as never);
+
+    await service.listForUser(USER_ID, { limit: 12 });
+
+    const [args] = findMany.mock.calls[0] as [{ where: unknown }];
+    expect(args.where).toEqual({
+      userId: USER_ID,
+      messages: { some: {} },
+    });
   });
 
   it("returns a null nextCursor on the last page", async () => {

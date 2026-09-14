@@ -285,6 +285,8 @@ it("lists conversations newest-first with a preview and pagination", async () =>
     (await get("/conversations?limit=2", "user-a").expect(200)).body,
   );
   expect(page1.items.map((i) => i.title)).toEqual(["세번째", "두번째"]);
+  // 미리보기는 항상 사용자의 질문이 아니라 마지막 답변이어야 한다.
+  expect(page1.items.map((i) => i.preview)).toEqual(["추천", "추천"]);
   expect(page1.nextCursor).toBe(2);
   const page2 = ChatConversationListResponseSchema.parse(
     (
@@ -296,6 +298,22 @@ it("lists conversations newest-first with a preview and pagination", async () =>
   );
   expect(page2.items.map((i) => i.title)).toEqual(["첫번째"]);
   expect(page2.nextCursor).toBeNull();
+});
+
+it("hides conversations that never received a message", async () => {
+  // 첫 요청이 실패하면 제목만 있는 빈 대화가 남는다.
+  await prisma.chatConversation.create({
+    data: { userId: USER_A, title: "실패한 첫 질문" },
+  });
+  await send(true, "user-a")
+    .send({ messages: [{ role: "user", content: "서울 여행" }] })
+    .expect(201);
+
+  const list = ChatConversationListResponseSchema.parse(
+    (await get("/conversations", "user-a").expect(200)).body,
+  );
+
+  expect(list.items.map((i) => i.title)).toEqual(["서울 여행"]);
 });
 
 it("returns a conversation's messages for its owner and 404 for another user", async () => {
