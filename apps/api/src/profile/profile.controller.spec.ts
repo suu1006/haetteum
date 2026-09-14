@@ -6,13 +6,13 @@ import {
   VERSION_METADATA,
 } from "@nestjs/common/constants.js";
 import { jest } from "@jest/globals";
-import type { Request } from "express";
 
 import type { AuthUser } from "@haetteum/contracts";
 
 import { SameOriginGuard } from "../auth/same-origin.guard.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import { ProfileController } from "./profile.controller.js";
+import type { ProfilePhotoStorageService } from "./profile-photo-storage.service.js";
 import type { ProfileService } from "./profile.service.js";
 
 const currentUser: AuthUser = {
@@ -21,13 +21,6 @@ const currentUser: AuthUser = {
   profileImageUrl: null,
   provider: "KAKAO",
 };
-
-function fakeRequest(): Request {
-  return {
-    protocol: "http",
-    get: (name: string) => (name === "host" ? "localhost:4000" : undefined),
-  } as unknown as Request;
-}
 
 function handler(
   method: keyof ProfileController,
@@ -60,10 +53,19 @@ function createController(options?: {
     updatePhoto,
   } as unknown as ProfileService;
 
+  const store = jest
+    .fn<() => Promise<{ profileImageUrl: string }>>()
+    .mockResolvedValue({
+      profileImageUrl:
+        "http://localhost:4001/api/v1/images/22222222-2222-4222-8222-222222222222",
+    });
+  const photoStorage = { store } as unknown as ProfilePhotoStorageService;
+
   return {
-    controller: new ProfileController(profile),
+    controller: new ProfileController(profile, photoStorage),
     updatePreferences,
     updatePhoto,
+    store,
   };
 }
 
@@ -90,23 +92,23 @@ describe("ProfileController", () => {
     const { controller } = createController();
 
     await expect(
-      controller.uploadPhoto(currentUser, undefined, fakeRequest()),
+      controller.uploadPhoto(currentUser, undefined),
     ).rejects.toThrow(BadRequestException);
   });
 
   it("uploads a photo and persists the absolute URL for the current user", async () => {
-    const { controller, updatePhoto } = createController();
+    const { controller, store } = createController();
     const file = {
-      filename: "22222222-2222-4222-8222-222222222222.jpg",
+      buffer: Buffer.from("fake-image-bytes"),
+      mimetype: "image/jpeg",
+      originalname: "photo.jpg",
     } as Express.Multer.File;
 
-    await expect(
-      controller.uploadPhoto(currentUser, file, fakeRequest()),
-    ).resolves.toEqual({ profileImageUrl: "http://localhost:4000/x.jpg" });
-    expect(updatePhoto).toHaveBeenCalledWith(
-      currentUser.id,
-      "http://localhost:4000/uploads/profile-photos/22222222-2222-4222-8222-222222222222.jpg",
-    );
+    await expect(controller.uploadPhoto(currentUser, file)).resolves.toEqual({
+      profileImageUrl:
+        "http://localhost:4001/api/v1/images/22222222-2222-4222-8222-222222222222",
+    });
+    expect(store).toHaveBeenCalledWith(currentUser.id, file);
   });
 
   it("registers exact versioned routes and guards", () => {

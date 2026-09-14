@@ -188,3 +188,10 @@ export {
   type WeeklyPlaceItem,
   type WeeklyRecommendationsResponse,
 } from "./weekly-recommendations.js";
+
+export {
+  ReviewReportRequestSchema,
+  BlockedUsersResponseSchema,
+  type ReviewReportRequest,
+  type BlockedUsersResponse,
+} from "./review-moderation.js";

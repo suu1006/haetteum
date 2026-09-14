@@ -1,3 +1,10 @@
+import { ImagesModule } from "../images/images.module.js";
+import {
+  ReviewModerationController,
+  UserBlocksController,
+} from "./review-moderation.controller.js";
+import { ReviewModerationService } from "./review-moderation.service.js";
+import { OptionalSessionGuard } from "./optional-session.guard.js";
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
@@ -7,12 +14,14 @@ import { ReviewsController } from "./reviews.controller.js";
 import { ReviewsService } from "./reviews.service.js";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ImagesModule],
   controllers: [
+    ReviewModerationController,
+    UserBlocksController,
     PlaceReviewsController,
     ReviewImagesController,
     ReviewsController,
   ],
-  providers: [ReviewsService],
+  providers: [ReviewsService, ReviewModerationService, OptionalSessionGuard],
 })
 export class ReviewsModule {}

@@ -87,19 +87,34 @@ export class AuthService {
         profileImageUrl: identity.profileImageUrl,
         lastLoginAt,
       };
-      const user = await this.prisma.user.upsert({
-        where: {
-          provider_providerUserId: {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const persisted = await tx.user.upsert({
+          where: {
+            provider_providerUserId: {
+              provider: "KAKAO",
+              providerUserId: identity.providerUserId,
+            },
+          },
+          create: {
             provider: "KAKAO",
             providerUserId: identity.providerUserId,
+            ...profile,
           },
-        },
-        create: {
-          provider: "KAKAO",
-          providerUserId: identity.providerUserId,
-          ...profile,
-        },
-        update: profile,
+          update: { displayName: identity.displayName, lastLoginAt },
+        });
+        // The upsert holds the user row lock until commit, including during concurrent uploads.
+        if (!persisted.profileImageId) {
+          await tx.user.updateMany({
+            where: { id: persisted.id, profileImageId: null },
+            data: { profileImageUrl: identity.profileImageUrl },
+          });
+        }
+        return {
+          ...persisted,
+          profileImageUrl: persisted.profileImageId
+            ? persisted.profileImageUrl
+            : identity.profileImageUrl,
+        };
       });
       const session = await this.sessions.create(user.id);
 

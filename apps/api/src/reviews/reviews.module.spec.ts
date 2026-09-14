@@ -1,3 +1,10 @@
+import { ImagesModule } from "../images/images.module.js";
+import {
+  ReviewModerationController,
+  UserBlocksController,
+} from "./review-moderation.controller.js";
+import { ReviewModerationService } from "./review-moderation.service.js";
+import { OptionalSessionGuard } from "./optional-session.guard.js";
 import { MODULE_METADATA } from "@nestjs/common/constants.js";
 
 import { AppModule } from "../app.module.js";
@@ -13,15 +20,17 @@ describe("ReviewsModule", () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, ReviewsModule),
     ).toEqual([
+      ReviewModerationController,
+      UserBlocksController,
       PlaceReviewsController,
       ReviewImagesController,
       ReviewsController,
     ]);
     expect(
       Reflect.getMetadata(MODULE_METADATA.PROVIDERS, ReviewsModule),
-    ).toEqual([ReviewsService]);
+    ).toEqual([ReviewsService, ReviewModerationService, OptionalSessionGuard]);
     expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, ReviewsModule)).toEqual(
-      [AuthModule],
+      [AuthModule, ImagesModule],
     );
   });
 

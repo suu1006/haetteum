@@ -5,17 +5,26 @@ import {
   GUARDS_METADATA,
 } from "@nestjs/common/constants.js";
 import { BadRequestException, RequestMethod } from "@nestjs/common";
-import type { Request } from "express";
+import { jest } from "@jest/globals";
+import type { ImagesService } from "../images/images.service.js";
+import type { AuthUser } from "@haetteum/contracts";
 
 import { SameOriginGuard } from "../auth/same-origin.guard.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import { ReviewImagesController } from "./review-images.controller.js";
 
-function fakeRequest(): Request {
+const user = { id: "10000000-0000-4000-8000-000000000001" } as AuthUser;
+function setup() {
+  const store = jest.fn<ImagesService["store"]>().mockResolvedValue({
+    id: "id",
+    url: "http://localhost:4001/api/v1/images/id",
+  });
   return {
-    protocol: "http",
-    get: (name: string) => (name === "host" ? "localhost:4000" : undefined),
-  } as unknown as Request;
+    controller: new ReviewImagesController({
+      store,
+    } as unknown as ImagesService),
+    store,
+  };
 }
 
 describe("ReviewImagesController", () => {
@@ -40,22 +49,19 @@ describe("ReviewImagesController", () => {
     );
   });
 
-  it("rejects the request when no file was uploaded", () => {
-    const controller = new ReviewImagesController();
-
-    expect(() => controller.upload(undefined, fakeRequest())).toThrow(
+  it("rejects the request when no file was uploaded", async () => {
+    const { controller } = setup();
+    await expect(controller.upload(undefined, user)).rejects.toThrow(
       BadRequestException,
     );
   });
 
-  it("returns an absolute URL built from the request origin and stored filename", () => {
-    const controller = new ReviewImagesController();
-    const file = {
-      filename: "11111111-1111-4111-8111-111111111111.jpg",
-    } as Express.Multer.File;
-
-    expect(controller.upload(file, fakeRequest())).toEqual({
-      url: "http://localhost:4000/uploads/reviews/11111111-1111-4111-8111-111111111111.jpg",
+  it("uses the authenticated owner and returns the stored image URL", async () => {
+    const { controller, store } = setup();
+    const file = { buffer: Buffer.from("image") } as Express.Multer.File;
+    await expect(controller.upload(file, user)).resolves.toEqual({
+      url: "http://localhost:4001/api/v1/images/id",
     });
+    expect(store).toHaveBeenCalledWith(user.id, file, "REVIEW");
   });
 });

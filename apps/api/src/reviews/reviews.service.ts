@@ -1,3 +1,4 @@
+import { ImagesService } from "../images/images.service.js";
 import { unlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -48,6 +49,7 @@ export const REVIEW_SELECT = {
 
 export const PLACE_REVIEW_SELECT = {
   id: true,
+  userId: true,
   rating: true,
   content: true,
   createdAt: true,
@@ -64,7 +66,10 @@ const RATING_SCORES = [5, 4, 3, 2, 1] as const;
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly images: ImagesService,
+  ) {}
 
   async listMine(userId: string): Promise<MyReviewsResponse> {
     const rows = await this.prisma.review.findMany({
@@ -80,7 +85,10 @@ export class ReviewsService {
    * 관광지 상세 후기 탭이 쓰는 공개 목록이다.
    * 로그인 없이 열람할 수 있어야 하므로 작성자는 표시 이름과 프로필 이미지만 노출한다.
    */
-  async listForPlace(placeId: string): Promise<PlaceReviewsResponse> {
+  async listForPlace(
+    placeId: string,
+    viewerId?: string,
+  ): Promise<PlaceReviewsResponse> {
     const place = await this.prisma.place.findUnique({
       where: { id: placeId, isVisible: true },
       select: { id: true },
@@ -92,15 +100,21 @@ export class ReviewsService {
       });
     }
 
+    const where: Prisma.ReviewWhereInput = {
+      placeId,
+      ...(viewerId
+        ? { user: { blockedBy: { none: { blockerId: viewerId } } } }
+        : {}),
+    };
     const [rows, grouped] = await Promise.all([
       this.prisma.review.findMany({
-        where: { placeId },
+        where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: PLACE_REVIEW_SELECT,
       }),
       this.prisma.review.groupBy({
         by: ["rating"],
-        where: { placeId },
+        where,
         _count: { _all: true },
       }),
     ]);
@@ -128,7 +142,14 @@ export class ReviewsService {
           ? null
           : Math.round((ratingTotal / reviewCount) * 10) / 10,
       ratingDistribution,
-      items: rows.map(mapPlaceReviewRow),
+      items: rows.map((row) => ({
+        ...mapPlaceReviewRow(row),
+        moderation: viewerId
+          ? row.userId === viewerId
+            ? ("own" as const)
+            : ("available" as const)
+          : ("login-required" as const),
+      })),
     };
   }
 
@@ -162,6 +183,10 @@ export class ReviewsService {
       });
     }
 
+    const attachments = await this.images.reviewAttachments(
+      userId,
+      input.images,
+    );
     try {
       return mapReviewRow(
         await this.prisma.review.create({
@@ -172,10 +197,7 @@ export class ReviewsService {
             title: input.title,
             content: input.content,
             images: {
-              create: input.images.map((url, index) => ({
-                url,
-                sortOrder: index,
-              })),
+              create: attachments,
             },
           },
           select: REVIEW_SELECT,
@@ -203,7 +225,7 @@ export class ReviewsService {
   ): Promise<ReviewItem> {
     const existingReview = await this.prisma.review.findFirst({
       where: { id: reviewId, userId },
-      select: { images: { select: { url: true } } },
+      select: { images: { select: { url: true, uploadedImageId: true } } },
     });
     if (existingReview === null) {
       throw new NotFoundException({
@@ -212,6 +234,11 @@ export class ReviewsService {
       });
     }
 
+    const attachments = await this.images.reviewAttachments(
+      userId,
+      input.images,
+      existingReview.images,
+    );
     const updated = mapReviewRow(
       await this.prisma.review.update({
         where: { id: reviewId, userId },
@@ -221,24 +248,25 @@ export class ReviewsService {
           content: input.content,
           images: {
             deleteMany: {},
-            create: input.images.map((url, index) => ({
-              url,
-              sortOrder: index,
-            })),
+            create: attachments,
           },
         },
         select: REVIEW_SELECT,
       }),
     );
 
-    await deleteUploadedImages(existingReview.images.map((image) => image.url));
+    await deleteUploadedImages(
+      existingReview.images
+        .filter((image) => !input.images.includes(image.url))
+        .map((image) => image.url),
+    );
     return updated;
   }
 
   async remove(userId: string, reviewId: string): Promise<void> {
     const existingReview = await this.prisma.review.findFirst({
       where: { id: reviewId, userId },
-      select: { images: { select: { url: true } } },
+      select: { images: { select: { url: true, uploadedImageId: true } } },
     });
     await this.prisma.review.deleteMany({ where: { id: reviewId, userId } });
     if (existingReview !== null) {

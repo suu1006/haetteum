@@ -1,4 +1,8 @@
 import { ConflictException, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { ImagesService } from "../images/images.service.js";
+import { ImageProcessor } from "../images/image-processor.js";
+import type { PrismaService } from "../prisma/prisma.service.js";
 import { jest } from "@jest/globals";
 
 import type {
@@ -21,7 +25,9 @@ const createInput: CreateReviewRequest = {
   rating: 5,
   title: "다시 오고 싶어요",
   content: "다시 방문하고 싶은 곳이에요.",
-  images: ["https://example.test/uploads/reviews/photo-1.jpg"],
+  images: [
+    "http://localhost:4001/api/v1/images/40000000-0000-4000-8000-000000000001",
+  ],
 };
 const updateInput: UpdateReviewRequest = {
   rating: 4,
@@ -55,7 +61,7 @@ describe("ReviewsService", () => {
     const findMany = jest
       .fn<() => Promise<(typeof row)[]>>()
       .mockResolvedValue([row]);
-    const service = new ReviewsService({ review: { findMany } } as never);
+    const service = createService({ review: { findMany } } as never);
 
     await expect(service.listMine(USER_ID)).resolves.toEqual({
       items: [
@@ -86,7 +92,7 @@ describe("ReviewsService", () => {
     const findMany = jest
       .fn<() => Promise<(typeof row)[]>>()
       .mockResolvedValue([row]);
-    const service = new ReviewsService({ review: { findMany } } as never);
+    const service = createService({ review: { findMany } } as never);
 
     await expect(service.listMine(USER_ID)).resolves.toMatchObject({
       items: [{ location: "경기" }],
@@ -98,7 +104,7 @@ describe("ReviewsService", () => {
     const findFirst = jest
       .fn<() => Promise<typeof row | null>>()
       .mockResolvedValue(row);
-    const service = new ReviewsService({ review: { findFirst } } as never);
+    const service = createService({ review: { findFirst } } as never);
 
     await expect(service.findMine(USER_ID, REVIEW_ID)).resolves.toMatchObject({
       id: REVIEW_ID,
@@ -114,7 +120,7 @@ describe("ReviewsService", () => {
 
   it("hides a missing or foreign review behind the same safe 404", async () => {
     const findFirst = jest.fn<() => Promise<null>>().mockResolvedValue(null);
-    const service = new ReviewsService({ review: { findFirst } } as never);
+    const service = createService({ review: { findFirst } } as never);
 
     await expect(service.findMine(USER_ID, REVIEW_ID)).rejects.toEqual(
       new NotFoundException({
@@ -125,14 +131,14 @@ describe("ReviewsService", () => {
   });
 
   it("creates a review for a visible place with the passed user as owner", async () => {
-    const row = reviewRow();
+    const row = { ...reviewRow(), images: [{ url: createInput.images[0] }] };
     const placeFindUnique = jest
       .fn<() => Promise<{ id: string } | null>>()
       .mockResolvedValue({ id: PLACE_ID });
     const reviewCreate = jest
       .fn<() => Promise<typeof row>>()
       .mockResolvedValue(row);
-    const service = new ReviewsService({
+    const service = createService({
       place: { findUnique: placeFindUnique },
       review: { create: reviewCreate },
     } as never);
@@ -143,7 +149,9 @@ describe("ReviewsService", () => {
       rating: 5,
       title: "다시 오고 싶어요",
       content: "다시 방문하고 싶은 곳이에요.",
-      images: ["https://example.test/uploads/reviews/photo-1.jpg"],
+      images: [
+        "http://localhost:4001/api/v1/images/40000000-0000-4000-8000-000000000001",
+      ],
     });
     expect(placeFindUnique).toHaveBeenCalledWith({
       where: { id: createInput.placeId, isVisible: true },
@@ -159,8 +167,9 @@ describe("ReviewsService", () => {
         images: {
           create: [
             {
-              url: "https://example.test/uploads/reviews/photo-1.jpg",
+              url: "http://localhost:4001/api/v1/images/40000000-0000-4000-8000-000000000001",
               sortOrder: 0,
+              uploadedImageId: "40000000-0000-4000-8000-000000000001",
             },
           ],
         },
@@ -174,7 +183,7 @@ describe("ReviewsService", () => {
       .fn<() => Promise<null>>()
       .mockResolvedValue(null);
     const reviewCreate = jest.fn();
-    const service = new ReviewsService({
+    const service = createService({
       place: { findUnique: placeFindUnique },
       review: { create: reviewCreate },
     } as never);
@@ -199,7 +208,7 @@ describe("ReviewsService", () => {
     const reviewCreate = jest
       .fn<() => Promise<never>>()
       .mockRejectedValue(duplicateError);
-    const service = new ReviewsService({
+    const service = createService({
       place: { findUnique: placeFindUnique },
       review: { create: reviewCreate },
     } as never);
@@ -223,7 +232,7 @@ describe("ReviewsService", () => {
     const reviewCreate = jest
       .fn<() => Promise<never>>()
       .mockRejectedValue(originalError);
-    const service = new ReviewsService({
+    const service = createService({
       place: { findUnique: placeFindUnique },
       review: { create: reviewCreate },
     } as never);
@@ -243,7 +252,7 @@ describe("ReviewsService", () => {
     const reviewUpdate = jest
       .fn<() => Promise<typeof row>>()
       .mockResolvedValue(row);
-    const service = new ReviewsService({
+    const service = createService({
       review: { findFirst, update: reviewUpdate },
     } as never);
 
@@ -257,7 +266,7 @@ describe("ReviewsService", () => {
     });
     expect(findFirst).toHaveBeenCalledWith({
       where: { id: REVIEW_ID, userId: USER_ID },
-      select: { images: { select: { url: true } } },
+      select: { images: { select: { url: true, uploadedImageId: true } } },
     });
     expect(reviewUpdate).toHaveBeenCalledWith({
       where: { id: REVIEW_ID, userId: USER_ID },
@@ -274,7 +283,7 @@ describe("ReviewsService", () => {
   it("hides a missing or foreign review before attempting an update", async () => {
     const findFirst = jest.fn<() => Promise<null>>().mockResolvedValue(null);
     const reviewUpdate = jest.fn();
-    const service = new ReviewsService({
+    const service = createService({
       review: { findFirst, update: reviewUpdate },
     } as never);
 
@@ -296,7 +305,7 @@ describe("ReviewsService", () => {
     const deleteMany = jest
       .fn<() => Promise<{ count: number }>>()
       .mockResolvedValue({ count: 1 });
-    const service = new ReviewsService({
+    const service = createService({
       review: { findFirst, deleteMany },
     } as never);
 
@@ -324,7 +333,7 @@ describe("ReviewsService.listForPlace", () => {
   }
 
   it("throws when the place is missing or hidden", async () => {
-    const service = new ReviewsService({
+    const service = createService({
       place: {
         findUnique: jest.fn<() => Promise<null>>().mockResolvedValue(null),
       },
@@ -336,7 +345,7 @@ describe("ReviewsService.listForPlace", () => {
   });
 
   it("returns an empty summary with a null average when no review exists", async () => {
-    const service = new ReviewsService({
+    const service = createService({
       place: {
         findUnique: jest
           .fn<() => Promise<unknown>>()
@@ -367,7 +376,7 @@ describe("ReviewsService.listForPlace", () => {
     const findMany = jest
       .fn<() => Promise<unknown[]>>()
       .mockResolvedValue([placeReviewRow(5), placeReviewRow(4, "haetteum")]);
-    const service = new ReviewsService({
+    const service = createService({
       place: {
         findUnique: jest
           .fn<() => Promise<unknown>>()
@@ -394,6 +403,7 @@ describe("ReviewsService.listForPlace", () => {
       { score: 1, count: 0 },
     ]);
     expect(result.items[0]).toEqual({
+      moderation: "login-required",
       id: REVIEW_ID,
       rating: 5,
       content: "분단의 현실이 실감나는 곳이었어요.",
@@ -418,3 +428,18 @@ describe("ReviewsService.listForPlace", () => {
     });
   });
 });
+
+function createService(prisma: PrismaService): ReviewsService {
+  const imagePrisma = {
+    uploadedImage: {
+      findFirst: () =>
+        Promise.resolve({ id: "40000000-0000-4000-8000-000000000001" }),
+    },
+  } as unknown as PrismaService;
+  const images = new ImagesService(
+    imagePrisma,
+    new ImageProcessor(),
+    new ConfigService({ NODE_ENV: "test", API_PORT: 4001 }) as never,
+  );
+  return new ReviewsService(prisma, images);
+}

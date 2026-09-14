@@ -54,6 +54,7 @@ export const PlaceReviewAuthorSchema = z.object({
 });
 
 export const PlaceReviewItemSchema = z.object({
+  moderation: z.enum(["available", "own", "login-required"]).optional(),
   id: z.string().uuid(),
   rating: RatingSchema,
   content: ReviewContentSchema,

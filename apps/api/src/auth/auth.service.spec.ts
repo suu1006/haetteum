@@ -79,8 +79,20 @@ function createService(options?: {
     .mockResolvedValue(options?.verifyPassword ?? true);
 
   const kakao = { exchangeCode, getUser } as unknown as KakaoAuthClient;
+  const tx = {
+    user: {
+      upsert,
+      findUnique,
+      update,
+      updateMany: jest
+        .fn<() => Promise<{ count: number }>>()
+        .mockResolvedValue({ count: 1 }),
+    },
+  };
   const prisma = {
-    user: { upsert, findUnique, update },
+    ...tx,
+    $transaction: (callback: (transaction: typeof tx) => Promise<unknown>) =>
+      callback(tx),
   } as unknown as PrismaService;
   const sessions = { create } as unknown as SessionService;
   const passwords = { verify } as unknown as PasswordHasher;
@@ -133,7 +145,6 @@ describe("AuthService", () => {
       },
       update: {
         displayName: "해뜸 여행자",
-        profileImageUrl: "https://cdn.example.test/profile.jpg",
         lastLoginAt: now,
       },
     });
@@ -153,7 +164,6 @@ describe("AuthService", () => {
       expect.objectContaining({
         update: {
           displayName: "해뜸 여행자",
-          profileImageUrl: "https://cdn.example.test/profile.jpg",
           lastLoginAt: now,
         },
       }),
@@ -161,7 +171,7 @@ describe("AuthService", () => {
     expect(result.user).toEqual({
       id: userId,
       displayName: "새 카카오 닉네임",
-      profileImageUrl: null,
+      profileImageUrl: identity.profileImageUrl,
       provider: "KAKAO",
     });
   });

@@ -36,7 +36,7 @@ describe("PlaceReviewsController", () => {
     const controller = new PlaceReviewsController(reviews as never);
 
     await expect(controller.forPlace(PLACE_ID)).resolves.toEqual(response);
-    expect(reviews.listForPlace).toHaveBeenCalledWith(PLACE_ID);
+    expect(reviews.listForPlace).toHaveBeenCalledWith(PLACE_ID, undefined);
   });
 
   it("exposes a versioned GET route keyed by place id", () => {

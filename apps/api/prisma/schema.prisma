@@ -181,6 +181,9 @@ model Place {
 }
 
 model User {
+  profileImageId    String? @map("profile_image_id") @db.Uuid
+  profileImage      UploadedImage? @relation("ProfileImage", fields: [profileImageId], references: [id], onDelete: SetNull)
+  uploadedImages    UploadedImage[] @relation("ImageOwner")
   id                String    @id @default(uuid()) @db.Uuid
   provider          String    @db.VarChar(32)
   providerUserId    String    @map("provider_user_id") @db.VarChar(191)
@@ -198,12 +201,16 @@ model User {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  reports      ReviewReport[]
+  blocks       UserBlock[]     @relation("Blocker")
+  blockedBy    UserBlock[]     @relation("BlockedUser")
   reviews      Review[]
   sessions     Session[]
   favorites    PlaceFavorite[]
   savedCourses SavedCourse[]
 
   @@unique([provider, providerUserId])
+  @@index([profileImageId])
   @@map("users")
 }
 
@@ -253,9 +260,10 @@ model Review {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  place  Place         @relation(fields: [placeId], references: [id], onDelete: Restrict)
-  images ReviewImage[]
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place   Place          @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  images  ReviewImage[]
+  reports ReviewReport[]
 
   @@unique([userId, placeId])
   @@index([userId, updatedAt])
@@ -265,6 +273,8 @@ model Review {
 
 /// 후기에 첨부된 사진 (최대 5장, 작성 순서대로 sortOrder 저장)
 model ReviewImage {
+  uploadedImageId String? @map("uploaded_image_id") @db.Uuid
+  uploadedImage UploadedImage? @relation(fields: [uploadedImageId], references: [id], onDelete: Restrict)
   id        String   @id @default(uuid()) @db.Uuid
   reviewId  String   @map("review_id") @db.Uuid
   url       String   @db.Text
@@ -274,6 +284,7 @@ model ReviewImage {
   review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@index([reviewId, sortOrder])
+  @@index([uploadedImageId])
   @@map("review_images")
 }
 
@@ -805,4 +816,55 @@ model TourApiDailyUsage {
   calls Int
   lastStartedAt DateTime @map("last_started_at") @db.Timestamptz(3)
   @@map("tour_api_daily_usage")
+}
+
+/// A report never automatically hides a public review. Preserve evidence if the review is deleted.
+model ReviewReport {
+  reviewIdSnapshot String @map("review_id_snapshot") @db.Uuid
+  authorIdSnapshot String @map("author_id_snapshot") @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  reporterId      String   @map("reporter_id") @db.Uuid
+  reviewId        String?  @map("review_id") @db.Uuid
+  reason          String   @db.VarChar(32)
+  details         String   @db.VarChar(1000)
+  status          String   @default("PENDING") @db.VarChar(32)
+  contentSnapshot String   @map("content_snapshot") @db.VarChar(500)
+  titleSnapshot   String   @map("title_snapshot") @db.VarChar(30)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  reporter        User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  review          Review?  @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+
+  @@unique([reporterId, reviewId])
+  @@index([status, createdAt])
+  @@map("review_reports")
+}
+
+model UserBlock {
+  blockerId     String   @map("blocker_id") @db.Uuid
+  blockedUserId String   @map("blocked_user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  blocker       User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser   User     @relation("BlockedUser", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedUserId])
+  @@index([blockedUserId])
+  @@map("user_blocks")
+}
+
+/// Validated, immutable WebP bytes uploaded by a user. Never select data in list queries.
+model UploadedImage {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  purpose String @db.VarChar(16)
+  data Bytes @db.ByteA
+  width Int
+  height Int
+  byteSize Int @map("byte_size")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  owner User @relation("ImageOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  profiles User[] @relation("ProfileImage")
+  reviewImages ReviewImage[]
+
+  @@index([ownerId, createdAt])
+  @@map("uploaded_images")
 }
