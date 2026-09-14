@@ -16,6 +16,7 @@ export const ChatMessageSchema = z.object({
 
 export const ChatRequestSchema = z.object({
   requestId: z.uuid().optional(),
+  conversationId: z.uuid().optional(),
   messages: z.array(ChatMessageSchema).min(1).max(101).refine(
     (messages) => messages.length % 2 === 1 && messages.every((message, index) => message.role === (index % 2 === 0 ? "user" : "assistant")),
     "대화는 사용자 질문과 답변이 번갈아 나오고 사용자 질문으로 끝나야 합니다.",
@@ -25,6 +26,7 @@ export const ChatRequestSchema = z.object({
 export const ChatResponseSchema = z.object({
   status: z.literal("ready"),
   reply: z.string(),
+  conversationId: z.uuid(),
 });
 
 export type ChatMessageRole = z.infer<typeof ChatMessageRoleSchema>;
