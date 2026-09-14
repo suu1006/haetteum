@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeftIcon, ArrowUpIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowUpIcon, HistoryIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { CHAT_MAX_QUESTION_CHARS, selectChatContext, type ChatMessage } from "@haetteum/contracts";
 
+import { ChatHistoryPanel } from "@/features/chat/chat-history-panel";
+import { getChatConversationMessages } from "@/features/chat/chat-history-api";
 import { ChatRequestError, readChatStream, toChatRequestError } from "@/features/chat/read-chat-stream";
 
 import { createSmoothChatText } from "@/features/chat/smooth-chat-text";
@@ -29,6 +31,8 @@ export default function ChatPage() {
   const requestAbort = useRef<AbortController | null>(null);
   const retryMessages = useRef<ChatMessage[]>([]);
   const retryRequestId = useRef<string | undefined>(undefined);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const activeConversationId = useRef<string | undefined>(undefined);
 
   useEffect(() => () => requestAbort.current?.abort(), []);
 
@@ -60,10 +64,16 @@ export default function ChatPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, messages: selectChatContext(nextMessages) }),
+        body: JSON.stringify({
+          requestId,
+          conversationId: activeConversationId.current,
+          messages: selectChatContext(nextMessages),
+        }),
         signal: AbortSignal.any([abort.signal, timeout]),
       });
-      await readChatStream(response, smooth.push);
+      await readChatStream(response, smooth.push, (conversationId) => {
+        activeConversationId.current = conversationId;
+      });
       await smooth.finish();
     } catch (cause) {
       const failure = cause instanceof ChatRequestError ? cause : timeout.aborted ? new ChatRequestError(504) : toChatRequestError(cause);
@@ -91,6 +101,17 @@ export default function ChatPage() {
     void send(nextMessages);
   }
 
+  async function openConversation(conversationId: string) {
+    setHistoryOpen(false);
+    if (pending.current) return;
+    setError(null);
+    const result = await getChatConversationMessages(conversationId).catch(() => null);
+    if (!result) return;
+    activeConversationId.current = result.conversationId;
+    followBottom.current = true;
+    setMessages(result.messages);
+  }
+
   return (
     <main className="mx-auto flex h-dvh w-full max-w-[30rem] flex-col bg-background">
       <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-3">
@@ -98,11 +119,25 @@ export default function ChatPage() {
           <ArrowLeftIcon className="size-5" aria-hidden="true" />
         </Link>
         <Image src="/images/haetteum-chatbot-icon.svg" alt="" width={40} height={40} className="rounded-full" unoptimized />
-        <div>
+        <div className="flex-1">
           <h1 className="text-base font-bold">해뜸 여행 도우미</h1>
           <p className="text-xs text-muted-foreground">함께 계획하는 나만의 여행</p>
         </div>
+        <button
+          type="button"
+          aria-label="대화 기록 보기"
+          onClick={() => setHistoryOpen(true)}
+          className="flex size-11 items-center justify-center rounded-full outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <HistoryIcon className="size-5" aria-hidden="true" />
+        </button>
       </header>
+
+      <ChatHistoryPanel
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        onSelectConversation={(conversationId) => void openConversation(conversationId)}
+      />
 
       <section ref={conversation} onScroll={(event) => {
         const element = event.currentTarget;
