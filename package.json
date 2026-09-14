@@ -25,7 +25,9 @@
     "db:generate": "pnpm --filter @haetteum/api db:generate",
     "db:migrate": "pnpm --filter @haetteum/api db:migrate",
     "db:deploy": "pnpm --filter @haetteum/api db:deploy",
-    "db:studio": "pnpm --filter @haetteum/api db:studio"
+    "db:studio": "pnpm --filter @haetteum/api db:studio",
+    "storybook": "pnpm --filter @haetteum/web storybook",
+    "build-storybook": "pnpm --filter @haetteum/web build-storybook"
   },
   "packageManager": "pnpm@10.33.0"
 }

@@ -31,3 +31,5 @@ skills-lock.json
 **/__pycache__/
 .superpowers/
 .worktrees/
+
+**/storybook-static/

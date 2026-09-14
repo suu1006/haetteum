@@ -9,6 +9,7 @@
   "scripts": {
     "prebuild": "pnpm --filter @haetteum/contracts build && pnpm db:generate",
     "build": "nest build",
+    "predev": "node scripts/check-dev-port.mjs",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
@@ -48,6 +49,7 @@
     "cookie-parser": "^1.4.7",
     "csv-parse": "7.0.2",
     "dotenv": "17.4.2",
+    "heic-convert": "^2.1.0",
     "multer": "^2.2.0",
     "nodemailer": "^10.0.1",
     "pg": "8.23.0",
@@ -67,6 +69,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "@types/heic-convert": "^2.1.1",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.2.0",
     "@types/node": "24.13.3",
