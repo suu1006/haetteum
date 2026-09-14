@@ -53,7 +53,7 @@ export class ChatService {
     }
   }
 
-  async sendMessage(request: ChatRequest): Promise<ChatResponse> {
+  async sendMessage(request: ChatRequest): Promise<Omit<ChatResponse, "conversationId">> {
     if (!this.llm.isConfigured()) throw chatHttpError(503);
     const deadline = new ChatDeadline();
     try {
