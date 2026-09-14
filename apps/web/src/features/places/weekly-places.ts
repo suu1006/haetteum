@@ -12,7 +12,7 @@ export async function loadWeeklyPlaces(
   if (!baseUrl) return { status: "error" };
   try {
     const url = joinApiUrl(baseUrl, "/places/recommendations/weekly");
-    const response = await fetchImpl(url, { cache: "no-store" });
+    const response = await fetchImpl(url, { next: { revalidate: 30 } });
     if (!response.ok) return { status: "error" };
     const { items } = WeeklyRecommendationsResponseSchema.parse(await response.json());
     return { status: "ready", items };

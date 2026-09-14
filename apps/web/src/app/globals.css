@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../";
+@source not "../**/*.stories.tsx";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";

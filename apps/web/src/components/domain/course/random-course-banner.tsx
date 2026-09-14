@@ -6,7 +6,11 @@ import { collectRandomCourseCandidates } from "@/features/places/random-course-c
 import { useRandomCourseRecommendation } from "@/features/places/use-random-course-recommendation";
 
 import { AiCourseBanner } from "@/components/domain/course/ai-course-banner";
-import { RandomCourseDialog } from "@/components/domain/course/random-course-dialog";
+import dynamic from "next/dynamic";
+
+const RandomCourseDialog = dynamic(() =>
+  import("@/components/domain/course/random-course-dialog").then((module) => module.RandomCourseDialog),
+);
 
 type RandomCourseBannerProps = {
   imageSrc: string;
@@ -44,7 +48,7 @@ function RandomCourseBanner({
         loading={loading}
         disabled={candidates.length === 0}
       />
-      <RandomCourseDialog
+      {open ? <RandomCourseDialog
         open={open}
         onOpenChange={setOpen}
         phase={phase}
@@ -54,7 +58,7 @@ function RandomCourseBanner({
         onSave={handleSave}
         onCancelSave={handleCancelSave}
         saveState={saveState}
-      />
+      /> : null}
     </>
   );
 }

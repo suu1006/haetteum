@@ -74,7 +74,7 @@ describe("FestivalRankingShowcase", () => {
       name: "1위 제주 여름빛 정원축제",
     }).parentElement;
     const nextCompactLayer = screen.getByRole("button", {
-      name: "2위 제주 바다불꽃 문화제 선택",
+      name: /제주 바다불꽃 문화제/,
     }).parentElement;
 
     await waitFor(() => {
@@ -147,21 +147,21 @@ describe("FestivalRankingShowcase", () => {
     ).toHaveAttribute("aria-current", "true");
 
     await user.click(
-      screen.getByRole("button", { name: "2위 제주 바다불꽃 문화제 선택" }),
+      screen.getByRole("button", { name: /제주 바다불꽃 문화제/ }),
     );
     expect(
       screen.getByRole("article", { name: "2위 제주 바다불꽃 문화제" }),
     ).toHaveAttribute("aria-current", "true");
 
     await user.click(
-      screen.getByRole("button", { name: "3위 서귀포 등불 물빛축제 선택" }),
+      screen.getByRole("button", { name: /서귀포 등불 물빛축제/ }),
     );
     expect(
       screen.getByRole("article", { name: "3위 서귀포 등불 물빛축제" }),
     ).toHaveAttribute("aria-current", "true");
 
     await user.click(
-      screen.getByRole("button", { name: "1위 제주 여름빛 정원축제 선택" }),
+      screen.getByRole("button", { name: /제주 여름빛 정원축제/ }),
     );
     expect(
       screen.getByRole("article", { name: "1위 제주 여름빛 정원축제" }),
@@ -257,7 +257,7 @@ describe("FestivalRankingShowcase", () => {
     });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "2위 제주 바다불꽃 문화제 선택",
+        name: /제주 바다불꽃 문화제/,
       }),
     );
 

@@ -202,7 +202,6 @@ function FestivalRankingCompactCard({
     >
       <button
         type="button"
-        aria-label={`${festival.rank}위 ${festival.title} 선택`}
         tabIndex={active ? -1 : 0}
         onClick={onSelect}
         className="block w-full text-left outline-none focus-visible:rounded-xl focus-visible:ring-3 focus-visible:ring-primary/45"

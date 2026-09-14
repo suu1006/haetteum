@@ -54,7 +54,7 @@ describe("loadHotPlaceRankings", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=20s&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(result).toEqual({ status: "ready", data: response });
   });

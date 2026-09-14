@@ -54,7 +54,7 @@ describe("loadFestivalDiscovery", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/festivals/discovery?region=jeju&page=1&pageSize=20",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(result).toMatchObject({
       loadState: "ready",

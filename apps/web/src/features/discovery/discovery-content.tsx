@@ -22,18 +22,12 @@ type DiscoveryContentProps = {
 
 async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
   const query = parseDiscoveryQuery(await searchParams);
-  const data =
-    query.tab === "festivals" || (query.tab === "recommended" && !query.q.trim())
-      ? {
-          ...mainDiscoveryMock,
-          festivalDiscovery: await loadFestivalDiscovery(
-            festivalBrowseRegion(query.region),
-          ),
-        }
-      : mainDiscoveryMock;
-  const view = selectDiscoveryView(data, query);
-  const [ranking, hotRanking, weeklyPlaces, searchResults] =
+  const view = selectDiscoveryView(mainDiscoveryMock, query);
+  const [festivalDiscovery, ranking, hotRanking, weeklyPlaces, searchResults] =
     await Promise.all([
+      query.tab === "festivals" || (query.tab === "recommended" && !query.q.trim())
+        ? loadFestivalDiscovery(festivalBrowseRegion(query.region))
+        : null,
       view.showRankedPlaces || view.showAiCourse ? loadPlaceRankings(query.audience) : null,
       view.showRankedPlaces || view.showAiCourse ? loadHotPlaceRankings(query.hotAudience) : null,
       view.showFestivals
@@ -46,7 +40,7 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
 
   return (
     <MainDiscovery
-      data={data}
+      data={festivalDiscovery ? { ...mainDiscoveryMock, festivalDiscovery } : mainDiscoveryMock}
       query={query}
       view={view}
       ranking={ranking}

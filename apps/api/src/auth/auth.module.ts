@@ -1,3 +1,4 @@
+import { OptionalSessionAuthGuard } from "./optional-session-auth.guard.js";
 import { Module } from "@nestjs/common";
 
 import { AuthCookieService } from "./auth-cookie.service.js";
@@ -32,6 +33,7 @@ import { VerificationMailService } from "./verification-mail.service.js";
     SessionService,
     SessionCleanupService,
     SessionAuthGuard,
+    OptionalSessionAuthGuard,
     SameOriginGuard,
     PasswordHasher,
     VerificationMailService,

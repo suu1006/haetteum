@@ -8,10 +8,10 @@ const items = Array.from({ length: 20 }, (_, i) => ({
 }));
 
 describe("weekly place recommendations", () => {
-  it("loads the published nationwide twenty in server order with one fresh request", async () => {
+  it("loads the published nationwide twenty in server order with one revalidated public request", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ week: "2026-09-07", items })));
     expect(await loadWeeklyPlaces(fetchMock, "https://example.com/api/v1/")).toEqual({ status: "ready", items });
-    expect(fetchMock).toHaveBeenCalledExactlyOnceWith("https://example.com/api/v1/places/recommendations/weekly", { cache: "no-store" });
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith("https://example.com/api/v1/places/recommendations/weekly", { next: { revalidate: 30 } });
   });
   it("handles an unpublished week as empty", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ week: null, items: [] })));

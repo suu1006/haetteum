@@ -503,9 +503,11 @@ describe("place detail page", () => {
           placeId: "24684077-a907-45c3-85bf-b509dab12377",
         }),
       }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       title: "에버랜드 소개 | 해뜸",
       description: "테마파크 소개",
+      alternates: { canonical: "/places/24684077-a907-45c3-85bf-b509dab12377" },
+      openGraph: { title: "에버랜드 소개 | 해뜸", url: "/places/24684077-a907-45c3-85bf-b509dab12377" },
     });
   });
 

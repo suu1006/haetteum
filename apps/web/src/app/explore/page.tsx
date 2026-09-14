@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/seo";
 
 import { ExploreScreen } from "@/features/explore/components/explore-screen";
 import { isPlaceSearchRegion, parseDiscoveryQuery, type DiscoverySearchParams } from "@/features/discovery/discovery-model";
@@ -6,10 +6,7 @@ import { loadPopularReels } from "@/features/discovery/place-reels-api";
 
 import { searchPlaces } from "@/features/places/place-search-api";
 
-export const metadata: Metadata = {
-  title: "탐색 | 해뜸",
-  description: "짧은 영상으로 지역별 인기 관광지를 만나보세요.",
-};
+export const metadata = publicMetadata("/explore", "탐색 | 해뜸", "짧은 영상으로 지역별 인기 관광지를 만나보세요.");
 
 export default async function ExplorePage({
   searchParams,

@@ -35,7 +35,7 @@ export async function loadFestivalDiscovery(
     url.searchParams.set("region", region);
     url.searchParams.set("page", "1");
     url.searchParams.set("pageSize", "20");
-    const response = await fetchImpl(url.href, { cache: "no-store" });
+    const response = await fetchImpl(url.href, { next: { revalidate: 30 } });
     if (!response.ok) return emptyFestivalDiscovery("error");
 
     const payload = FestivalDiscoveryResponseSchema.parse(
@@ -80,7 +80,7 @@ export async function loadMonthlyFestivals(
     url.searchParams.set("region", region);
     url.searchParams.set("page", "1");
     url.searchParams.set("pageSize", "40");
-    const response = await fetchImpl(url.href, { cache: "no-store" });
+    const response = await fetchImpl(url.href, { next: { revalidate: 30 } });
     if (!response.ok) return { status: "error" };
 
     const payload = FestivalDiscoveryResponseSchema.parse(

@@ -36,7 +36,7 @@ describe("loadCurrentUser", () => {
 
     await expect(loadCurrentUser()).resolves.toEqual(user);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:4000/api/v1/auth/me",
+      "http://localhost:4000/api/v1/auth/session",
       { credentials: "include", cache: "no-store" },
     );
   });
@@ -78,4 +78,11 @@ describe("logout", () => {
 
     await expect(logout()).rejects.toThrow("Unable to log out.");
   });
+});
+
+it("accepts an anonymous session without an HTTP error", async () => {
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response("null", { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(loadCurrentUser()).resolves.toBeNull();
+  expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/v1/auth/session", { credentials: "include", cache: "no-store" });
 });

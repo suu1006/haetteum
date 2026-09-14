@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/lib/seo";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -24,12 +25,8 @@ export async function generateMetadata({
   }
 
   const festival = mapFestivalDetail(result.data);
-  return {
-    title: `${festival.title} | 해뜸`,
-    description:
-      festival.overview ??
-      `${festival.dateLabel} ${festival.location}에서 열리는 ${festival.title} 정보를 확인해 보세요.`,
-  };
+  return publicMetadata(`/festivals/${festivalId}`, `${festival.title} | 해뜸`,
+    festival.overview ?? `${festival.dateLabel} ${festival.location}에서 열리는 ${festival.title} 정보를 확인해 보세요.`);
 }
 
 export default async function FestivalDetailPage({

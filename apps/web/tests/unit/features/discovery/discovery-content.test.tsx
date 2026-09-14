@@ -122,7 +122,7 @@ describe("DiscoveryContent", () => {
     renderWithQueryClient(await DiscoveryContent({ searchParams: Promise.resolve({ region: "jeju" }) }));
     expect(screen.getByRole("heading", { name: "이번 주 가볼만한 곳" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "이번 달 인기 축제" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "성산일출봉" })).toHaveAttribute("href", "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction");
+    expect(screen.getByRole("link", { name: /성산일출봉/ })).toHaveAttribute("href", "/places/84549352-0c20-4e11-af50-2d4f278f41ef?tab=introduction");
     expect(screen.getByText("제주 서귀포시")).toBeVisible();
     expect(screen.getByText("이번 주 추천")).toBeVisible();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("pageSize=40"))).toBe(false);
@@ -151,7 +151,7 @@ describe("DiscoveryContent", () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
   });
 
@@ -178,7 +178,7 @@ describe("DiscoveryContent", () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=all&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
   });
 
@@ -207,7 +207,7 @@ describe("DiscoveryContent", () => {
     ).toHaveAttribute("aria-current", "true");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/hot-place-rankings?audience=40s&limit=10",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/place-rankings?audience=all&limit=10",
@@ -375,7 +375,22 @@ describe("DiscoveryContent", () => {
     expect(screen.queryByText("제주 여름빛 정원축제")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:4000/api/v1/festivals/discovery?region=jeju&page=1&pageSize=20",
-      { cache: "no-store" },
+      { next: { revalidate: 30 } },
     );
   });
+});
+
+it("starts weekly recommendations before festival discovery finishes", async () => {
+  process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:4000/api/v1";
+  let finishFestival!: (response: Response) => void;
+  const festival = new Promise<Response>(resolve => { finishFestival = resolve; });
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation(input => String(input).includes("/festivals/discovery") ? festival : Promise.resolve(new Response(null, { status: 503 })));
+  vi.stubGlobal("fetch", fetchMock);
+  const pending = DiscoveryContent({ searchParams: Promise.resolve({}) });
+  await Promise.resolve();
+  await Promise.resolve();
+  const startedWeekly = fetchMock.mock.calls.some(([url]) => String(url).includes("/places/recommendations/weekly"));
+  finishFestival(new Response(null, { status: 503 }));
+  await pending;
+  expect(startedWeekly).toBe(true);
 });

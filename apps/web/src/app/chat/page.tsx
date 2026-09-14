@@ -97,7 +97,7 @@ export default function ChatPage() {
         <Link href="/" aria-label="홈으로 돌아가기" className="flex size-11 items-center justify-center rounded-full outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
           <ArrowLeftIcon className="size-5" aria-hidden="true" />
         </Link>
-        <Image src="/images/haetteum-chatbot-icon.svg" alt="" width={40} height={40} className="rounded-full" unoptimized />
+        <Image src="/images/haetteum-chatbot-icon.webp" alt="" width={40} height={40} className="rounded-full" unoptimized />
         <div>
           <h1 className="text-base font-bold">해뜸 여행 도우미</h1>
           <p className="text-xs text-muted-foreground">함께 계획하는 나만의 여행</p>
@@ -110,7 +110,7 @@ export default function ChatPage() {
       }} aria-label="대화 내용" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6">
         {messages.length === 0 ? (
           <div className="flex min-h-full flex-col justify-center py-6">
-            <Image src="/images/haetteum-chatbot-icon.svg" alt="해뜸 여행 도우미" width={96} height={96} className="mb-5 rounded-full self-start" unoptimized />
+            <Image src="/images/haetteum-chatbot-icon.webp" alt="해뜸 여행 도우미" width={96} height={96} className="mb-5 rounded-full self-start" unoptimized />
             <h2 className="text-2xl leading-snug font-bold tracking-tight">어떤 여행을 꿈꾸세요?</h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">가고 싶은 곳이나 함께할 사람을 알려주세요.<br />해뜸이 여행 계획을 도와드릴게요.</p>
             <div className="mt-7 flex flex-col items-start gap-2">
@@ -129,7 +129,7 @@ export default function ChatPage() {
                   <div>
                     <div className="mb-2 flex items-center gap-2">
                       <Image
-                        src="/images/haetteum-chatbot-icon.svg"
+                        src="/images/haetteum-chatbot-icon.webp"
                         alt=""
                         width={28}
                         height={28}

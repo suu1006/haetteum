@@ -8,6 +8,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Post,
@@ -32,6 +33,8 @@ import {
 } from "./session-auth.guard.js";
 import { SessionService } from "./session.service.js";
 import { AuthService } from "./auth.service.js";
+
+import { OptionalSessionAuthGuard } from "./optional-session-auth.guard.js";
 
 const KAKAO_AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize";
 
@@ -141,6 +144,19 @@ export class AuthController {
     );
 
     return AuthUserSchema.parse(completed.user);
+  }
+
+  @Get("session")
+  @Header("Cache-Control", "private, no-store")
+  @UseGuards(OptionalSessionAuthGuard)
+  session(
+    @Req() request: AuthenticatedRequest,
+    @Res() response: Response,
+  ): void {
+    // Nest's default adapter turns a bare null return into an empty 200 body.
+    response.json(
+      request.auth ? AuthUserSchema.parse(request.auth.user) : null,
+    );
   }
 
   @Get("me")

@@ -16,10 +16,7 @@ function reelKey(reel: PopularReelItem): string {
 
 function embedSrc(embedUrl: string): string {
   const url = new URL(embedUrl);
-  // Autoplay is requested explicitly via the JS API once a tile becomes the
-  // active (centered) one — not via this URL param — so that only one tile
-  // downloads video at a time instead of every mounted tile racing to
-  // autoplay concurrently.
+  // The requested preview starts after the player handshake.
   url.searchParams.set("autoplay", "0");
   url.searchParams.set("mute", "1");
   url.searchParams.set("controls", "0");
@@ -38,14 +35,6 @@ function embedSrc(embedUrl: string): string {
 const YOUTUBE_STATE_ENDED = 0;
 const YOUTUBE_STATE_PLAYING = 1;
 const YOUTUBE_STATE_PAUSED = 2;
-
-// Mount once a tile is this close to the viewport; unmount again only once
-// it's much farther away. The gap between the two gives hysteresis so a tile
-// sitting near one boundary doesn't mount/unmount on every small scroll
-// wobble — recreating the iframe re-runs the whole ready→play→buffer
-// handshake, which should only happen when a tile is genuinely far from view.
-const MOUNT_ROOT_MARGIN = "40% 0px";
-const UNMOUNT_ROOT_MARGIN = "80% 0px";
 
 function postToFrame(
   frame: HTMLIFrameElement | null,
@@ -67,37 +56,22 @@ function restartVideo(frame: HTMLIFrameElement | null) {
   playVideo(frame);
 }
 
-function usePrefersReducedMotion(): boolean {
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduceMotion(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-
-  return reduceMotion;
-}
-
 function ReelTile({
   reel,
   active,
+  onToggle,
   priority = false,
   registerNode,
 }: {
   reel: PopularReelItem;
   active: boolean;
+  onToggle: () => void;
   priority?: boolean;
   registerNode: (tileKey: string, node: HTMLLIElement | null) => void;
 }) {
-  const tileRef = useRef<HTMLLIElement | null>(null);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const [hasEnteredView, setHasEnteredView] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [isFramePlaying, setIsFramePlaying] = useState(false);
-  const reduceMotion = usePrefersReducedMotion();
   const activeRef = useRef(active);
   const key = reelKey(reel);
 
@@ -107,49 +81,15 @@ function ReelTile({
 
   const setRefs = useCallback(
     (node: HTMLLIElement | null) => {
-      tileRef.current = node;
       registerNode(key, node);
     },
     [key, registerNode],
   );
 
-  // Mount shortly before the tile is actually visible, and unmount again once
-  // it's scrolled far away. Without this, an infinite-scroll feed keeps
-  // piling up YouTube iframes forever — each one holds a WebGL context, and
-  // once the browser's context limit is hit it starts evicting the oldest
-  // ones ("Too many active WebGL contexts"). Mounting only warms up the
-  // connection — see the `active`-gated effect below for what actually
-  // starts playback.
-  useEffect(() => {
-    const node = tileRef.current;
-    if (!node) return;
+  // Inactive tiles remain thumbnails: even a paused iframe downloads its player.
+  const shouldMount = active;
 
-    const mountObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) setHasEnteredView(true);
-      },
-      { rootMargin: MOUNT_ROOT_MARGIN, threshold: 0 },
-    );
-    const unmountObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) setHasEnteredView(false);
-      },
-      { rootMargin: UNMOUNT_ROOT_MARGIN, threshold: 0 },
-    );
-    mountObserver.observe(node);
-    unmountObserver.observe(node);
-    return () => {
-      mountObserver.disconnect();
-      unmountObserver.disconnect();
-    };
-  }, []);
-
-  const shouldMount = hasEnteredView && !reduceMotion;
-
-  // Handshake with the embedded player once it's mounted, purely to learn
-  // when it's ready — playback itself is requested by the effect below, and
-  // only for whichever tile is currently `active`. This is what keeps every
-  // mounted-but-inactive tile from downloading video at the same time.
+  // Wait for the requested player to be ready before sending playVideo.
   useEffect(() => {
     if (!shouldMount) return;
     let isReadyLocal = false;
@@ -204,12 +144,7 @@ function ReelTile({
     };
   }, [shouldMount, reel.videoId]);
 
-  // The one place playback is actually requested: only when this tile is
-  // both ready and the active (most-centered) one. Leaving the active band —
-  // even briefly, e.g. scrolling past a row — pauses it; the resulting
-  // YOUTUBE_STATE_PAUSED message above is what drops the frame back to the
-  // static thumbnail. At most one row's worth of tiles ever streams video at
-  // once instead of every mounted tile racing to buffer together.
+  // Only the explicitly requested preview can play.
   useEffect(() => {
     if (!isReady) return;
     if (active) {
@@ -237,7 +172,8 @@ function ReelTile({
         <iframe
           ref={frameRef}
           src={embedSrc(reel.embedUrl)}
-          title={`${reel.placeTitle} 릴스 자동재생`}
+          onLoad={() => postToFrame(frameRef.current, { event: "listening", id: reel.videoId })}
+          title={`${reel.placeTitle} 릴스 미리보기`}
           allow="autoplay; encrypted-media"
           loading="lazy"
           tabIndex={-1}
@@ -249,17 +185,24 @@ function ReelTile({
       <Link
         href={`/reels/place/${reel.placeId}?v=${reel.videoId}`}
         scroll={false}
+        prefetch={false}
         aria-label={`${reel.placeTitle} 릴스 미리보기`}
         className="absolute inset-0 z-10 outline-none focus-visible:ring-3 focus-visible:ring-ring/25"
       />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={`${reel.placeTitle} 미리보기 ${active ? "정지" : "재생"}`}
+        className="absolute inset-x-2 bottom-2 z-20 min-h-11 rounded-lg bg-black/80 px-3 py-2 text-sm font-semibold text-white outline-none focus-visible:ring-3 focus-visible:ring-white"
+      >
+        미리보기 {active ? "정지" : "재생"}
+      </button>
     </li>
   );
 }
 
 function PopularReelGrid({ reels }: PopularReelGridProps) {
-  const [activeKeys, setActiveKeys] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [nodeByKey] = useState(() => new Map<string, HTMLLIElement>());
 
   const registerNode = useCallback(
@@ -273,34 +216,19 @@ function PopularReelGrid({ reels }: PopularReelGridProps) {
     [nodeByKey],
   );
 
-  // Only the tile(s) crossing this thin band near the viewport's vertical
-  // center count as "active" — normally just one grid row (up to two tiles),
-  // instead of every tile within a wide preload margin. This is what bounds
-  // concurrent video playback so tiles stop competing for bandwidth.
+  // Release a requested preview when it leaves the viewport; never warm hidden players.
   useEffect(() => {
     const keyByNode = new Map<Element, string>();
     for (const [tileKey, node] of nodeByKey) keyByNode.set(node, tileKey);
 
     const observer = new IntersectionObserver(
       (entries) => {
-        setActiveKeys((prev) => {
-          const next = new Set(prev);
-          let changed = false;
-          for (const entry of entries) {
-            const tileKey = keyByNode.get(entry.target);
-            if (!tileKey) continue;
-            if (entry.isIntersecting && !next.has(tileKey)) {
-              next.add(tileKey);
-              changed = true;
-            } else if (!entry.isIntersecting && next.has(tileKey)) {
-              next.delete(tileKey);
-              changed = true;
-            }
-          }
-          return changed ? next : prev;
+        setActiveKey((previous) => {
+          const leftViewport = entries.some(entry => !entry.isIntersecting && keyByNode.get(entry.target) === previous);
+          return leftViewport ? null : previous;
         });
       },
-      { rootMargin: "-35% 0px -35% 0px", threshold: 0 },
+      { threshold: 0 },
     );
 
     for (const node of nodeByKey.values()) observer.observe(node);
@@ -318,7 +246,8 @@ function PopularReelGrid({ reels }: PopularReelGridProps) {
           <ReelTile
             key={key}
             reel={reel}
-            active={activeKeys.has(key)}
+            active={activeKey === key}
+            onToggle={() => setActiveKey(previous => previous === key ? null : key)}
             priority={index < 2}
             registerNode={registerNode}
           />

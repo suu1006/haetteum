@@ -44,14 +44,14 @@ export async function loginWithEmail(
 
 export async function loadCurrentUser(): Promise<AuthUser | null> {
   try {
-    const response = await fetch(`${apiBaseUrl()}/auth/me`, {
+    const response = await fetch(`${apiBaseUrl()}/auth/session`, {
       credentials: "include",
       cache: "no-store",
     });
     if (response.status === 401) return null;
     if (!response.ok) throw new Error(loadCurrentUserError);
 
-    const parsed = AuthUserSchema.safeParse(await response.json());
+    const parsed = AuthUserSchema.nullable().safeParse(await response.json());
     if (!parsed.success) throw new Error(loadCurrentUserError);
     return parsed.data;
   } catch {

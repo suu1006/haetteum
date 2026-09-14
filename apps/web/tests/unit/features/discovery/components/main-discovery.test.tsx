@@ -202,7 +202,7 @@ describe("MainDiscovery", () => {
       ),
     ).toHaveLength(1);
     expect(
-      screen.getByRole("link", { name: "이천 도자기 마을" }),
+      screen.getByRole("link", { name: /이천 도자기 마을/ }),
     ).toHaveAttribute(
       "href",
       "/places/9f0c1e2a-1111-4aaa-8bbb-000000000001?tab=introduction",

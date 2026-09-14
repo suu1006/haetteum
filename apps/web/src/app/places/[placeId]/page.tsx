@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/lib/seo";
 import { headers } from "next/headers";
 import { getServerApiBaseUrl } from "@/lib/api-base";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
@@ -41,13 +42,8 @@ export async function generateMetadata({
     if (result.status !== "ready") {
       return { title: "장소를 찾을 수 없어요 | 해뜸" };
     }
-    return {
-      title: `${result.data.title} 소개 | 해뜸`,
-      description:
-        result.data.overview ??
-        result.data.address ??
-        `${result.data.title}의 여행 정보를 확인해 보세요.`,
-    };
+    return publicMetadata(`/places/${placeId}`, `${result.data.title} 소개 | 해뜸`,
+      result.data.overview ?? result.data.address ?? `${result.data.title}의 여행 정보를 확인해 보세요.`);
   }
   const place = getPlaceDetailById(placeId);
 
@@ -55,10 +51,8 @@ export async function generateMetadata({
     return { title: "장소를 찾을 수 없어요 | 해뜸" };
   }
 
-  return {
-    title: `${place.title} 후기 | 해뜸`,
-    description: `${place.title}의 통합 후기 ${reviewCountFormatter.format(place.reviewCount)}개를 확인해 보세요.`,
-  };
+  return publicMetadata(`/places/${placeId}`, `${place.title} 후기 | 해뜸`,
+    `${place.title}의 통합 후기 ${reviewCountFormatter.format(place.reviewCount)}개를 확인해 보세요.`);
 }
 
 export default async function PlaceDetailPage({

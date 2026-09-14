@@ -1,3 +1,5 @@
+import { WebVitals } from "@/features/performance/web-vitals";
+import { siteUrl } from "@/lib/seo";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -6,8 +8,9 @@ import { AuthStoreProvider } from "@/features/auth/auth-store";
 import { QueryProvider } from "@/features/query/query-provider";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "해뜸",
-  description: "Haetteum web application",
+  description: "인기 관광지와 축제를 살펴보고 나만의 여행 코스를 만들어 보세요.",
   icons: {
     icon: [
       { url: "/icons/favicon-16.png", sizes: "16x16", type: "image/png" },
@@ -28,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko">
       <body>
+        <WebVitals />
         <QueryProvider>
           <AuthStoreProvider>
             <AuthBootstrap />
