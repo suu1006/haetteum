@@ -1,3 +1,4 @@
+import { reviewInput } from "./review-fixtures.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { Server } from "node:http";
@@ -153,6 +154,7 @@ describe("Reviews API session ownership (e2e)", () => {
       .post("/api/v1/reviews")
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: reviewPlaceId,
         rating: 5,
         content: "세션 없이 작성한 후기",
@@ -172,6 +174,7 @@ describe("Reviews API session ownership (e2e)", () => {
 
       const response = await mutation
         .send({
+          ...reviewInput(),
           placeId: reviewPlaceId,
           rating: 5,
           content: "출처 검증을 위한 후기",
@@ -188,6 +191,7 @@ describe("Reviews API session ownership (e2e)", () => {
       .set("Cookie", sessionCookie(owner))
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: reviewPlaceId,
         rating: 5,
         content: "신뢰된 출처의 후기",
@@ -206,6 +210,7 @@ describe("Reviews API session ownership (e2e)", () => {
       .set("Cookie", sessionCookie(owner))
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: reviewPlaceId,
         rating: 5,
         content: "작성자만 볼 수 있는 후기",
@@ -231,7 +236,11 @@ describe("Reviews API session ownership (e2e)", () => {
       .patch(`/api/v1/reviews/${review.id}`)
       .set("Cookie", sessionCookie(otherUser))
       .set("Origin", WEB_ORIGIN)
-      .send({ rating: 1, content: "권한 없는 수정" })
+      .send({
+        ...reviewInput(),
+        rating: 1,
+        content: "권한 없이 수정하려는 후기입니다.",
+      })
       .expect(404)
       .expect("content-type", /application\/problem\+json/);
     expect(ProblemDetailsSchema.parse(foreignUpdate.body as unknown).code).toBe(

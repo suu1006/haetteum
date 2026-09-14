@@ -325,6 +325,7 @@ describe("Kakao auth API PostgreSQL flow (e2e)", () => {
     const meResponse = observe(await agent.get("/api/v1/auth/me").expect(200));
     const me = AuthUserSchema.parse(meResponse.body as unknown);
     expect(me).toEqual({
+      provider: "KAKAO",
       id: persistedUser.id,
       displayName: "E2E 해뜸 여행자",
       profileImageUrl: "https://cdn.example.test/profile.jpg",
@@ -333,6 +334,7 @@ describe("Kakao auth API PostgreSQL flow (e2e)", () => {
       "displayName",
       "id",
       "profileImageUrl",
+      "provider",
     ]);
   });
 

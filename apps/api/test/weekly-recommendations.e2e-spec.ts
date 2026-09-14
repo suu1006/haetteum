@@ -95,7 +95,9 @@ describeIsolated("Weekly publication with PostgreSQL", () => {
           address1: "서울 테스트 주소",
           latitude: 37 + i / 1000,
           longitude: 127 + i / 1000,
-          category1: i % 2 ? "A01" : "A02",
+          category1: i % 2 ? "NA" : "HS",
+          detailSyncedAt: now,
+          detailSourceModifiedAt: now,
           lastSyncedAt: now,
           providerModifiedAt: now,
         },
@@ -121,6 +123,13 @@ describeIsolated("Weekly publication with PostgreSQL", () => {
             kind: i % 2 ? "nature" : "culture",
             snapshot,
             checkedAt: now,
+            checks: {
+              policyVersion: 2,
+              source: "PASSED",
+              fields: "PASSED",
+              thumbnail: "PASSED",
+              sourceModifiedAt: now.toISOString(),
+            },
             position: id === previousEditionId && i < 20 ? i : null,
           },
         });
@@ -169,23 +178,36 @@ describeIsolated("Weekly publication with PostgreSQL", () => {
     );
   }
 
-  it("keeps the previous published edition when new coverage fails", async () => {
+  it("fills from the prior week when current candidates are rejected", async () => {
     await prisma.weeklyRecommendationCandidate.updateMany({
       where: { editionId },
-      data: { kind: "nature" },
+      data: { status: "REJECTED" },
     });
-    const before = await service(prisma).current(now);
-    await expect(service(prisma).publish(now)).rejects.toThrow(
-      "PUBLICATION_COVERAGE_FAILED",
+    const result = await service(prisma).current(now);
+    expect(result.week).toBe("2098-12-29");
+    expect(result.items).toHaveLength(20);
+  });
+
+  it("serves a single verified draft candidate and rejects stale checks", async () => {
+    await prisma.weeklyRecommendationCandidate.updateMany({
+      data: { status: "REJECTED" },
+      where: { editionId: { in: [editionId, previousEditionId] } },
+    });
+    await prisma.weeklyRecommendationEdition.update({
+      where: { id: editionId },
+      data: { status: "DRAFT" },
+    });
+    await prisma.weeklyRecommendationCandidate.update({
+      where: { editionId_placeId: { editionId, placeId: placeIds[0] } },
+      data: { status: "PASSED" },
+    });
+    expect((await service(prisma).current(now)).items.map((p) => p.id)).toEqual(
+      [placeIds[0]],
     );
-    expect(await service(prisma).current(now)).toEqual(before);
-    expect(before.week).toBe("2098-12-29");
-    expect(before.items).toHaveLength(20);
     expect(
-      await prisma.weeklyRecommendationCandidate.count({
-        where: { editionId, position: { not: null } },
-      }),
-    ).toBe(0);
+      (await service(prisma).current(new Date(now.getTime() + 8 * 86400000)))
+        .items,
+    ).toEqual([]);
   });
 
   it("rolls back all positions when PostgreSQL rejects publication", async () => {
@@ -200,8 +222,8 @@ describeIsolated("Weekly publication with PostgreSQL", () => {
       await prisma.weeklyRecommendationEdition.findUniqueOrThrow({
         where: { id: editionId },
       }),
-    ).toMatchObject({ status: "VERIFIED", publishedAt: null });
-    expect((await service(prisma).current(now)).week).toBe("2098-12-29");
+    ).toMatchObject({ status: "FAILED", publishedAt: null });
+    expect((await service(prisma).current(now)).week).toBe("2099-01-05");
   });
 
   it("publishes once across concurrent database clients and remains idempotent", async () => {

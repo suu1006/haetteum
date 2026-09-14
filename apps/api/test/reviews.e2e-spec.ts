@@ -1,3 +1,4 @@
+import { reviewInput } from "./review-fixtures.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { Server } from "node:http";
@@ -166,9 +167,10 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: reviewPlaceId,
         rating: 5,
-        content: "처음 작성한 후기",
+        content: "처음 작성한 후기입니다.",
       })
       .expect(201);
     const created = ReviewItemSchema.parse(createdResponse.body as unknown);
@@ -177,7 +179,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       placeTitle: "리뷰 테스트 장소",
       location: "리뷰 테스트 지역 리뷰 테스트 시군구",
       rating: 5,
-      content: "처음 작성한 후기",
+      content: "처음 작성한 후기입니다.",
       primaryImageUrl: "https://example.test/reviews-e2e.jpg",
     });
 
@@ -188,7 +190,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     const createdMine = MyReviewsResponseSchema.parse(
       mineAfterCreate.body as unknown,
     );
-    expect(createdMine.items[0]?.content).toBe("처음 작성한 후기");
+    expect(createdMine.items[0]?.content).toBe("처음 작성한 후기입니다.");
     expect(createdMine).toEqual({
       items: [expect.objectContaining({ id: created.id })],
     });
@@ -197,14 +199,14 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .patch(`/api/v1/reviews/${created.id}`)
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
-      .send({ rating: 4, content: "수정한 후기" })
+      .send({ ...reviewInput(), rating: 4, content: "수정한 후기 내용입니다." })
       .expect(200);
     const updated = ReviewItemSchema.parse(updatedResponse.body as unknown);
     expect(updated).toMatchObject({
       id: created.id,
       placeId: reviewPlaceId,
       rating: 4,
-      content: "수정한 후기",
+      content: "수정한 후기 내용입니다.",
     });
 
     const mineAfterUpdate = await request(getHttpServer(application))
@@ -214,7 +216,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     const updatedMine = MyReviewsResponseSchema.parse(
       mineAfterUpdate.body as unknown,
     );
-    expect(updatedMine.items[0]?.content).toBe("수정한 후기");
+    expect(updatedMine.items[0]?.content).toBe("수정한 후기 내용입니다.");
     expect(updatedMine).toEqual({
       items: [expect.objectContaining({ id: created.id, rating: 4 })],
     });
@@ -227,7 +229,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       userId: requireCurrentUser(currentUser).id,
       placeId: reviewPlaceId,
       rating: 4,
-      content: "수정한 후기",
+      content: "수정한 후기 내용입니다.",
     });
     expect(updated.updatedAt).toBe(persisted.updatedAt.toISOString());
   });
@@ -259,7 +261,12 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .post("/api/v1/reviews")
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
-      .send({ placeId: reviewPlaceId, rating: 4, content: "공개 후기" })
+      .send({
+        ...reviewInput(),
+        placeId: reviewPlaceId,
+        rating: 4,
+        content: "공개된 여행 후기입니다.",
+      })
       .expect(201);
 
     const listedResponse = await request(getHttpServer(application))
@@ -275,7 +282,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     expect(listed.items).toHaveLength(1);
     expect(listed.items[0]).toMatchObject({
       rating: 4,
-      content: "공개 후기",
+      content: "공개된 여행 후기입니다.",
       author: { displayName: "리뷰 E2E 작성자" },
     });
   });
@@ -297,6 +304,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     const database = requirePrisma(prisma);
     const reviewPlaceId = requirePlaceId(placeId);
     const input = {
+      ...reviewInput(),
       placeId: reviewPlaceId,
       rating: 5,
       content: "중복 검증을 위한 후기",
@@ -338,9 +346,10 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: randomUUID(),
         rating: 5,
-        content: "없는 장소의 후기",
+        content: "존재하지 않는 장소의 후기입니다.",
       })
       .expect(404)
       .expect("content-type", /application\/problem\+json/);
@@ -386,7 +395,11 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .patch(`/api/v1/reviews/${foreignReview.id}`)
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
-      .send({ rating: 1, content: "권한 없는 수정" })
+      .send({
+        ...reviewInput(),
+        rating: 1,
+        content: "권한 없이 수정하려는 후기입니다.",
+      })
       .expect(404)
       .expect("content-type", /application\/problem\+json/);
     expect(ProblemDetailsSchema.parse(patchResponse.body as unknown).code).toBe(
@@ -397,6 +410,30 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
     ).resolves.toMatchObject({ rating: 3, content: "다른 사용자의 후기" });
   });
 
+  it.each([
+    { invalid: { title: undefined }, path: "body.title" },
+    { invalid: { content: "짧음" }, path: "body.content" },
+  ])(
+    "rejects invalid review input at $path without writing data",
+    async ({ invalid, path }) => {
+      const database = requirePrisma(prisma);
+      const response = await request(getHttpServer(requireApp(app)))
+        .post("/api/v1/reviews")
+        .set("Cookie", sessionCookie(currentUser))
+        .set("Origin", WEB_ORIGIN)
+        .send({
+          ...reviewInput(),
+          placeId: requirePlaceId(placeId),
+          ...invalid,
+        })
+        .expect(400);
+      const problem = ProblemDetailsSchema.parse(response.body as unknown);
+      expect(problem.code).toBe("VALIDATION_ERROR");
+      expect(problem.errors).toEqual([expect.objectContaining({ path })]);
+      expect(await database.review.count()).toBe(0);
+    },
+  );
+
   it("returns Problem Details for forbidden patch fields and non-integer ratings", async () => {
     const application = requireApp(app);
     const reviewPlaceId = requirePlaceId(placeId);
@@ -405,6 +442,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
       .set("Cookie", sessionCookie(currentUser))
       .set("Origin", WEB_ORIGIN)
       .send({
+        ...reviewInput(),
         placeId: reviewPlaceId,
         rating: 5,
         content: "수정 유효성 검증용 후기",
@@ -418,6 +456,7 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
         .set("Cookie", sessionCookie(currentUser))
         .set("Origin", WEB_ORIGIN)
         .send({
+          ...reviewInput(),
           placeId: randomUUID(),
           rating: 4,
           content: "장소 변경은 허용되지 않습니다.",
@@ -428,7 +467,11 @@ describe("Reviews API PostgreSQL integration (e2e)", () => {
         .patch(`/api/v1/reviews/${review.id}`)
         .set("Cookie", sessionCookie(currentUser))
         .set("Origin", WEB_ORIGIN)
-        .send({ rating: 4.5, content: "정수가 아닌 별점" })
+        .send({
+          ...reviewInput(),
+          rating: 4.5,
+          content: "정수가 아닌 별점을 입력한 후기입니다.",
+        })
         .expect(400)
         .expect("content-type", /application\/problem\+json/),
     ]);

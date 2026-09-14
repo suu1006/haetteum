@@ -401,6 +401,8 @@ describe("API HTTP boundary (e2e)", () => {
           rank: 1,
           sharePercent: "12.34",
           placeId: matchedPlace.id,
+          primaryImageUrl: "https://example.test/ranking-match.jpg",
+          imageCopyrightType: "Type1",
           sourceFileName,
           importedAt: now,
         },
@@ -431,6 +433,8 @@ describe("API HTTP boundary (e2e)", () => {
         placeId: matchedPlace.id,
         primaryImageUrl: "https://example.test/ranking-match.jpg",
         imageCopyrightType: "Type1",
+        imageAttribution: null,
+        imageAttributionUrl: null,
       },
       {
         rank: 2,
@@ -441,8 +445,28 @@ describe("API HTTP boundary (e2e)", () => {
         placeId: null,
         primaryImageUrl: null,
         imageCopyrightType: null,
+        imageAttribution: null,
+        imageAttributionUrl: null,
       },
     ]);
+    expect(tourApiFetch).not.toHaveBeenCalled();
+
+    // A linked place image alone is not a prepared ranking image snapshot.
+    await prisma.placeRanking.update({
+      where: { id: first.id },
+      data: { primaryImageUrl: null, imageCopyrightType: null },
+    });
+    const withoutSnapshot = await request(getHttpServer(app))
+      .get("/api/v1/place-rankings?audience=all&limit=10")
+      .expect(200);
+    expect(
+      PlaceRankingResponseSchema.parse(withoutSnapshot.body as unknown)
+        .items[0],
+    ).toMatchObject({
+      placeId: matchedPlace.id,
+      primaryImageUrl: null,
+      imageCopyrightType: null,
+    });
     expect(tourApiFetch).not.toHaveBeenCalled();
 
     const invalidAudience = await request(getHttpServer(app))

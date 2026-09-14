@@ -31,13 +31,13 @@ jobs:
         env:
           POSTGRES_USER: haetteum
           POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: haetteum
+          POSTGRES_DB: haetteum_tourapi_test_ci
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready --health-interval 5s
           --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://haetteum:ci-only-password@127.0.0.1:5432/haetteum
+      DATABASE_URL: postgresql://haetteum:ci-only-password@127.0.0.1:5432/haetteum_tourapi_test_ci
       API_PORT: '4000'
       WEB_ORIGIN: https://haetteum.kr
       API_BASE_URL: http://127.0.0.1:4000/api/v1
@@ -93,6 +93,12 @@ jobs:
           python3 scripts/deploy/test_retention.py
           pnpm --filter @haetteum/contracts build
           env -u NEXT_PUBLIC_API_BASE_URL -u API_BASE_URL -u NEXT_PUBLIC_KAKAO_JS_KEY pnpm test
+      - name: Run database integration tests
+        if: matrix.source == 'current'
+        working-directory: source
+        run: |
+          pnpm db:deploy
+          env -u NEXT_PUBLIC_API_BASE_URL -u API_BASE_URL -u NEXT_PUBLIC_KAKAO_JS_KEY pnpm test:e2e
       - name: Build on CI
         working-directory: source
         run: |
