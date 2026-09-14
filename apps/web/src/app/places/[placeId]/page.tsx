@@ -1,9 +1,11 @@
+import { headers } from "next/headers";
+import { getServerApiBaseUrl } from "@/lib/api-base";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PlaceDetailScreen } from "@/components/patterns/place-detail-screen";
-import { LivePlaceDetailScreen } from "@/components/patterns/live-place-detail-screen";
+import { PlaceDetailScreen } from "@/features/places/components/place-detail-screen";
+import { LivePlaceDetailScreen } from "@/features/places/components/live-place-detail-screen";
 import { loadPlaceDetail, loadPlaceReviews } from "@/features/places/place-detail-api";
 import {
   getPlaceDetailById,
@@ -96,7 +98,7 @@ export default async function PlaceDetailPage({
       ]);
     }
     const reviews =
-      query.tab === "reviews" ? await loadPlaceReviews(placeId) : null;
+      query.tab === "reviews" ? await loadPlaceReviews(placeId, fetch, getServerApiBaseUrl(), (await headers()).get("cookie")) : null;
     return (
       <main className="min-h-screen bg-background">
         <HydrationBoundary state={dehydrate(queryClient)}>

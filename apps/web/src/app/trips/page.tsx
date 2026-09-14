@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { connection } from "next/server";
 
-import { MyTripsScreen } from "@/components/patterns/my-trips-screen";
+import { MyTripsScreen } from "@/features/trips/components/my-trips-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { loadMySavedCourses } from "@/features/trips/my-saved-courses-api";

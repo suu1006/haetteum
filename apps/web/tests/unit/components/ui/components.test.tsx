@@ -2,12 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Toggle } from "@/components/ui/toggle";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Button } from "@/components/ui/button/button";
+import { Badge } from "@/components/ui/badge/badge";
+import { Card, CardContent, CardTitle } from "@/components/ui/card/card";
+import { Input } from "@/components/ui/input/input";
+import { Toggle } from "@/components/ui/toggle/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group/toggle-group";
 
 describe("Badge", () => {
   it("renders the shadcn badge with the selected variant", () => {

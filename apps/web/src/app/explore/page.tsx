@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { ExploreScreen } from "@/components/patterns/explore-screen";
+import { ExploreScreen } from "@/features/explore/components/explore-screen";
 import { isPlaceSearchRegion, parseDiscoveryQuery, type DiscoverySearchParams } from "@/features/discovery/discovery-model";
 import { loadPopularReels } from "@/features/discovery/place-reels-api";
 

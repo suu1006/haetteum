@@ -96,8 +96,8 @@ PostgreSQL comment를 설정합니다. 시군구는 `regionId + providerCode`, �
 `apps/api/.env`에는 값을 문서나 Git에 기록하지 않고 다음 환경변수 이름만
 관리합니다.
 
-- `END_POINT`
-- `SERVICE_KEY`
+- `TOUR_API_ENDPOINT`
+- `TOUR_API_SERVICE_KEY`
 - `TOURISM_SYNC_ENABLED`
 
 TourAPI client는 `_type=json`으로 `ldongCode2`, `areaBasedList2`,

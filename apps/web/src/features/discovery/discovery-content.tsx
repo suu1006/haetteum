@@ -1,4 +1,4 @@
-import { MainDiscovery } from "@/components/patterns/main-discovery";
+import { MainDiscovery } from "@/features/discovery/components/main-discovery";
 import type { DiscoverySearchParams } from "@/features/discovery/discovery-model";
 import {
   isPlaceSearchRegion,

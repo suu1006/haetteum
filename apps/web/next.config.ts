@@ -17,6 +17,18 @@ const nextConfig: NextConfig = {
     // 로컬 개발용 후기 사진 업로드(localhost:4000)를 위해 사설 IP 최적화 허용
     dangerouslyAllowLocalIP: true,
     remotePatterns: [
+      new URL(
+        "/api/v1/images/**",
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
+      ),
+      new URL(
+        "/uploads/profile-photos/**",
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
+      ),
+      new URL(
+        "/uploads/reviews/**",
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
+      ),
       {
         protocol: "https",
         hostname: "tong.visitkorea.or.kr",

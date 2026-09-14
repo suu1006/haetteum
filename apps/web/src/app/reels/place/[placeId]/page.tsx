@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { YouTubeReelsViewer } from "@/components/travel/youtube-reels-viewer";
+import { YouTubeReelsViewer } from "@/features/discovery/components/youtube-reels-viewer";
 import {
   loadPlaceReels,
   orderPlaceReelItemsFrom,

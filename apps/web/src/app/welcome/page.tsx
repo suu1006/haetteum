@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { WelcomeHero } from "@/components/patterns/welcome-hero";
+import { WelcomeHero } from "@/features/welcome/components/welcome-hero";
 
 export const metadata: Metadata = {
   title: "웰컴 | 해뜸",

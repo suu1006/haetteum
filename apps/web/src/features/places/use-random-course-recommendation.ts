@@ -8,7 +8,7 @@ import type { GeneratedCourseStop } from "@haetteum/contracts";
 import type {
   RandomCoursePhase,
   SaveCourseState,
-} from "@/components/travel/random-course-dialog";
+} from "@/components/domain/course/random-course-dialog";
 import { generatedCourseQueryOptions } from "@/features/places/place-generated-course-query";
 import {
   pickRandomCandidate,

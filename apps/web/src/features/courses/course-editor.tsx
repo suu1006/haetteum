@@ -19,8 +19,8 @@ import { useState } from "react";
 import {
   CourseEditScreen,
   type CourseEditMode,
-} from "@/components/patterns/course-edit-screen";
-import { CoursePlaceDetailModal } from "@/components/travel/course-place-detail-modal";
+} from "@/features/courses/components/course-edit-screen";
+import { CoursePlaceDetailModal } from "@/components/domain/course/course-place-detail-modal";
 import { CoursePlacePicker } from "@/features/courses/course-place-picker";
 import {
   appendFollowingTimeSlots,

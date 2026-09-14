@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMyPageData,
@@ -65,7 +65,9 @@ describe("createMyPageData", () => {
   });
 
   it("keeps a truthful zero for a ready empty review result", () => {
-    expect(createMyPageData(user, { reviewCount: 0 }).travelRecords).toContainEqual({
+    expect(
+      createMyPageData(user, { reviewCount: 0 }).travelRecords,
+    ).toContainEqual({
       id: "reviews",
       label: "내 후기",
       countLabel: "0개",
@@ -75,7 +77,9 @@ describe("createMyPageData", () => {
 
   it("keeps the review destination but omits its unavailable count", () => {
     expect(
-      createMyPageData(user, {}).travelRecords.find(({ id }) => id === "reviews"),
+      createMyPageData(user, {}).travelRecords.find(
+        ({ id }) => id === "reviews",
+      ),
     ).toEqual({
       id: "reviews",
       label: "내 후기",
@@ -99,11 +103,14 @@ describe("createMyPageData", () => {
     "https://evil.example/profile.jpg",
     "https://k.kakaocdn.net.evil.example/profile.jpg",
     "not-a-url",
-  ])("uses the local avatar fallback for an unapproved profile URL: %s", (profileImageUrl) => {
-    expect(createMyPageData({ ...user, profileImageUrl }, {}).profile.image.src).toBe(
-      "/images/profile/haetteumi-avatar.png",
-    );
-  });
+  ])(
+    "uses the local avatar fallback for an unapproved profile URL: %s",
+    (profileImageUrl) => {
+      expect(
+        createMyPageData({ ...user, profileImageUrl }, {}).profile.image.src,
+      ).toBe("/images/profile/haetteumi-avatar.png");
+    },
+  );
 });
 
 describe("isAllowedKakaoProfileImageUrl", () => {
@@ -125,5 +132,25 @@ describe("isAllowedKakaoProfileImageUrl", () => {
     "data:image/png;base64,abc",
   ])("rejects non-HTTPS or deceptive profile hosts: %s", (url) => {
     expect(isAllowedKakaoProfileImageUrl(url)).toBe(false);
+  });
+});
+
+describe("uploaded profile images", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("displays a WebP image from the configured API origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://haetteum.kr/api/v1");
+    const profileImageUrl =
+      "https://haetteum.kr/api/v1/images/10000000-0000-4000-8000-000000000001";
+    expect(
+      createMyPageData({ ...user, profileImageUrl }, {}).profile.image.src,
+    ).toBe(profileImageUrl);
+  });
+  it("does not allow an image ID from another origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://haetteum.kr/api/v1");
+    const profileImageUrl =
+      "https://evil.example/api/v1/images/10000000-0000-4000-8000-000000000001";
+    expect(
+      createMyPageData({ ...user, profileImageUrl }, {}).profile.image.src,
+    ).toBe("/images/profile/haetteumi-avatar.png");
   });
 });

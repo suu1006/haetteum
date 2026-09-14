@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-import { ReviewEditorScreen } from "@/components/patterns/review-editor-screen";
+import { ReviewEditorScreen } from "@/features/reviews/components/review-editor-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { loadMyReviews } from "@/features/profile/my-reviews-api";
 

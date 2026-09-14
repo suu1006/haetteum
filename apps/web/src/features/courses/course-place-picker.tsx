@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlaceListItem, PlaceRegion } from "@haetteum/contracts";
 
-import { PlaceRegionSearchScreen } from "@/components/patterns/place-region-search-screen";
+import { PlaceRegionSearchScreen } from "@/features/places/components/place-region-search-screen";
 import { searchPlaces } from "@/features/places/place-search-api";
 
 type CoursePlacePickerProps = {

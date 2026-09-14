@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/features/auth/auth-model";
+import { getApiBaseUrl } from "@/lib/api-base";
 import type {
   MyPageData,
   TravelRecordItem,
@@ -45,7 +46,11 @@ export function createMyPageData(
     href: "/reviews?tab=bookmarked",
   });
 
-  travelRecords.push({ id: "visited", label: "방문한 장소", countLabel: "0개" });
+  travelRecords.push({
+    id: "visited",
+    label: "방문한 장소",
+    countLabel: "0개",
+  });
 
   return {
     profile: {
@@ -53,9 +58,11 @@ export function createMyPageData(
       authLabel:
         user.provider === "EMAIL" ? "이메일로 로그인됨" : "카카오로 로그인됨",
       image: {
-        src: isAllowedKakaoProfileImageUrl(user.profileImageUrl)
-          ? user.profileImageUrl
-          : fallbackAvatar,
+        src:
+          isAllowedKakaoProfileImageUrl(user.profileImageUrl) ||
+          isAllowedUploadedProfileImageUrl(user.profileImageUrl)
+            ? user.profileImageUrl
+            : fallbackAvatar,
         alt: `${user.displayName} 프로필`,
       },
     },
@@ -71,6 +78,11 @@ export function createMyPageData(
     menuItems: [
       { id: "notifications", label: "알림" },
       { id: "settings", label: "설정" },
+      {
+        id: "blocked-users",
+        label: "차단한 사용자",
+        href: "/mypage/blocked-users",
+      },
       { id: "support", label: "고객센터" },
       { id: "guide", label: "이용 안내" },
       { id: "logout", label: "로그아웃" },
@@ -99,3 +111,29 @@ export function isAllowedKakaoProfileImageUrl(
 }
 
 export type { MyPageCounts };
+
+function isAllowedUploadedProfileImageUrl(
+  value: string | null,
+): value is string {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const api = new URL(getApiBaseUrl());
+    return (
+      ["https:", "http:"].includes(url.protocol) &&
+      url.origin === api.origin &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      (/^\/api\/v1\/images\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        url.pathname,
+      ) ||
+        /^\/uploads\/profile-photos\/[a-f0-9-]+\.(?:jpg|jpeg|png|webp)$/i.test(
+          url.pathname,
+        ))
+    );
+  } catch {
+    return false;
+  }
+}

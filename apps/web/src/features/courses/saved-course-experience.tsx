@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { SavedCourseScreen } from "@/components/patterns/saved-course-screen";
+import { SavedCourseScreen } from "@/features/courses/components/saved-course-screen";
 import type {
   SavedCourseFixture,
   SavedCourseStop,

@@ -9,11 +9,11 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { ItineraryItem } from "@/components/travel/itinerary-item";
-import { PlaceCard } from "@/components/travel/place-card";
-import { RatingSummary } from "@/components/travel/rating-summary";
-import { ReviewCard } from "@/components/travel/review-card";
-import { Button } from "@/components/ui/button";
+import { ItineraryItem } from "@/components/domain/course/itinerary-item";
+import { PlaceCard } from "@/components/domain/place/place-card";
+import { RatingSummary } from "@/components/domain/review/rating-summary";
+import { ReviewCard } from "@/components/domain/review/review-card";
+import { Button } from "@/components/ui/button/button";
 import {
   Card,
   CardAction,
@@ -22,10 +22,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Toggle } from "@/components/ui/toggle";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+} from "@/components/ui/card/card";
+import { Input } from "@/components/ui/input/input";
+import { Toggle } from "@/components/ui/toggle/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group/toggle-group";
 
 const colors = [
   { name: "Primary", value: "#6F3DE5", className: "bg-primary" },

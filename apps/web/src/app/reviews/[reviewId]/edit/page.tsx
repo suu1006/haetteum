@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ReviewEditorScreen } from "@/components/patterns/review-editor-screen";
+import { ReviewEditorScreen } from "@/features/reviews/components/review-editor-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { loadReview } from "@/features/profile/my-reviews-api";
 

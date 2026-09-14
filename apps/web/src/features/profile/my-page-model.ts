@@ -15,9 +15,10 @@ export type TravelRecordItem = {
 };
 
 export type MyPageMenuItem = {
-  id: "notifications" | "settings" | "support" | "guide" | "logout";
+  id: "notifications" | "settings" | "support" | "guide" | "logout" | "blocked-users";
   label: string;
   hasNotice?: boolean;
+  href?: string;
 };
 
 export type MyPageData = {

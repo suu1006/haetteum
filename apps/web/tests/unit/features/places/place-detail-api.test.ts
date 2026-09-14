@@ -128,7 +128,7 @@ describe("loadPlaceReviews", () => {
     ).resolves.toEqual({ status: "ready", data: reviews });
     expect(fetchImpl).toHaveBeenCalledWith(
       `${apiBase}/place-reviews/${placeId}`,
-      { cache: "no-store" },
+      { cache: "no-store", credentials: "include" },
     );
   });
 
@@ -200,3 +200,9 @@ describe("loadPlaceCourses", () => {
     ).resolves.toEqual({ status: "error" });
   });
 });
+
+ it("forwards the viewer session without caching personalized reviews", async () => {
+   const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(reviews)));
+   await loadPlaceReviews(placeId, fetchImpl, apiBase, "haetteum_session=viewer-token");
+   expect(fetchImpl).toHaveBeenCalledWith(`${apiBase}/place-reviews/${placeId}`, {cache: "no-store", credentials: "include", headers: {Cookie: "haetteum_session=viewer-token"}});
+ });

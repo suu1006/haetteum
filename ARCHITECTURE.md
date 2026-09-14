@@ -227,14 +227,11 @@ styles
 components/ui
   도메인을 모르는 범용 UI와 접근성 primitive
         ↓
-components/travel
-  여행지, 후기, 평점, 일정의 표현 컴포넌트
-        ↓
-components/patterns
-  여러 컴포넌트의 화면 단위 조합
+components/patterns / components/domain
+  공통 상태·검색 패턴 / 장소·축제·코스·후기 표현
         ↓
 features / app routes
-  API 연결, 브라우저 상태, 사용자 흐름, 페이지 조립
+  화면 조합, API 연결, 브라우저 상태, 사용자 흐름, 페이지 조립
 ```
 
 현재 구현된 범용 컴포넌트는 `Button`, `Toggle`, `ToggleGroup`, `Card`다. 여행
@@ -271,7 +268,7 @@ adapter와 축제 표현 컴포넌트도 존재하지만, 이 문서는 이번 �
 3. 서버 상태에는 React Query, 필요한 제한적 브라우저 UI 상태에는 Zustand를
    사용한다. 현재 Zustand 사용 범위는 인증 표시용 in-memory store다.
 4. API 응답은 `@haetteum/contracts` 스키마로 경계에서 검증한다.
-5. `components/travel`에는 API response 전체를 넘기지 않고 화면에 필요한 값만
+5. `components/domain`에는 API response 전체를 넘기지 않고 화면에 필요한 값만
    props로 전달한다.
 
 구체적인 Server Component prefetch 정책은 실제 기능별 설계에서 확정한다.
@@ -450,7 +447,7 @@ PostgreSQL은 로컬에서 Docker Compose로 실행하고 named volume
 `apps/web/.env.example`에 둔다. 실제 자격증명과 provider key는 예시 파일이나
 Git에 기록하지 않는다.
 
-TourAPI는 `apps/api/.env`의 `END_POINT`, `SERVICE_KEY`,
+TourAPI는 `apps/api/.env`의 `TOUR_API_ENDPOINT`, `TOUR_API_SERVICE_KEY`,
 `TOURISM_SYNC_ENABLED` 이름을 사용한다. 실제 값은 문서에 기록하지 않는다.
 
 Kakao Login은 `apps/api/.env`의 `KAKAO_REST_API_KEY`,
@@ -675,3 +672,5 @@ AI가 임의의 장소를 처음부터 생성하지 않고 관광데이터에서
 UI 토큰과 컴포넌트 세부 규칙은 `DESIGN.md`, 특정 변경의 선택 근거는 해당
 `docs/superpowers/specs` 문서에 기록하고 여기에는 전체 시스템에 영향을 주는
 결론만 반영한다.
+
+컴포넌트별 경로와 소유권은 `apps/web/src/components/README.md`를 참고한다.

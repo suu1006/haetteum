@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-import { EmailSignupScreen } from "@/components/patterns/email-signup-screen";
+import { EmailSignupScreen } from "@/features/auth/components/email-signup-screen";
 import { hasSameOriginReferrer, kakaoLoginHref } from "@/app/login/page";
 
 export const metadata: Metadata = {

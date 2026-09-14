@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { connection } from "next/server";
 
-import { MyReviewsScreen } from "@/components/patterns/my-reviews-screen";
+import { MyReviewsScreen } from "@/features/reviews/components/my-reviews-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { favoritesQueryKey } from "@/features/places/favorite-place-query";

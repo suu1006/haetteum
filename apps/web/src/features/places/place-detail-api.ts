@@ -113,13 +113,14 @@ export async function loadPlaceReviews(
   placeId: string,
   fetchImpl: typeof fetch = fetch,
   baseUrl = getApiBaseUrl(),
+  cookieHeader?: string | null,
 ): Promise<PlaceReviewsLoadState> {
   const api = apiBaseUrl(baseUrl);
   if (api == null) return { status: "error" };
   try {
     const response = await fetchImpl(
       `${api}/place-reviews/${encodeURIComponent(placeId)}`,
-      { cache: "no-store" },
+      { cache: "no-store", credentials: "include", ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {}) },
     );
     if (!response.ok) return { status: "error" };
     const parsed = PlaceReviewsResponseSchema.safeParse(await response.json());

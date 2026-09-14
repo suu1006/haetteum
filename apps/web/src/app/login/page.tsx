@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LoginScreen } from "@/components/patterns/login-screen";
+import { LoginScreen } from "@/features/auth/components/login-screen";
 import { loginErrorMessage } from "@/features/auth/auth-model";
 import { getApiBaseUrl } from "@/lib/api-base";
 

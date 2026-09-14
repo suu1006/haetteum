@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { connection } from "next/server";
 
-import { MyPageScreen } from "@/components/patterns/my-page-screen";
+import { MyPageScreen } from "@/features/profile/components/my-page-screen";
 import { requireCurrentUser } from "@/features/auth/auth-server";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { createMyPageData } from "@/features/profile/my-page-data";

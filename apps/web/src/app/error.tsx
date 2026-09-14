@@ -4,7 +4,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button/button";
 
 export default function GlobalError({
   error,

@@ -111,14 +111,14 @@ background, foreground, primary, border, rating, route
 components/ui
 shadcn + Base UI 기반 범용 접근성 컴포넌트
         ↓
-components/travel
+components/domain
 여행지, 후기, 일정 데이터의 표현 컴포넌트
         ↓
 components/patterns
-웰컴 히어로, 통합 후기, 지도 경로, 일정 타임라인
+공통 empty/error/loading 상태, 검색 입력, 내비게이션
         ↓
 features / app routes
-데이터 연결, 사용자 흐름, 페이지 조립
+화면 컴포넌트, 데이터 연결, 사용자 흐름, 페이지 조립
 ```
 
 ### Ownership rules
@@ -127,8 +127,8 @@ features / app routes
 |---|---|---|
 | `styles` | 토큰, 타이포그래피, safe area와 전역 기반 | 화면별 선택자와 도메인 조건 |
 | `components/ui` | 범용 UI, 접근성, 공통 variant | 여행 API 타입, 화면별 조건문 |
-| `components/travel` | 여행 데이터의 반복 표현 | 페이지 데이터 요청과 라우팅 흐름 |
-| `components/patterns` | 여러 컴포넌트의 화면 단위 조합 | 전역 토큰 재정의 |
+| `components/domain` | 여행 데이터의 반복 표현 | 페이지 데이터 요청과 라우팅 흐름 |
+| `components/patterns` | 도메인 독립적인 상태·검색·내비게이션 조합 | feature 데이터 요청·도메인 조건 |
 | `features` / `app` | 데이터와 사용자 흐름 연결 | 범용 UI의 복제 |
 | `public/images`, `public/icons` | 제품이 소유하는 정적 이미지, 브랜드, 브라우저 및 PWA 아이콘 | React 컴포넌트와 런타임 외부 데이터 |
 | `tests` | 프론트엔드 단위 테스트와 공통 테스트 설정 | 제품 런타임 코드 |
@@ -296,12 +296,12 @@ apps/web/src/styles/tokens.css
 apps/web/src/styles/typography.css
 apps/web/src/styles/safe-area.css
 apps/web/src/lib/utils.ts
-apps/web/src/components/ui/button.tsx
-apps/web/src/components/ui/input.tsx
-apps/web/src/components/ui/toggle.tsx
-apps/web/src/components/ui/toggle-group.tsx
-apps/web/src/components/ui/card.tsx
-apps/web/src/components/ui/badge.tsx
+apps/web/src/components/ui/button/button.tsx
+apps/web/src/components/ui/input/input.tsx
+apps/web/src/components/ui/toggle/toggle.tsx
+apps/web/src/components/ui/toggle-group/toggle-group.tsx
+apps/web/src/components/ui/card/card.tsx
+apps/web/src/components/ui/badge/badge.tsx
 ```
 
 Foundation 확인 화면은 제품 첫 화면과 섞지 않고 별도 `/design-system` route에
@@ -490,8 +490,8 @@ route다. 현재 구현은 후기 탭만 완성하고 소개, 코스 추천과 �
 
 아래 구성은 외부 플랫폼 후기 연동을 가정했던 초기 mock 탐색 단계의 기록이다.
 후기는 자체 이용자 후기만 사용하기로 결정했으므로(2026-08-29) 실 데이터를 쓰는
-`LivePlaceDetailScreen`/`LivePlaceReviewList`(`apps/web/src/components/patterns`,
-`apps/web/src/components/travel/live-place-review-list.tsx`)는 `ReviewSourceFilter`와
+`LivePlaceDetailScreen`/`LivePlaceReviewList`(`apps/web/src/features/places/components`,
+`apps/web/src/components/domain/review/live-place-review-list.tsx`)는 `ReviewSourceFilter`와
 provider 배지 없이 자체 후기 피드만 렌더링한다.
 
 ```text
@@ -590,7 +590,7 @@ MainDiscovery
 - Sizes: `default`, `sm`
 - Default spacing variable은 16px이다.
 - 범용 Card에는 여행지 이미지 비율이나 후기 데이터 구조를 넣지 않는다.
-- 이미지와 도메인 slot은 `components/travel`에서 합성한다.
+- 이미지와 도메인 slot은 `components/domain`에서 합성한다.
 
 ### Token/component ownership
 
@@ -723,3 +723,13 @@ MainDiscovery
 - [x] 장소 상세 후기 탭은 카카오맵/구글/네이버 등 외부 플랫폼 리뷰를 연동하지
       않고 자체 이용자 후기만 사용 / 사용자 승인 / 2026-08-29 (카카오·네이버는
       공식 리뷰 API 부재·크롤링 금지, 구글 Places API는 유료라서 배제)
+
+## 컴포넌트 구조 (2026-09-14)
+
+- `components/ui/<name>/<name>.tsx`: 범용 primitive. 공개 props는 필요한 경우 `<name>.types.ts`로 분리한다. Button/Input, Modal/Menu, 링크 기반 Tabs, 인라인 Toast를 제공한다. Modal/Menu는 기존 Base UI API를 보존하며 배경·본문·메뉴 항목의 반복 스타일을 공유한다.
+- `components/patterns`: empty-state, error-state, loading-state, search-bar, navigation. 문구와 행동은 호출자가 전달한다.
+- `components/domain/{place,festival,course,review}`: 도메인별 콘텐츠 표현. 기존 컴포넌트 이름을 유지한다.
+- `features/<feature>/components`: 기존 patterns의 화면 조합 및 인증·프로필·릴스 흐름.
+- 상세 이동 목록: `docs/component-migration-2026-09-14.json`. 과거 계획·감사 보고서의 경로는 당시 기록이다.
+- import는 `@/components/ui/button/button`처럼 구현 파일을 직접 가리킨다. 옛 경로용 re-export는 두지 않는다.
+- `toast`는 현재 인라인 상태 메시지를 공통화한 컴포넌트이며 자동 닫힘·전역 큐를 가진 알림 시스템은 아니다.

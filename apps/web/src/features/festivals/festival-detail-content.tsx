@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
-import { FestivalDetailScreen } from "@/components/patterns/festival-detail-screen";
+import { FestivalDetailScreen } from "@/features/festivals/components/festival-detail-screen";
 import { festivalDetailQueryOptions } from "@/features/festivals/festival-detail-query";
 import { mapFestivalDetail } from "@/features/festivals/festival-detail-model";
 
