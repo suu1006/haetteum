@@ -69,7 +69,7 @@ function ChatHistoryPanel({ open, onOpenChange, onSelectConversation }: ChatHist
               </Dialog.Close>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4" aria-live="polite">
-              {state === "error" ? (
+              {state === "error" && items.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border bg-background px-5 py-10 text-center">
                   <p role="alert" className="type-caption text-destructive">
                     대화 목록을 불러오지 못했어요.

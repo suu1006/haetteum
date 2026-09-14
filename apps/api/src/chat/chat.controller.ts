@@ -175,7 +175,10 @@ export class ChatController {
     @Query(new ZodValidationPipe(ListChatConversationsQuerySchema))
     query: ListChatConversationsQuery,
   ): Promise<ChatConversationListResponse> {
-    const { items, nextCursor } = await this.conversations.listForUser(currentUser.id, query);
+    const { items, nextCursor } = await this.conversations.listForUser(
+      currentUser.id,
+      query,
+    );
     return ChatConversationListResponseSchema.parse({
       items: items.map((item) => ({
         id: item.id,
@@ -194,7 +197,10 @@ export class ChatController {
     @Param(new ZodValidationPipe(ChatConversationIdParamsSchema))
     params: ChatConversationIdParams,
   ): Promise<ChatConversationMessagesResponse> {
-    const messages = await this.conversations.getMessages(currentUser.id, params.conversationId);
+    const messages = await this.conversations.getMessages(
+      currentUser.id,
+      params.conversationId,
+    );
     return ChatConversationMessagesResponseSchema.parse({
       conversationId: params.conversationId,
       messages,

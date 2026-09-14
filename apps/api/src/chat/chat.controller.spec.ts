@@ -12,10 +12,14 @@ describe("ChatController.sendMessage", () => {
   it("returns the service reply with the reservation's conversation id and settles with it", async () => {
     const chat = {
       sendMessage: jest
-        .fn<(request: ChatRequest) => Promise<{ status: "ready"; reply: string }>>()
+        .fn<
+          (request: ChatRequest) => Promise<{ status: "ready"; reply: string }>
+        >()
         .mockResolvedValue({ status: "ready", reply: "안녕하세요" }),
     };
-    const settle = jest.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined);
+    const settle = jest
+      .fn<(...args: unknown[]) => Promise<void>>()
+      .mockResolvedValue(undefined);
     const controller = new ChatController(
       chat as never,
       {
@@ -30,11 +34,21 @@ describe("ChatController.sendMessage", () => {
       } as never,
       {} as never,
     );
-    const request: ChatRequest = { messages: [{ role: "user", content: "안녕" }] };
+    const request: ChatRequest = {
+      messages: [{ role: "user", content: "안녕" }],
+    };
 
-    const response: ChatResponse = await controller.sendMessage(request, {} as never, {} as never);
+    const response: ChatResponse = await controller.sendMessage(
+      request,
+      {} as never,
+      {} as never,
+    );
 
-    expect(response).toEqual({ status: "ready", reply: "안녕하세요", conversationId: CONVERSATION_ID });
+    expect(response).toEqual({
+      status: "ready",
+      reply: "안녕하세요",
+      conversationId: CONVERSATION_ID,
+    });
     expect(settle).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: CONVERSATION_ID }),
       "COMPLETED",
@@ -60,11 +74,21 @@ describe("ChatController.sendMessage", () => {
       } as never,
       {} as never,
     );
-    const request: ChatRequest = { messages: [{ role: "user", content: "안녕" }] };
+    const request: ChatRequest = {
+      messages: [{ role: "user", content: "안녕" }],
+    };
 
-    const response = await controller.sendMessage(request, {} as never, {} as never);
+    const response = await controller.sendMessage(
+      request,
+      {} as never,
+      {} as never,
+    );
 
-    expect(response).toEqual({ status: "ready", reply: "캐시된 답변", conversationId: CONVERSATION_ID });
+    expect(response).toEqual({
+      status: "ready",
+      reply: "캐시된 답변",
+      conversationId: CONVERSATION_ID,
+    });
     expect(chat.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -84,28 +108,46 @@ describe("ChatController.sendMessage", () => {
 describe("ChatController conversations", () => {
   it("lists the current user's conversations through the conversation service", async () => {
     const conversations = {
-      listForUser: jest.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
-        items: [
-          {
-            id: CONVERSATION_ID,
-            title: "서울 여행",
-            updatedAt: new Date("2026-09-14T00:00:00.000Z"),
-            preview: "안녕",
-          },
-        ],
-        nextCursor: null,
-      }),
+      listForUser: jest
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({
+          items: [
+            {
+              id: CONVERSATION_ID,
+              title: "서울 여행",
+              updatedAt: new Date("2026-09-14T00:00:00.000Z"),
+              preview: "안녕",
+            },
+          ],
+          nextCursor: null,
+        }),
       getMessages: jest.fn(),
     };
-    const controller = new ChatController({} as never, {} as never, conversations as never);
+    const controller = new ChatController(
+      {} as never,
+      {} as never,
+      conversations as never,
+    );
 
-    const result = await controller.listConversations({ id: "user-1" } as never, { limit: 12 });
+    const result = await controller.listConversations(
+      { id: "user-1" } as never,
+      { limit: 12 },
+    );
 
     expect(result).toEqual({
-      items: [{ id: CONVERSATION_ID, title: "서울 여행", updatedAt: "2026-09-14T00:00:00.000Z", preview: "안녕" }],
+      items: [
+        {
+          id: CONVERSATION_ID,
+          title: "서울 여행",
+          updatedAt: "2026-09-14T00:00:00.000Z",
+          preview: "안녕",
+        },
+      ],
       nextCursor: null,
     });
-    expect(conversations.listForUser).toHaveBeenCalledWith("user-1", { limit: 12 });
+    expect(conversations.listForUser).toHaveBeenCalledWith("user-1", {
+      limit: 12,
+    });
   });
 
   it("returns a conversation's messages for its owner", async () => {
@@ -115,14 +157,24 @@ describe("ChatController conversations", () => {
         .fn<(...args: unknown[]) => Promise<unknown>>()
         .mockResolvedValue([{ role: "user", content: "안녕" }]),
     };
-    const controller = new ChatController({} as never, {} as never, conversations as never);
+    const controller = new ChatController(
+      {} as never,
+      {} as never,
+      conversations as never,
+    );
 
     const result = await controller.getConversationMessages(
       { id: "user-1" } as never,
       { conversationId: CONVERSATION_ID },
     );
 
-    expect(result).toEqual({ conversationId: CONVERSATION_ID, messages: [{ role: "user", content: "안녕" }] });
-    expect(conversations.getMessages).toHaveBeenCalledWith("user-1", CONVERSATION_ID);
+    expect(result).toEqual({
+      conversationId: CONVERSATION_ID,
+      messages: [{ role: "user", content: "안녕" }],
+    });
+    expect(conversations.getMessages).toHaveBeenCalledWith(
+      "user-1",
+      CONVERSATION_ID,
+    );
   });
 });

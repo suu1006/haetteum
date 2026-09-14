@@ -40,6 +40,32 @@ describe("ChatHistoryPanel", () => {
     await waitFor(() => screen.getByRole("alert"));
   });
 
+  it("keeps the loaded list visible when loading more fails", async () => {
+    vi.spyOn(api, "listChatConversations")
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "conv-1",
+            title: "서울 여행",
+            updatedAt: "2026-09-14T00:00:00.000Z",
+            preview: "안녕하세요",
+          },
+        ],
+        nextCursor: 1,
+      })
+      .mockRejectedValueOnce(new Error("network"));
+
+    render(<ChatHistoryPanel open onOpenChange={vi.fn()} onSelectConversation={vi.fn()} />);
+
+    await waitFor(() => screen.getByText("더 보기"));
+    await userEvent.click(screen.getByText("더 보기"));
+
+    await waitFor(() => expect(api.listChatConversations).toHaveBeenCalledTimes(2));
+    await waitFor(() => screen.getByText("서울 여행"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("더 보기")).toBeTruthy();
+  });
+
   it("does not fetch while closed", () => {
     const spy = vi.spyOn(api, "listChatConversations");
 
