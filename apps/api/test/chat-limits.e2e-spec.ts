@@ -385,9 +385,10 @@ it.each([
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line) as unknown);
-    expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({ type: "delta", text: "부분 답변" });
-    expect(events[1]).toMatchObject({ type: "error", status });
+    expect(events).toHaveLength(3);
+    expect(events[0]).toMatchObject({ type: "meta" });
+    expect(events[1]).toEqual({ type: "delta", text: "부분 답변" });
+    expect(events[2]).toMatchObject({ type: "error", status });
     expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
     expect(result.text).not.toContain("private AWS");
   },

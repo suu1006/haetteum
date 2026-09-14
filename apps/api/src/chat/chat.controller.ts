@@ -79,12 +79,13 @@ export class ChatController {
     };
     try {
       if (response.destroyed) return;
-      write({ type: "meta", conversationId: reservation.conversationId });
       if (reservation.reply !== undefined) {
+        write({ type: "meta", conversationId: reservation.conversationId });
         write({ type: "delta", text: reservation.reply });
         write({ type: "done" });
         return;
       }
+      let metaSent = false;
       for await (const event of events) {
         if (event.type === "delta") reply += event.text;
         if (event.type === "done") {
@@ -101,6 +102,10 @@ export class ChatController {
           if (!response.headersSent) throw chatHttpError(event.status);
         }
         if (response.destroyed) break;
+        if (!metaSent) {
+          write({ type: "meta", conversationId: reservation.conversationId });
+          metaSent = true;
+        }
         write(event);
       }
     } catch (error) {
