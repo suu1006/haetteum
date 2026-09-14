@@ -8,6 +8,7 @@ export function applyTestEnvironment(environment: NodeJS.ProcessEnv): void {
     "http://localhost:4000/api/v1/auth/kakao/callback";
   environment.TOURISM_SYNC_ENABLED = "false";
   environment.PLACE_REELS_ENABLED = "false";
+  environment.WEEKLY_RECOMMENDATIONS_ENABLED = "false";
   delete environment.END_POINT;
   delete environment.SERVICE_KEY;
   delete environment.YOUTUBE_API_KEY;
