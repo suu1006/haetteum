@@ -1,5 +1,8 @@
 import { jest } from "@jest/globals";
-import { PlaceDetailResponseSchema } from "@haetteum/contracts";
+import {
+  ListPlacesQuerySchema,
+  PlaceDetailResponseSchema,
+} from "@haetteum/contracts";
 
 import { Prisma } from "../generated/prisma/client.js";
 import type { KakaoLocalPlace } from "./kakao-local.client.js";
@@ -15,6 +18,7 @@ type PlaceListRow = {
   primaryImageUrl: string | null;
   imageCopyrightType: string | null;
   district: { name: string } | null;
+  region: { slug: string };
 };
 
 describe("PlacesService", () => {
@@ -22,6 +26,7 @@ describe("PlacesService", () => {
     const rows: PlaceListRow[] = [
       {
         id: "84549352-0c20-4e11-af50-2d4f278f41ef",
+        region: { slug: "jeju" },
         title: "성산일출봉",
         address1: "  제주특별자치도 서귀포시 성산읍  ",
         address2: "  성산리 1-1  ",
@@ -33,6 +38,7 @@ describe("PlacesService", () => {
       },
       {
         id: "6d1f4900-e145-4b79-aa27-3925f2c730ac",
+        region: { slug: "jeju" },
         title: "성산항",
         address1: "   ",
         address2: null,
@@ -102,10 +108,56 @@ describe("PlacesService", () => {
       skip: 10,
       take: 10,
       orderBy: [{ title: "asc" }, { id: "asc" }],
-      include: { district: { select: { name: true } } },
+      include: {
+        district: { select: { name: true } },
+        region: { select: { slug: true } },
+      },
     });
     expect(count).toHaveBeenCalledWith({ where });
     expect(transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("searches all supported active regions and returns each place's actual region", async () => {
+    const findMany = jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+      {
+        id: "one",
+        title: "중앙공원",
+        region: { slug: "seoul" },
+        district: null,
+      },
+      {
+        id: "two",
+        title: "중앙공원",
+        region: { slug: "busan" },
+        district: null,
+      },
+    ]);
+    const service = new PlacesService(
+      {
+        $transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
+        place: {
+          findMany,
+          count: jest.fn<() => Promise<number>>().mockResolvedValue(2),
+        },
+      } as never,
+      {} as never,
+    );
+    const result = await service.list(
+      ListPlacesQuerySchema.parse({ q: "중앙공원" }),
+    );
+    expect(result.items.map((item) => item.region)).toEqual(["seoul", "busan"]);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          region: {
+            is: {
+              isActive: true,
+              slug: { in: ["seoul", "gyeonggi", "gangwon", "busan", "jeju"] },
+            },
+          },
+        }),
+      }),
+    );
   });
 
   it("does not create a search filter for an empty query", async () => {

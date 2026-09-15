@@ -160,7 +160,7 @@ function MyReviewsScreen({
               </p>
             </div>
           ) : (
-            <ul aria-label={listLabel} className="grid gap-4">
+            <ul aria-label={listLabel} className="grid grid-cols-1 gap-4">
               {bookmarkedItems.map((item, index) => (
                 <li key={item.id}>
                   <FavoritePlaceCard

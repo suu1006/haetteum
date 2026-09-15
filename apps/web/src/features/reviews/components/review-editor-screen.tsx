@@ -1,7 +1,11 @@
 "use client";
 
-import type { PlaceListItem, PlaceRegion, ReviewItem } from "@haetteum/contracts";
-import { ChevronDownIcon, ChevronLeftIcon, SearchIcon } from "lucide-react";
+import type {
+  PlaceListItem,
+  PlaceRegion,
+  ReviewItem,
+} from "@haetteum/contracts";
+import { ChevronLeftIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -46,8 +50,9 @@ const maxContentLength = 500;
 function ReviewEditorScreen(props: ReviewEditorScreenProps) {
   const router = useRouter();
   const isCreate = props.mode === "create";
-  const [region, setRegion] = useState<PlaceRegion | "">("");
-  const [selectedPlace, setSelectedPlace] = useState<PlaceListItem | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceListItem | null>(
+    null,
+  );
   const [placeModalOpen, setPlaceModalOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(
     isCreate ? null : props.initialReview.rating,
@@ -59,7 +64,7 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
   const [images, setImages] = useState<string[]>(
     isCreate ? [] : props.initialReview.images,
   );
-  const [saveToFavorites, setSaveToFavorites] = useState(true);
+  const [favoriteOverride, setSaveToFavorites] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const submittingRef = useRef(false);
@@ -77,6 +82,8 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
     favoritePlaceId,
     favoriteQueryEnabled,
   );
+  const saveToFavorites =
+    favoriteOverride ?? (isCreate ? true : currentlyFavorited);
 
   async function handleSubmit() {
     if (submittingRef.current || rating == null) return;
@@ -111,7 +118,10 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
         });
 
     if (result.status === "success") {
-      if (saveToFavorites !== currentlyFavorited) {
+      if (
+        (isCreate || favoriteOverride !== null) &&
+        saveToFavorites !== currentlyFavorited
+      ) {
         const place = isCreate
           ? selectedPlace!
           : {
@@ -157,43 +167,16 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
   const placeSearchControls = (
     <section aria-label="관광지 선택" className="grid gap-4">
       <div className="grid gap-2">
-        <label htmlFor="review-region" className="type-body-lg font-semibold text-foreground">
-          지역
-        </label>
-        <div className="relative">
-          <select
-            id="review-region"
-            value={region}
-            disabled={submitting}
-            className="h-11 w-full appearance-none rounded-lg border border-input bg-background px-3.5 pr-9 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-45"
-            onChange={(event) => {
-              setRegion(event.target.value as PlaceRegion | "");
-              setSelectedPlace(null);
-              setErrorMessage(null);
-            }}
-          >
-            <option value="">지역 선택</option>
-            {regionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDownIcon
-            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-2">
-        <label htmlFor="review-place-query" className="type-body-lg font-semibold text-foreground">
+        <label
+          htmlFor="review-place-query"
+          className="type-body-lg font-semibold text-foreground"
+        >
           관광지 검색
         </label>
         <button
           id="review-place-query"
           type="button"
-          disabled={region === "" || submitting}
+          disabled={submitting}
           onClick={() => setPlaceModalOpen(true)}
           className="relative flex h-11 w-full items-center gap-2 rounded-lg border border-input bg-background px-3.5 text-left outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25 disabled:opacity-45"
         >
@@ -207,18 +190,15 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
         </button>
       </div>
 
-      {region !== "" ? (
-        <PlaceSearchDialog
-          open={placeModalOpen}
-          onOpenChange={setPlaceModalOpen}
-          region={region}
-          excludedPlaceIds={reviewedPlaceIds}
-          onSelect={(place) => {
-            setSelectedPlace(place);
-            setErrorMessage(null);
-          }}
-        />
-      ) : null}
+      <PlaceSearchDialog
+        open={placeModalOpen}
+        onOpenChange={setPlaceModalOpen}
+        excludedPlaceIds={reviewedPlaceIds}
+        onSelect={(place) => {
+          setSelectedPlace(place);
+          setErrorMessage(null);
+        }}
+      />
     </section>
   );
 
@@ -310,7 +290,7 @@ function ReviewEditorScreen(props: ReviewEditorScreenProps) {
           size="lg"
           className="mb-4 w-full"
         >
-          {submitting ? "저장 중..." : "등록하기"}
+          {submitting ? "저장 중..." : isCreate ? "등록하기" : "수정하기"}
         </Button>
       </div>
     </div>

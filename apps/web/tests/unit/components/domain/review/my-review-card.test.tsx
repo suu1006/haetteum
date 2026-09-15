@@ -27,6 +27,20 @@ function openMoreMenu() {
 }
 
 describe("MyReviewCard", () => {
+  it("opens editing directly from the card without triggering delete", () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(<MyReviewCard review={review} onEdit={onEdit} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "에버랜드 후기 수정하기" }));
+    expect(onEdit).toHaveBeenCalledWith("review-1");
+    expect(onDelete).not.toHaveBeenCalled();
+    onEdit.mockClear();
+    openMoreMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "삭제" }));
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(onDelete).toHaveBeenCalledWith("review-1");
+  });
+
   it("does not show a more-options trigger when no edit or delete handler is provided", () => {
     render(<MyReviewCard review={review} />);
 

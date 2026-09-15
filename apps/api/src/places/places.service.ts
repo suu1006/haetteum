@@ -1,5 +1,7 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
+import { PlaceRegionSchema } from "@haetteum/contracts";
+
 import type {
   ListPlacesQuery,
   NearbyPlacesQuery,
@@ -52,7 +54,12 @@ export class PlacesService {
   async list(input: ListPlacesQuery): Promise<PlacesPage> {
     const where: Prisma.PlaceWhereInput = {
       isVisible: true,
-      region: { is: { slug: input.region, isActive: true } },
+      region: {
+        is: {
+          slug: input.region ?? { in: PlaceRegionSchema.options },
+          isActive: true,
+        },
+      },
       ...(input.q
         ? {
             OR: [
@@ -69,7 +76,10 @@ export class PlacesService {
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
         orderBy: [{ title: "asc" }, { id: "asc" }],
-        include: { district: { select: { name: true } } },
+        include: {
+          district: { select: { name: true } },
+          region: { select: { slug: true } },
+        },
       }),
       this.prisma.place.count({ where }),
     ]);
@@ -78,7 +88,7 @@ export class PlacesService {
       items: places.map((place): PlaceListItem => ({
         id: place.id,
         title: place.title,
-        region: input.region,
+        region: PlaceRegionSchema.parse(place.region.slug),
         district: place.district?.name ?? null,
         address: address(place.address1, place.address2),
         longitude: place.longitude?.toNumber() ?? null,

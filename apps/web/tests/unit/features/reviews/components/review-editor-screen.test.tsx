@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PlaceListItem, ReviewItem } from "@haetteum/contracts";
@@ -90,7 +90,6 @@ async function selectPlace(user: ReturnType<typeof userEvent.setup>) {
     items: [selectablePlace],
   });
 
-  await user.selectOptions(screen.getByRole("combobox", { name: "지역" }), "gyeonggi");
   await user.click(screen.getByRole("button", { name: "관광지 검색" }));
   await user.type(await screen.findByRole("searchbox", { name: "관광지 검색" }), "화성");
 
@@ -115,14 +114,10 @@ async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("ReviewEditorScreen", () => {
-  it("offers the five supported regions and keeps the search trigger disabled until a region is picked", () => {
+  it("allows searching immediately without selecting a region", () => {
     renderScreen(<ReviewEditorScreen mode="create" reviewedPlaceIds={[]} />);
-
-    const region = screen.getByRole("combobox", { name: "지역" });
-    expect(
-      within(region).getAllByRole("option").map((option) => option.textContent),
-    ).toEqual(["지역 선택", "서울", "경기", "강원", "부산", "제주"]);
-    expect(screen.getByRole("button", { name: "관광지 검색" })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "지역" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "관광지 검색" })).toBeEnabled();
   });
 
   it("selects a place through the search dialog and shows it as a summary card", async () => {
@@ -139,7 +134,7 @@ describe("ReviewEditorScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "다른 관광지로 변경" }));
 
-    expect(screen.getByRole("combobox", { name: "지역" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "관광지 검색" })).toBeEnabled();
   });
 
   it("keeps the submit button disabled until rating, title and a long-enough review are provided", async () => {
@@ -279,6 +274,30 @@ describe("ReviewEditorScreen", () => {
     await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/reviews"));
   });
 
+  it("loads existing photos and the saved bookmark state without changing it on save", async () => {
+    const user = userEvent.setup();
+    const images = ["https://api.test/uploads/reviews/existing.jpg"];
+    favoriteApiMocks.loadMyFavorites.mockResolvedValue({
+      items: [{ id: initialReview.placeId }],
+    });
+    renderScreen(<ReviewEditorScreen mode="edit" initialReview={{ ...initialReview, images }} />);
+
+    expect(screen.getByAltText("첨부 사진 1")).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByRole("switch", { name: "북마크에 저장" })).toHaveAttribute("aria-checked", "true");
+    });
+    await user.click(screen.getByRole("button", { name: "수정하기" }));
+    await waitFor(() => expect(routerMocks.replace).toHaveBeenCalledWith("/reviews"));
+    expect(apiMocks.updateReview).toHaveBeenCalledWith(initialReview.id, {
+      rating: initialReview.rating,
+      title: initialReview.title,
+      content: initialReview.content,
+      images,
+    });
+    expect(favoriteApiMocks.addFavorite).not.toHaveBeenCalled();
+    expect(favoriteApiMocks.removeFavorite).not.toHaveBeenCalled();
+  });
+
   it("keeps the edit place read-only and patches rating, title, content and images", async () => {
     const user = userEvent.setup();
     renderScreen(
@@ -298,12 +317,14 @@ describe("ReviewEditorScreen", () => {
       screen.getByRole("textbox", { name: "제목을 입력해주세요" }),
     ).toHaveValue("여유로운 하루");
 
+    expect(screen.getByRole("textbox", { name: "후기를 작성해주세요" })).toHaveValue(initialReview.content);
+    expect(screen.getByRole("switch", { name: "북마크에 저장" })).toHaveAttribute("aria-checked", "false");
     await user.click(screen.getByRole("radio", { name: "5점" }));
     const content = screen.getByRole("textbox", { name: "후기를 작성해주세요" });
     await user.clear(content);
     await user.type(content, "다시 방문해도 좋을 것 같아요.");
 
-    await user.click(screen.getByRole("button", { name: "등록하기" }));
+    await user.click(screen.getByRole("button", { name: "수정하기" }));
 
     await waitFor(() => {
       expect(apiMocks.updateReview).toHaveBeenCalledWith(initialReview.id, {
@@ -326,7 +347,7 @@ describe("ReviewEditorScreen", () => {
       <ReviewEditorScreen mode="edit" initialReview={initialReview} />,
     );
 
-    await user.click(screen.getByRole("button", { name: "등록하기" }));
+    await user.click(screen.getByRole("button", { name: "수정하기" }));
 
     expect(
       await screen.findByText(

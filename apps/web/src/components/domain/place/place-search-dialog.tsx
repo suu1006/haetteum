@@ -14,7 +14,7 @@ type SearchState = "idle" | "loading" | "ready" | "error";
 type PlaceSearchDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  region: PlaceRegion;
+  region?: PlaceRegion;
   excludedPlaceIds?: ReadonlySet<string>;
   onSelect: (place: PlaceListItem) => void;
 };
@@ -99,13 +99,13 @@ function PlaceSearchDialog({
             </div>
 
             <div className="px-5 pt-4">
-<SearchInput
-                  ref={inputRef}
-                  value={query}
-                  aria-label="관광지 검색"
-                  placeholder="관광지 이름을 입력해 주세요"
-                  onChange={(event) => setQuery(event.target.value)}
-                />
+              <SearchInput
+                ref={inputRef}
+                value={query}
+                aria-label="관광지 검색"
+                placeholder="관광지 이름을 입력해 주세요"
+                onChange={(event) => setQuery(event.target.value)}
+              />
             </div>
 
             <div
@@ -127,11 +127,24 @@ function PlaceSearchDialog({
                       ? "검색 중..."
                       : `검색 결과 ${visiblePlaces.length}개`}
                   </p>
-                  <ul aria-label="관광지 검색 결과" className="grid gap-2">
+                  <ul aria-label="관광지 검색 결과" className="grid min-w-0 grid-cols-1 gap-2">
                     {visiblePlaces.map((place) => {
-                      const location = place.district ?? place.address;
+                      const regionLabel = {
+                        seoul: "서울",
+                        gyeonggi: "경기",
+                        gangwon: "강원",
+                        busan: "부산",
+                        jeju: "제주",
+                      }[place.region];
+                      const location = [
+                        regionLabel,
+                        place.district,
+                        place.address,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
                       return (
-                        <li key={place.id}>
+                        <li key={place.id} className="min-w-0">
                           <Dialog.Close
                             render={
                               <button type="button">

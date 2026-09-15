@@ -79,7 +79,6 @@ beforeEach(() => {
 });
 
 async function searchAndOpenResults(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByRole("combobox", { name: "지역" }), "gyeonggi");
   await user.click(screen.getByRole("button", { name: "관광지 검색" }));
   await user.type(await screen.findByRole("searchbox", { name: "관광지 검색" }), "화성");
 }

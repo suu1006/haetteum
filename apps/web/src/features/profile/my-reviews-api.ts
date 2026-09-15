@@ -156,7 +156,7 @@ export async function deleteReview(
 }
 
 export function searchReviewPlaces(
-  region: PlaceRegion,
+  region: PlaceRegion | undefined,
   query: string,
   fetchImpl: typeof fetch = fetch,
   baseUrl = getApiBaseUrl(),

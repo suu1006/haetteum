@@ -9,7 +9,7 @@ export const PlaceRegionSchema = z.enum([
 ]);
 
 export const ListPlacesQuerySchema = z.object({
-  region: PlaceRegionSchema,
+  region: PlaceRegionSchema.optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().max(100).default(""),

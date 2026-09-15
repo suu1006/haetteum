@@ -15,7 +15,7 @@ function apiUrl(baseUrl: string | undefined, path: string): string | null {
 }
 
 export async function searchPlaces(
-  region: PlaceRegion,
+  region: PlaceRegion | undefined,
   query: string,
   fetchImpl: typeof fetch = fetch,
   baseUrl = getApiBaseUrl(),
@@ -25,7 +25,7 @@ export async function searchPlaces(
 
   try {
     const requestUrl = new URL(url);
-    requestUrl.searchParams.set("region", region);
+    if (region) requestUrl.searchParams.set("region", region);
     requestUrl.searchParams.set("page", "1");
     requestUrl.searchParams.set("pageSize", "20");
     requestUrl.searchParams.set("q", query);

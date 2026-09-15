@@ -23,8 +23,17 @@ function MyReviewCard({
   return (
     <article
       aria-label={`${review.title} 후기`}
-      className="grid min-h-[11.25rem] grid-cols-[7.5rem_minmax(0,1fr)] gap-4 rounded-[1.35rem] border border-border/70 bg-card p-3 shadow-card max-[359px]:grid-cols-[6.5rem_minmax(0,1fr)] max-[359px]:gap-3"
+      className="relative grid min-h-[11.25rem] grid-cols-[7.5rem_minmax(0,1fr)] gap-4 rounded-[1.35rem] border border-border/70 bg-card p-3 shadow-card max-[359px]:grid-cols-[6.5rem_minmax(0,1fr)] max-[359px]:gap-3"
     >
+      {onEdit ? (
+        <button
+          type="button"
+          aria-label={`${review.title} 후기 수정하기`}
+          disabled={deleting}
+          onClick={() => onEdit(review.id)}
+          className="absolute inset-0 z-10 rounded-[inherit] outline-none focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none"
+        />
+      ) : null}
       <div className="relative min-h-[9.75rem] overflow-hidden rounded-[1rem] bg-primary-subtle">
         <Image
           unoptimized
@@ -47,7 +56,7 @@ function MyReviewCard({
             <Menu.Root>
               <Menu.Trigger
                 aria-label={`${review.title} 후기 더보기`}
-                className="size-8"
+                className="relative z-20 size-8"
               >
                 <TbDotsVertical
                   aria-hidden="true"
