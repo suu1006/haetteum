@@ -16,7 +16,12 @@ type ChatHistoryPanelProps = {
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 function formatUpdatedAt(iso: string): string {
-  return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
 }
 
 function ChatHistoryPanel({ open, onOpenChange, onSelectConversation }: ChatHistoryPanelProps) {
@@ -58,7 +63,7 @@ function ChatHistoryPanel({ open, onOpenChange, onSelectConversation }: ChatHist
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-[2px] transition-opacity duration-180 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Viewport className="fixed inset-0 z-50 flex items-stretch justify-end">
-          <Dialog.Popup className="relative flex h-dvh w-[85%] max-w-sm flex-col overflow-hidden border-l border-white/70 bg-card text-foreground shadow-floating outline-none transition-[transform,opacity] duration-180 data-ending-style:translate-x-2 data-ending-style:opacity-0 data-starting-style:translate-x-2 data-starting-style:opacity-0">
+          <Dialog.Popup className="relative flex h-dvh w-[85%] max-w-sm flex-col overflow-hidden border-l border-white/70 bg-card text-foreground shadow-floating outline-none transition-[translate,opacity] duration-600 ease-in-out data-ending-style:translate-x-full data-ending-style:opacity-0 data-starting-style:translate-x-full data-starting-style:opacity-0">
             <div className="flex items-center justify-between gap-3 border-b border-border px-5 pt-[calc(1.25rem+var(--safe-area-top))] pb-4">
               <Dialog.Title className="type-title-md text-foreground">대화 목록</Dialog.Title>
               <Dialog.Close
@@ -80,22 +85,19 @@ function ChatHistoryPanel({ open, onOpenChange, onSelectConversation }: ChatHist
               ) : (
                 <ul aria-label="과거 대화 목록" className="grid gap-2">
                   {items.map((item) => (
-                    <li key={item.id}>
+                    <li key={item.id} className="min-w-0">
                       <Dialog.Close
                         render={
                           <button type="button">
                             <span className="min-w-0 flex-1 text-left">
                               <span className="type-label block truncate text-foreground">{item.title}</span>
                               <span className="type-caption mt-0.5 block truncate text-muted-foreground">
-                                {item.preview}
+                                {formatUpdatedAt(item.updatedAt)}
                               </span>
-                            </span>
-                            <span className="type-caption shrink-0 text-muted-foreground">
-                              {formatUpdatedAt(item.updatedAt)}
                             </span>
                           </button>
                         }
-                        className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-left outline-none transition-colors hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/25"
+                        className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-left outline-none transition-colors hover:border-primary/40 focus-visible:ring-3 focus-visible:ring-ring/25"
                         onClick={() => onSelectConversation(item.id)}
                       />
                     </li>
