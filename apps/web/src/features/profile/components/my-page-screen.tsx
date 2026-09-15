@@ -7,6 +7,7 @@ import { BottomNavigation } from "@/components/patterns/navigation/bottom-naviga
 import { createMainNavigationItems } from "@/components/patterns/navigation/main-navigation-items";
 import { MyPageAiBanner } from "@/features/profile/components/my-page-ai-banner";
 import { MyPageMenuList } from "@/features/profile/components/my-page-menu-list";
+import { MyPageLegalLinks } from "@/features/profile/components/my-page-legal-links";
 import { ProfileSummaryCard } from "@/features/profile/components/profile-summary-card";
 import { RandomCourseRecommendation } from "@/components/domain/course/random-course-recommendation";
 import { TravelRecordSummary } from "@/features/profile/components/travel-record-summary";
@@ -58,6 +59,7 @@ function MyPageScreen({ data }: MyPageScreenProps) {
           )}
         </RandomCourseRecommendation>
         <MyPageMenuList items={data.menuItems} />
+        <MyPageLegalLinks />
       </main>
 
       <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card">

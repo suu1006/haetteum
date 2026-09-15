@@ -143,6 +143,18 @@ beforeEach(() => {
 });
 
 describe("MyPageScreen", () => {
+  it.each(["개인정보처리방침", "이용약관"])("opens %s in a modal and restores focus when closed", async (title) => {
+    renderScreen();
+    const user = userEvent.setup();
+    const trigger = screen.getByRole("button", { name: title });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: title });
+    expect(within(dialog).getByRole("heading", { name: title })).toBeInTheDocument();
+    expect(within(dialog).getByText(/초안/)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
   it("opens the home tab's random course recommendation modal from the AI banner", async () => {
     const userEventApi = userEvent.setup();
     renderScreen();
