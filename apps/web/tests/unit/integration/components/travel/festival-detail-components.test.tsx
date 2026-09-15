@@ -38,6 +38,18 @@ const festival: FestivalDetailView = {
 };
 
 describe("festival detail presentation components", () => {
+  it("requests the initial gallery image eagerly without prioritizing hidden slides", () => {
+    render(<FestivalGallery gallery={festival.gallery} />);
+
+    const images = screen.getAllByRole("img");
+    expect(images[0]).toHaveAttribute("loading", "eager");
+    expect(images[0]).toHaveAttribute("fetchpriority", "high");
+    for (const image of images.slice(1)) {
+      expect(image).toHaveAttribute("loading", "lazy");
+      expect(image).not.toHaveAttribute("fetchpriority", "high");
+    }
+  });
+
   it("renders summary status, category, schedule, location and phone", () => {
     render(<FestivalSummary festival={festival} />);
 

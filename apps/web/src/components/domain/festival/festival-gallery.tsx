@@ -32,13 +32,15 @@ function FestivalGallery({ gallery }: FestivalGalleryProps) {
         className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
         onScroll={handleScroll}
       >
-        {gallery.map((image) => (
+        {gallery.map((image, index) => (
           <li key={image.src} className="w-full shrink-0 snap-center">
             <div className="relative aspect-[16/9] overflow-hidden bg-muted">
               <Image
                 src={image.src}
                 alt={image.alt}
                 fill
+                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : undefined}
                 sizes="(max-width: 480px) 100vw, 480px"
                 className="object-cover"
               />
