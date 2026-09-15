@@ -109,3 +109,17 @@ it("offers a login path for anonymous visitors and no actions on own reviews", a
   render(<LivePlaceReviewList reviews={own} />);
   expect(screen.queryByRole("button", { name: "후기 메뉴" })).not.toBeInTheDocument();
 });
+
+
+it("shows attached photos and opens the selected photo at full size", async () => {
+  const data = fixture();
+  Object.assign(data.items[0], { images: ["https://example.test/one.jpg", "https://example.test/two.jpg"] });
+  const user = userEvent.setup();
+  render(<LivePlaceReviewList reviews={data} />);
+  const thumbnail = screen.getByRole("button", { name: "여행자의 후기 사진 2 크게 보기" });
+  await user.click(thumbnail);
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog.querySelector("img")).toHaveAttribute("src", "https://example.test/two.jpg");
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});

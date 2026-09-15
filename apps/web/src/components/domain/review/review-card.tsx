@@ -1,5 +1,5 @@
 import { StarIcon, ThumbsUpIcon, UserRoundIcon } from "lucide-react";
-import Image from "next/image";
+import { ReviewPhotoGallery } from "./review-photo-gallery";
 import type { ReactNode } from "react";
 
 import { ProviderBadge } from "@/components/domain/review/provider-badge";
@@ -57,7 +57,10 @@ function ReviewCard({
                 className="type-label inline-flex items-center gap-1.5 text-foreground"
                 aria-label={`평점 ${formattedRating}점`}
               >
-                <span className="inline-flex gap-0.5 text-primary" aria-hidden="true">
+                <span
+                  className="inline-flex gap-0.5 text-primary"
+                  aria-hidden="true"
+                >
                   {Array.from({ length: 5 }, (_, index) => (
                     <StarIcon
                       key={index}
@@ -73,31 +76,15 @@ function ReviewCard({
               </span>
             </div>
 
-            <p className="type-body-lg break-words text-foreground">{content}</p>
+            <p className="type-body-lg break-words text-foreground">
+              {content}
+            </p>
 
-            {images.length > 0 ? (
-              <ul
-                aria-label={`${author}의 후기 사진`}
-                className="scrollbar-none flex snap-x gap-1.5 overflow-x-auto overscroll-x-contain"
-              >
-                {images.map((image) => (
-                  <li
-                    key={image.src}
-                    className="relative aspect-[4/3] min-w-[8.25rem] snap-start overflow-hidden rounded-lg bg-primary-subtle"
-                  >
-                    <Image
-                      unoptimized
-                      src={image.src}
-                      alt={image.alt}
-                      fill
-                      sizes="132px"
-                      loading={eagerImages ? "eager" : "lazy"}
-                      className="object-cover"
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <ReviewPhotoGallery
+              author={author}
+              images={images}
+              eagerImages={eagerImages}
+            />
 
             <div className="flex min-w-0 items-center justify-between gap-3 pt-1">
               <div className="flex min-w-0 items-center gap-2">
@@ -157,6 +144,11 @@ function ReviewCard({
         </CardHeader>
         <CardContent>
           <p className="type-body-md break-words text-foreground">{content}</p>
+          <ReviewPhotoGallery
+            author={author}
+            images={images}
+            eagerImages={eagerImages}
+          />
         </CardContent>
       </Card>
     </article>

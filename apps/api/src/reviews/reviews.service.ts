@@ -48,6 +48,7 @@ export const REVIEW_SELECT = {
 } satisfies Prisma.ReviewSelect;
 
 export const PLACE_REVIEW_SELECT = {
+  images: { orderBy: { sortOrder: "asc" }, select: { url: true } },
   id: true,
   userId: true,
   rating: true,
@@ -320,6 +321,7 @@ function mapPlaceReviewRow(row: PlaceReviewRow): PlaceReviewItem {
     id: row.id,
     rating: row.rating,
     content: row.content,
+    images: row.images.map((image) => image.url),
     author: {
       displayName: row.user.displayName,
       profileImageUrl: row.user.profileImageUrl,

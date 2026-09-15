@@ -75,6 +75,10 @@ function LivePlaceReviewList({ reviews }: LivePlaceReviewListProps) {
                     rating={review.rating}
                     date={reviewDateFormatter.format(new Date(review.createdAt))}
                     content={review.content}
+                    images={(review.images ?? []).map((src, index) => ({
+                      src,
+                      alt: `${review.author.displayName}의 후기 사진 ${index + 1}`,
+                    }))}
                     provider="해뜸"
                     avatar={
                       review.author.profileImageUrl ? (

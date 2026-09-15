@@ -84,6 +84,7 @@ const reviews = {
       id: "10000000-0000-4000-8000-000000000001",
       rating: 4,
       content: "좋았어요",
+      images: [],
       author: { displayName: "정수", profileImageUrl: null },
       createdAt: "2026-08-25T03:00:00.000Z",
       updatedAt: "2026-08-25T03:00:00.000Z",

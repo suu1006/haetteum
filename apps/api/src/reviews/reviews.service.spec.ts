@@ -322,6 +322,7 @@ describe("ReviewsService.listForPlace", () => {
     return {
       id: REVIEW_ID,
       rating,
+      images: [{ url: "https://example.test/review.jpg" }],
       content: "분단의 현실이 실감나는 곳이었어요.",
       createdAt: new Date("2026-08-25T03:00:00.000Z"),
       updatedAt: new Date("2026-08-26T03:00:00.000Z"),
@@ -406,6 +407,7 @@ describe("ReviewsService.listForPlace", () => {
       moderation: "login-required",
       id: REVIEW_ID,
       rating: 5,
+      images: ["https://example.test/review.jpg"],
       content: "분단의 현실이 실감나는 곳이었어요.",
       author: {
         displayName: "정수",

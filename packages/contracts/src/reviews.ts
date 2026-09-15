@@ -58,6 +58,7 @@ export const PlaceReviewItemSchema = z.object({
   id: z.string().uuid(),
   rating: RatingSchema,
   content: ReviewContentSchema,
+  images: ReviewImagesSchema.default([]),
   author: PlaceReviewAuthorSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
