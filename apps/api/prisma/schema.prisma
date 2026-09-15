@@ -31,6 +31,7 @@ model ChatConversation {
 
   user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
+  requests ChatRequestUsage[]
 
   @@index([userId, updatedAt])
   @@map("chat_conversations")
@@ -836,6 +837,7 @@ model ChatRequestUsage {
   attemptId String @map("attempt_id") @db.Uuid
   reply String?
   conversationId String? @map("conversation_id") @db.Uuid
+  conversation ChatConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "chat_requests_conversation_id_fkey")
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   @@id([subjectKey, requestId])
   @@index([day])

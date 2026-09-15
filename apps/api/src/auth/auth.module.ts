@@ -1,5 +1,7 @@
 import { OptionalSessionAuthGuard } from "./optional-session-auth.guard.js";
 import { Module } from "@nestjs/common";
+import { AccountDeletionController } from "./account-deletion.controller.js";
+import { AccountDeletionService } from "./account-deletion.service.js";
 
 import { AuthCookieService } from "./auth-cookie.service.js";
 import {
@@ -24,8 +26,13 @@ import { SESSION_CLOCK, SessionService } from "./session.service.js";
 import { VerificationMailService } from "./verification-mail.service.js";
 
 @Module({
-  controllers: [AuthController, EmailSignupController],
+  controllers: [
+    AuthController,
+    EmailSignupController,
+    AccountDeletionController,
+  ],
   providers: [
+    AccountDeletionService,
     AuthService,
     KakaoAuthClient,
     OAuthStateService,

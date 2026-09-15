@@ -84,6 +84,7 @@ function ReviewPhotoUpload({
             className="relative aspect-square overflow-hidden rounded-2xl bg-secondary"
           >
             <Image
+              unoptimized
               src={url}
               alt={`첨부 사진 ${index + 1}`}
               fill

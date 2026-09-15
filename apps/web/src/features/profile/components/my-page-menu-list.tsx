@@ -12,9 +12,11 @@ import {
   TbInfoCircle,
   TbLogout2,
   TbSettings,
+  TbUserMinus,
 } from "react-icons/tb";
 
 import type { MyPageMenuItem } from "@/features/profile/my-page-model";
+import { AccountWithdrawal } from "./account-withdrawal";
 import { logout } from "@/features/auth/auth-client";
 import { useAuthStore } from "@/features/auth/auth-store";
 import { cn } from "@/lib/utils";
@@ -30,6 +32,7 @@ const menuIcons: Record<MyPageMenuItem["id"], IconType> = {
   support: TbHeadset,
   guide: TbInfoCircle,
   logout: TbLogout2,
+  withdraw: TbUserMinus,
 };
 
 function MyPageMenuList({ items }: MyPageMenuListProps) {
@@ -75,7 +78,10 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
               ) : (
                 <Icon
                   aria-hidden="true"
-                  className="size-6 shrink-0 text-muted-foreground"
+                  className={cn(
+                    "size-6 shrink-0",
+                    item.id === "withdraw" ? "text-destructive" : "text-muted-foreground",
+                  )}
                   strokeWidth={1.65}
                 />
               )}
@@ -91,6 +97,8 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
                 >
                   {item.label}
                 </button>
+              ) : item.id === "withdraw" ? (
+                <AccountWithdrawal />
               ) : item.href ? (
                 <Link href={item.href} className="flex min-h-11 flex-1 items-center text-[0.9rem] font-semibold text-foreground">{item.label}</Link>
               ) : (
@@ -107,7 +115,7 @@ function MyPageMenuList({ items }: MyPageMenuListProps) {
                   />
                 </>
               ) : null}
-              {item.id !== "logout" ? (
+              {item.id !== "logout" && item.id !== "withdraw" ? (
                 <TbChevronRight
                   aria-hidden="true"
                   className="ml-auto size-5 text-muted-foreground"

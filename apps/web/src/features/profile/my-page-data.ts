@@ -86,6 +86,7 @@ export function createMyPageData(
       { id: "support", label: "고객센터" },
       { id: "guide", label: "이용 안내" },
       { id: "logout", label: "로그아웃" },
+      { id: "withdraw", label: "회원탈퇴" },
     ],
   };
 }

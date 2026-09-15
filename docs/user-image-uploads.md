@@ -17,7 +17,7 @@
 
 - `POST /api/v1/reviews/images`: 기존 `{url}` 응답 유지.
 - `POST /api/v1/profile/photo`: 기존 `{profileImageUrl}` 응답 유지. 이미지 생성과 회원의 `profile_image_id`·URL 갱신을 한 트랜잭션에서 실행한다.
-- `GET /api/v1/images/:id`: 공개 이미지 조회. `Content-Type: image/webp`, `X-Content-Type-Options: nosniff`, `Cache-Control: public, max-age=3600`. UUID가 잘못되면 400, 없으면 404.
+- `GET /api/v1/images/:id`: 공개 이미지 조회. `Content-Type: image/webp`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`. UUID가 잘못되면 400, 없으면 404. 회원탈퇴 후 사진 사본이 새 캐시에 남지 않도록 저장하지 않는다.
 - 후기 저장 시 소유자와 `REVIEW` 용도를 확인하고 `review_images.uploaded_image_id`를 연결한다. 다른 사람의 업로드나 프로필 이미지는 새 후기 첨부로 사용할 수 없다.
 - 일반 회원·후기 조회에는 바이너리를 포함하지 않는다. 기존 URL 필드로 이미지를 표시한다.
 - 카카오 재로그인 시 직접 업로드한 프로필 이미지가 있으면 유지한다.
@@ -34,7 +34,7 @@ pnpm --filter @haetteum/api db:deploy
 
 `UPLOADED_IMAGE_PUBLIC_ORIGIN`은 API의 공개 origin(예: `https://haetteum.kr`)이다. 경로·사용자 정보·쿼리·fragment를 포함할 수 없다. 미설정 시 개발/테스트에서는 `http://localhost:<API_PORT>`, 운영에서는 `WEB_ORIGIN`의 origin을 사용한다. 요청의 Host/프로토콜로 URL을 만들지 않는다.
 
-웹의 `NEXT_PUBLIC_API_BASE_URL` origin과 맞춰 설정한다. 웹은 해당 origin의 `/api/v1/images/**` 및 기존 업로드 경로를 Next Image에 허용한다. nginx 등의 프록시는 기존 `/api/v1` 전달 경로와 5 MiB 파일에 multipart 오버헤드를 더한 요청 크기를 허용해야 한다.
+웹의 `NEXT_PUBLIC_API_BASE_URL` origin과 맞춰 설정한다. 사용자 사진은 `unoptimized`로 원본 URL을 표시하며 `/api/v1/images/**` 및 레거시 업로드 경로는 Next Image 원격 최적화 허용 목록에서 제외한다. nginx 등의 프록시는 기존 `/api/v1` 전달 경로와 5 MiB 파일에 multipart 오버헤드를 더한 요청 크기를 허용하고 `private, no-store`를 존중해야 한다. 기존 이미지 캐시 정리와 탈퇴 시 삭제 범위는 [회원탈퇴 운영 기준](runbooks/account-deletion.md)을 따른다.
 
 ## 기존 이미지와 보관
 

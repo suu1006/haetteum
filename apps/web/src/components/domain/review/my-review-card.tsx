@@ -27,6 +27,7 @@ function MyReviewCard({
     >
       <div className="relative min-h-[9.75rem] overflow-hidden rounded-[1rem] bg-primary-subtle">
         <Image
+          unoptimized
           src={review.image.src}
           alt={review.image.alt}
           fill

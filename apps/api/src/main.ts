@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import type { ServerResponse } from "node:http";
 
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -17,9 +18,17 @@ async function bootstrap(): Promise<void> {
   mkdirSync(PROFILE_PHOTO_UPLOADS_DIR, { recursive: true });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.useStaticAssets(REVIEW_UPLOADS_DIR, { prefix: "/uploads/reviews" });
+  app.useStaticAssets(REVIEW_UPLOADS_DIR, {
+    prefix: "/uploads/reviews",
+    setHeaders: (response: ServerResponse) => {
+      response.setHeader("Cache-Control", "private, no-store");
+    },
+  });
   app.useStaticAssets(PROFILE_PHOTO_UPLOADS_DIR, {
     prefix: "/uploads/profile-photos",
+    setHeaders: (response: ServerResponse) => {
+      response.setHeader("Cache-Control", "private, no-store");
+    },
   });
   mkdirSync(weeklyThumbnailDirectory(), { recursive: true });
   app.useStaticAssets(weeklyThumbnailDirectory(), {

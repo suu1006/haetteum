@@ -79,6 +79,7 @@ function LivePlaceReviewList({ reviews }: LivePlaceReviewListProps) {
                     avatar={
                       review.author.profileImageUrl ? (
                         <Image
+                          unoptimized
                           src={review.author.profileImageUrl}
                           alt=""
                           width={44}

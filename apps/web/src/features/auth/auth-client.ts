@@ -73,6 +73,16 @@ export async function logout(): Promise<void> {
   }
 }
 
+export async function deleteAccount(): Promise<void> {
+  const response = await fetch(`${apiBaseUrl()}/auth/account`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmed: true }),
+  });
+  if (response.status !== 204) throw new Error("Account deletion failed");
+}
+
 function apiBaseUrl(): string {
   const baseUrl = getApiBaseUrl();
   if (!baseUrl) throw new Error(loadCurrentUserError);

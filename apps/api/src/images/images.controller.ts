@@ -16,7 +16,7 @@ export class ImagesController {
       "Content-Type": "image/webp",
       "Content-Length": String(data.length),
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "private, no-store",
     });
     response.send(data);
   }

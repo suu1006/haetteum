@@ -14,21 +14,8 @@ const nextConfig: NextConfig = {
   images: {
     // 72px 프로필·80px 장소 썸네일의 2x 화면에서 256px까지 커지지 않도록 한다.
     imageSizes: [32, 48, 64, 96, 128, 160, 192, 256, 384],
-    // 로컬 개발용 후기 사진 업로드(localhost:4000)를 위해 사설 IP 최적화 허용
-    dangerouslyAllowLocalIP: true,
+    // User photos bypass the optimizer so account deletion does not leave copies.
     remotePatterns: [
-      new URL(
-        "/api/v1/images/**",
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
-      ),
-      new URL(
-        "/uploads/profile-photos/**",
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
-      ),
-      new URL(
-        "/uploads/reviews/**",
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000",
-      ),
       {
         protocol: "https",
         hostname: "tong.visitkorea.or.kr",
@@ -61,13 +48,6 @@ const nextConfig: NextConfig = {
         hostname: "i.ytimg.com",
         port: "",
         pathname: "/**",
-      },
-      {
-        // 로컬 개발용 후기 사진 업로드 (apps/api 디스크 저장, 프로덕션 스토리지 마련 전까지 임시)
-        protocol: "http",
-        hostname: "localhost",
-        port: "4000",
-        pathname: "/uploads/**",
       },
     ],
   },

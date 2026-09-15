@@ -15,6 +15,7 @@ import { EmailSignupController } from "./email-signup.controller.js";
 import { EmailSignupService } from "./email-signup.service.js";
 import { KakaoAuthClient } from "./kakao-auth.client.js";
 import { AuthModule } from "./auth.module.js";
+import { AccountDeletionController } from "./account-deletion.controller.js";
 import { OAuthStateService } from "./oauth-state.service.js";
 import { PasswordHasher } from "./password-hasher.service.js";
 import { SameOriginGuard } from "./same-origin.guard.js";
@@ -53,7 +54,11 @@ describe("AuthModule", () => {
   it("registers the full auth flow and cleanup service without another scheduler bootstrap", () => {
     expect(
       Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AuthModule),
-    ).toEqual([AuthController, EmailSignupController]);
+    ).toEqual([
+      AuthController,
+      EmailSignupController,
+      AccountDeletionController,
+    ]);
     expect(providers()).toEqual(
       expect.arrayContaining([
         AuthService,

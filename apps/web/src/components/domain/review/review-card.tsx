@@ -86,6 +86,7 @@ function ReviewCard({
                     className="relative aspect-[4/3] min-w-[8.25rem] snap-start overflow-hidden rounded-lg bg-primary-subtle"
                   >
                     <Image
+                      unoptimized
                       src={image.src}
                       alt={image.alt}
                       fill

@@ -13,6 +13,7 @@ function ProfileSummaryCard({ profile }: ProfileSummaryCardProps) {
       className="grid min-h-28 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-4 rounded-[1.5rem] bg-card px-5 py-4 shadow-floating max-[359px]:grid-cols-[3.75rem_minmax(0,1fr)] max-[359px]:gap-x-3 max-[359px]:px-4"
     >
       <Image
+        unoptimized
         src={profile.image.src}
         alt={profile.image.alt}
         width={144}
