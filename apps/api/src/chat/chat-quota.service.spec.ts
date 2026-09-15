@@ -9,6 +9,7 @@ function setup(result: { used: number }[] = [{ used: 1 }]) {
   const service = new ChatQuotaService(
     { $queryRaw: query } as unknown as PrismaService,
     () => Date.parse("2026-09-11T14:59:59.000Z"),
+    {} as never,
   );
   return { service, query };
 }

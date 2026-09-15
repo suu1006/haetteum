@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { BedrockChatClient } from "./bedrock-chat.client.js";
 import { CHAT_LLM_PORT } from "./chat.constants.js";
 import { ChatController } from "./chat.controller.js";
+import { ChatConversationService } from "./chat-conversation.service.js";
 import { ChatService } from "./chat.service.js";
 import { AuthModule } from "../auth/auth.module.js";
 import { ChatAccessService } from "./chat-access.service.js";
@@ -13,6 +14,7 @@ import { CHAT_QUOTA_CLOCK, ChatQuotaService } from "./chat-quota.service.js";
   controllers: [ChatController],
   providers: [
     ChatAccessService,
+    ChatConversationService,
     ChatQuotaService,
     { provide: CHAT_QUOTA_CLOCK, useValue: Date.now },
     ChatService,

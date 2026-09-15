@@ -13,6 +13,7 @@ import { AuthCookieService } from "../src/auth/auth-cookie.service.js";
 import { SessionService } from "../src/auth/session.service.js";
 import { SameOriginGuard } from "../src/auth/same-origin.guard.js";
 import { ChatAccessService } from "../src/chat/chat-access.service.js";
+import { ChatConversationService } from "../src/chat/chat-conversation.service.js";
 import { ChatController } from "../src/chat/chat.controller.js";
 import { CHAT_LLM_PORT, type ChatLlmPort } from "../src/chat/chat.constants.js";
 import {
@@ -39,6 +40,7 @@ let providerError: Error;
 let partialBeforeFailure: boolean;
 let providerCalls: number;
 let quota: ChatQuotaService;
+let conversations: ChatConversationService;
 let config: ConfigService<ApiEnvironment, true>;
 
 beforeAll(async () => {
@@ -64,6 +66,33 @@ beforeAll(async () => {
       readFileSync(
         new URL(
           "../prisma/migrations/20260912140000_chat_request_reservations/migration.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    await client.query(`CREATE TABLE users (id UUID PRIMARY KEY)`);
+    await client.query(
+      `INSERT INTO users (id) VALUES ('11111111-1111-4111-8111-111111111111')`,
+    );
+    // Minimal stand-ins so the chat_conversations migration's incidental
+    // DROP/ADD CONSTRAINT on this unrelated table (a drift artifact from
+    // Task 1's `prisma migrate dev` run) can apply in this isolated schema.
+    await client.query(
+      `CREATE TABLE weekly_recommendation_editions (id UUID PRIMARY KEY)`,
+    );
+    await client.query(`
+      CREATE TABLE weekly_recommendation_candidates (
+        id UUID PRIMARY KEY,
+        edition_id UUID NOT NULL,
+        CONSTRAINT weekly_recommendation_candidates_edition_id_fkey
+          FOREIGN KEY (edition_id) REFERENCES weekly_recommendation_editions(id) ON DELETE CASCADE
+      )
+    `);
+    await client.query(
+      readFileSync(
+        new URL(
+          "../prisma/migrations/20260914055533_add_chat_conversations/migration.sql",
           import.meta.url,
         ),
         "utf8",
@@ -114,6 +143,7 @@ beforeAll(async () => {
       ChatService,
       ChatAccessService,
       ChatQuotaService,
+      ChatConversationService,
       AuthCookieService,
       SameOriginGuard,
       { provide: ConfigService, useValue: config },
@@ -126,7 +156,10 @@ beforeAll(async () => {
           resolve: (token: string) =>
             Promise.resolve(
               token === "valid" || token === "another-device"
-                ? { userId: "real-user", refreshedExpiresAt: null }
+                ? {
+                    userId: "11111111-1111-4111-8111-111111111111",
+                    refreshedExpiresAt: null,
+                  }
                 : null,
             ),
         },
@@ -139,6 +172,7 @@ beforeAll(async () => {
   await app.init();
   await app.listen(0, "127.0.0.1");
   quota = app.get(ChatQuotaService);
+  conversations = app.get(ChatConversationService);
 });
 
 beforeEach(async () => {
@@ -150,6 +184,7 @@ beforeEach(async () => {
   providerCalls = 0;
   await prisma.$executeRaw`DELETE FROM chat_requests`;
   await prisma.chatDailyUsage.deleteMany();
+  await prisma.chatConversation.deleteMany();
 });
 
 afterAll(async () => {
@@ -215,13 +250,20 @@ it("admits exactly ten out of thirty simultaneous authenticated requests", async
 });
 
 it("keeps quota across service instances and resets exactly at Korean midnight", async () => {
-  for (let i = 0; i < 10; i++) await quota.consume({ userId: "real-user" });
-  const restarted = new ChatQuotaService(prisma as PrismaService, () => now);
+  for (let i = 0; i < 10; i++)
+    await quota.consume({ userId: "11111111-1111-4111-8111-111111111111" });
+  const restarted = new ChatQuotaService(
+    prisma as PrismaService,
+    () => now,
+    conversations,
+  );
   await expect(
-    restarted.consume({ userId: "real-user" }),
+    restarted.consume({ userId: "11111111-1111-4111-8111-111111111111" }),
   ).rejects.toMatchObject({ status: 429 });
   now = Date.parse("2026-09-11T15:00:00.000Z");
-  await expect(restarted.consume({ userId: "real-user" })).resolves.toEqual({
+  await expect(
+    restarted.consume({ userId: "11111111-1111-4111-8111-111111111111" }),
+  ).resolves.toEqual({
     remaining: 9,
     resetsAt: "2026-09-12T15:00:00.000Z",
   });
@@ -230,7 +272,7 @@ it("keeps quota across service instances and resets exactly at Korean midnight",
 it("cannot bypass login or user quota with forged user IDs and forwarding headers", async () => {
   await send()
     .set("X-Forwarded-For", "192.0.2.50")
-    .send({ ...body, userId: "real-user" })
+    .send({ ...body, userId: "11111111-1111-4111-8111-111111111111" })
     .expect(401);
   for (let i = 0; i < 10; i++)
     await send(false, "valid")
@@ -243,7 +285,7 @@ it("cannot bypass login or user quota with forged user IDs and forwarding header
     .expect(429);
   expect(await prisma.chatDailyUsage.count()).toBe(1);
   expect((await prisma.chatDailyUsage.findFirst())?.subjectKey).toBe(
-    "user:real-user",
+    "user:11111111-1111-4111-8111-111111111111",
   );
 });
 
@@ -273,9 +315,9 @@ it("rejects requests from another origin before charging a logged-in user's quot
 });
 
 it("removes old usage rows while retaining recent quota", async () => {
-  await quota.consume({ userId: "real-user" });
+  await quota.consume({ userId: "11111111-1111-4111-8111-111111111111" });
   now = Date.parse("2026-09-20T01:00:00.000Z");
-  await quota.consume({ userId: "real-user" });
+  await quota.consume({ userId: "11111111-1111-4111-8111-111111111111" });
   await quota.cleanup();
   expect(await prisma.chatDailyUsage.count()).toBe(1);
   expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
@@ -343,9 +385,10 @@ it.each([
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line) as unknown);
-    expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({ type: "delta", text: "부분 답변" });
-    expect(events[1]).toMatchObject({ type: "error", status });
+    expect(events).toHaveLength(3);
+    expect(events[0]).toMatchObject({ type: "meta" });
+    expect(events[1]).toEqual({ type: "delta", text: "부분 답변" });
+    expect(events[2]).toMatchObject({ type: "error", status });
     expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
     expect(result.text).not.toContain("private AWS");
   },
@@ -376,6 +419,28 @@ it("retries a refunded request once and rejects a changed payload for its ID", a
     .expect(409);
 });
 
+it("accepts a retry that carries the conversation id revealed by the failed attempt", async () => {
+  const payload = { ...body, requestId: randomUUID() };
+  failProvider = true;
+  partialBeforeFailure = true;
+  const failed = await send(true, "valid").send(payload).expect(201);
+  const meta = JSON.parse(failed.text.trim().split("\n")[0]) as {
+    type: string;
+    conversationId: string;
+  };
+  expect(meta.type).toBe("meta");
+  failProvider = false;
+  partialBeforeFailure = false;
+
+  // 클라이언트는 meta로 알게 된 대화 ID를 붙여 같은 requestId로 재시도한다.
+  const retry = await send(true, "valid")
+    .send({ ...payload, conversationId: meta.conversationId })
+    .expect(201);
+
+  expect(retry.text).toContain('"type":"done"');
+  expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
+});
+
 it("admits only one simultaneous request for an ID", async () => {
   const payload = { ...body, requestId: randomUUID() };
   const results = await Promise.all(
@@ -391,14 +456,20 @@ it("admits only one simultaneous request for an ID", async () => {
 
 it("refunds the original day once and fences stale callbacks after retry", async () => {
   const payload = { ...body, requestId: randomUUID() };
-  const first = await quota.reserve({ userId: "real-user" }, payload as never);
+  const first = await quota.reserve(
+    { userId: "11111111-1111-4111-8111-111111111111" },
+    payload as never,
+  );
   now = Date.parse("2026-09-11T15:00:00.000Z");
   await Promise.all([
     quota.settle(first, "REFUNDED"),
     quota.settle(first, "REFUNDED"),
   ]);
   expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(0);
-  const retry = await quota.reserve({ userId: "real-user" }, payload as never);
+  const retry = await quota.reserve(
+    { userId: "11111111-1111-4111-8111-111111111111" },
+    payload as never,
+  );
   await quota.settle(first, "REFUNDED");
   await quota.settle(first, "COMPLETED", "stale");
   const rows = await prisma.chatDailyUsage.findMany({
@@ -406,25 +477,36 @@ it("refunds the original day once and fences stale callbacks after retry", async
   });
   expect(rows.map((row) => row.used)).toEqual([0, 1]);
   await expect(
-    quota.reserve({ userId: "real-user" }, payload as never),
+    quota.reserve(
+      { userId: "11111111-1111-4111-8111-111111111111" },
+      payload as never,
+    ),
   ).rejects.toMatchObject({ status: 409 });
   await quota.settle(retry, "COMPLETED", "fresh");
   expect(
-    (await quota.reserve({ userId: "real-user" }, payload as never)).reply,
+    (
+      await quota.reserve(
+        { userId: "11111111-1111-4111-8111-111111111111" },
+        payload as never,
+      )
+    ).reply,
   ).toBe("fresh");
 });
 
 it("keeps cancelled usage and does not rerun a cancelled ID", async () => {
   const payload = { ...body, requestId: randomUUID() };
   const reservation = await quota.reserve(
-    { userId: "real-user" },
+    { userId: "11111111-1111-4111-8111-111111111111" },
     payload as never,
   );
   await quota.settle(reservation, "CANCELLED");
   await quota.settle(reservation, "REFUNDED");
   expect((await prisma.chatDailyUsage.findFirst())?.used).toBe(1);
   await expect(
-    quota.reserve({ userId: "real-user" }, payload as never),
+    quota.reserve(
+      { userId: "11111111-1111-4111-8111-111111111111" },
+      payload as never,
+    ),
   ).rejects.toMatchObject({ status: 409 });
 });
 
@@ -442,13 +524,16 @@ it("has persisted COMPLETED and the reply when done is received", async () => {
 
 it("uses one clock snapshot for reservation and refund across midnight", async () => {
   let reads = 0;
-  const boundary = new ChatQuotaService(prisma as PrismaService, () =>
-    Date.parse(
-      ++reads === 1 ? "2026-09-11T14:59:59.999Z" : "2026-09-11T15:00:00.000Z",
-    ),
+  const boundary = new ChatQuotaService(
+    prisma as PrismaService,
+    () =>
+      Date.parse(
+        ++reads === 1 ? "2026-09-11T14:59:59.999Z" : "2026-09-11T15:00:00.000Z",
+      ),
+    conversations,
   );
   const reservation = await boundary.reserve(
-    { userId: "real-user" },
+    { userId: "11111111-1111-4111-8111-111111111111" },
     body as never,
   );
   await boundary.settle(reservation, "REFUNDED");
@@ -457,13 +542,19 @@ it("uses one clock snapshot for reservation and refund across midnight", async (
 
 it("canonicalizes UUID case before deduplication", async () => {
   const requestId = "aabbccdd-1234-4abc-8abc-aabbccddeeff";
-  const reservation = await quota.reserve({ userId: "real-user" }, {
-    ...body,
-    requestId: requestId.toUpperCase(),
-  } as never);
+  const reservation = await quota.reserve(
+    { userId: "11111111-1111-4111-8111-111111111111" },
+    {
+      ...body,
+      requestId: requestId.toUpperCase(),
+    } as never,
+  );
   expect(reservation.requestId).toBe(requestId);
   await expect(
-    quota.reserve({ userId: "real-user" }, { ...body, requestId } as never),
+    quota.reserve({ userId: "11111111-1111-4111-8111-111111111111" }, {
+      ...body,
+      requestId,
+    } as never),
   ).rejects.toMatchObject({ status: 409 });
 });
 

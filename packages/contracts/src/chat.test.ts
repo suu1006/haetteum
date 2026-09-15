@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ChatRequestSchema, selectChatContext, type ChatMessage } from "./chat.js";
+import { ChatRequestSchema, ChatResponseSchema, selectChatContext, type ChatMessage } from "./chat.js";
 
 const pair = (n: number): ChatMessage[] => [
   { role: "user", content: `질문${n}` },
@@ -27,4 +27,32 @@ describe("chat input budget", () => {
       [{ role: "user", content: "질문" }, { role: "user", content: "질문" }],
     ]) expect(ChatRequestSchema.safeParse({ messages }).success).toBe(false);
   });
+});
+
+it("accepts an optional conversationId and rejects a malformed one", () => {
+  expect(
+    ChatRequestSchema.safeParse({
+      messages: [{ role: "user", content: "질문" }],
+      conversationId: "11111111-1111-4111-8111-111111111111",
+    }).success,
+  ).toBe(true);
+  expect(
+    ChatRequestSchema.safeParse({
+      messages: [{ role: "user", content: "질문" }],
+      conversationId: "not-a-uuid",
+    }).success,
+  ).toBe(false);
+});
+
+it("requires a conversationId in the response", () => {
+  expect(
+    ChatResponseSchema.safeParse({ status: "ready", reply: "답변" }).success,
+  ).toBe(false);
+  expect(
+    ChatResponseSchema.safeParse({
+      status: "ready",
+      reply: "답변",
+      conversationId: "11111111-1111-4111-8111-111111111111",
+    }).success,
+  ).toBe(true);
 });

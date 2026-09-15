@@ -844,13 +844,14 @@ export class ChatQuotaService {
     const subjectKey = `user:${identity.userId}`;
     const requestId = (request.requestId ?? randomUUID()).toLowerCase();
     const attemptId = randomUUID();
+    // NOTE (final-review fix, post-implementation): hashing conversationId here
+    // caused a real regression — the client's conversationId legitimately
+    // changes mid-stream via the `meta` event, so a retry of a partially-failed
+    // request would permanently 409. Shipped code hashes `messages` only;
+    // ownership is still enforced independently by ChatConversationService.resolve
+    // inside this same transaction. See docs/superpowers/specs/2026-09-14-chat-history-design.md §5.
     const payloadHash = createHash("sha256")
-      .update(
-        JSON.stringify({
-          conversationId: request.conversationId ?? null,
-          messages: request.messages,
-        }),
-      )
+      .update(JSON.stringify(request.messages))
       .digest("hex");
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${subjectKey + ":" + requestId}, 0))`;

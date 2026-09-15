@@ -96,3 +96,31 @@ it("does not downgrade a session store failure to anonymous access", async () =>
   ).rejects.toMatchObject({ status: 503 });
   expect(reserve).not.toHaveBeenCalled();
 });
+
+it("passes the user message through to the quota service on settle", async () => {
+  const { reserve, response } = setup();
+  const settle = jest
+    .fn<(...args: unknown[]) => Promise<void>>()
+    .mockResolvedValue(undefined);
+  const withSettle = new ChatAccessService(
+    { isConfigured: () => true } as never,
+    { reserve, settle } as never,
+    { resolve: jest.fn() } as never,
+    {
+      sessionCookieName: "session",
+      setSession: jest.fn(),
+      clearSession: jest.fn(),
+    } as never,
+  );
+  const reservation = {
+    subjectKey: "s",
+    requestId: "r",
+    attemptId: "a",
+    conversationId: "c",
+  };
+
+  await withSettle.settle(reservation, "COMPLETED", "답변", "질문");
+
+  expect(settle).toHaveBeenCalledWith(reservation, "COMPLETED", "답변", "질문");
+  void response;
+});

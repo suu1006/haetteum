@@ -20,6 +20,36 @@ model ChatDailyUsage {
   @@map("chat_daily_usage")
 }
 
+/// 로그인 사용자별 챗봇 대화 스레드
+model ChatConversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// 첫 사용자 메시지에서 자동 생성. 사용자가 직접 수정하는 기능은 없음
+  title     String   @db.VarChar(80)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("chat_conversations")
+}
+
+/// ChatConversation에 속한 개별 메시지(사용자 질문 또는 어시스턴트 답변)
+model ChatMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  role           String   @db.VarChar(20)
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
 /// Haetteum 서비스에서 노출하는 광역 관광 지역
 model TourismRegion {
   /// Haetteum 내부 관광 지역 식별자
@@ -201,13 +231,14 @@ model User {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  reports      ReviewReport[]
-  blocks       UserBlock[]     @relation("Blocker")
-  blockedBy    UserBlock[]     @relation("BlockedUser")
-  reviews      Review[]
-  sessions     Session[]
-  favorites    PlaceFavorite[]
-  savedCourses SavedCourse[]
+  reports           ReviewReport[]
+  blocks            UserBlock[]     @relation("Blocker")
+  blockedBy         UserBlock[]     @relation("BlockedUser")
+  reviews           Review[]
+  sessions          Session[]
+  favorites         PlaceFavorite[]
+  savedCourses      SavedCourse[]
+  chatConversations ChatConversation[]
 
   @@unique([provider, providerUserId])
   @@index([profileImageId])
@@ -804,6 +835,7 @@ model ChatRequestUsage {
   status String @db.VarChar(20)
   attemptId String @map("attempt_id") @db.Uuid
   reply String?
+  conversationId String? @map("conversation_id") @db.Uuid
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   @@id([subjectKey, requestId])
   @@index([day])

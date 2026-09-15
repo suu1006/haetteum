@@ -6,6 +6,7 @@ import { HttpException, Inject, Injectable } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 
 import { PrismaService } from "../prisma/prisma.service.js";
+import { ChatConversationService } from "./chat-conversation.service.js";
 
 export const CHAT_QUOTA_CLOCK = Symbol("CHAT_QUOTA_CLOCK");
 const DAY_MS = 86_400_000;
@@ -17,6 +18,7 @@ export type ChatReservation = {
   subjectKey: string;
   requestId: string;
   attemptId: string;
+  conversationId: string;
   reply?: string;
 };
 
@@ -25,6 +27,7 @@ export class ChatQuotaService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CHAT_QUOTA_CLOCK) private readonly now: () => number,
+    private readonly conversations: ChatConversationService,
   ) {}
 
   async consume(
@@ -77,32 +80,58 @@ export class ChatQuotaService {
       // Transaction-scoped lock serializes the same logical request across instances.
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${subjectKey + ":" + requestId}, 0))`;
       const rows = await tx.$queryRaw<
-        { status: string; payload_hash: string; reply: string | null }[]
+        {
+          status: string;
+          payload_hash: string;
+          reply: string | null;
+          conversation_id: string | null;
+        }[]
       >`
-        SELECT status, payload_hash, reply FROM chat_requests
+        SELECT status, payload_hash, reply, conversation_id FROM chat_requests
         WHERE subject_key = ${subjectKey} AND request_id = ${requestId}::uuid FOR UPDATE
       `;
       const existing = rows[0];
+      const latestMessage = request.messages.at(-1)!.content;
       if (existing) {
         if (existing.payload_hash !== payloadHash) throw chatHttpError(409);
         if (existing.status === "COMPLETED") {
-          return { subjectKey, requestId, attemptId, reply: existing.reply! };
+          const conversationId =
+            existing.conversation_id ??
+            (await this.conversations.resolve(
+              tx,
+              identity.userId,
+              request.conversationId,
+              latestMessage,
+            ));
+          return {
+            subjectKey,
+            requestId,
+            attemptId,
+            conversationId,
+            reply: existing.reply!,
+          };
         }
         if (existing.status !== "REFUNDED") throw chatHttpError(409);
       }
+      const conversationId = await this.conversations.resolve(
+        tx,
+        identity.userId,
+        request.conversationId,
+        latestMessage,
+      );
       const timestamp = this.now();
       const day = new Date(timestamp + KOREA_OFFSET_MS)
         .toISOString()
         .slice(0, 10);
       await this.consume(identity, tx, timestamp);
       await tx.$executeRaw`
-        INSERT INTO chat_requests (subject_key, request_id, payload_hash, day, status, attempt_id)
-        VALUES (${subjectKey}, ${requestId}::uuid, ${payloadHash}, ${day}::date, 'RESERVED', ${attemptId}::uuid)
+        INSERT INTO chat_requests (subject_key, request_id, payload_hash, day, status, attempt_id, conversation_id)
+        VALUES (${subjectKey}, ${requestId}::uuid, ${payloadHash}, ${day}::date, 'RESERVED', ${attemptId}::uuid, ${conversationId}::uuid)
         ON CONFLICT (subject_key, request_id) DO UPDATE
         SET day = EXCLUDED.day, status = 'RESERVED', attempt_id = EXCLUDED.attempt_id,
-            reply = NULL, updated_at = CURRENT_TIMESTAMP
+            reply = NULL, conversation_id = EXCLUDED.conversation_id, updated_at = CURRENT_TIMESTAMP
       `;
-      return { subjectKey, requestId, attemptId };
+      return { subjectKey, requestId, attemptId, conversationId };
     });
   }
 
@@ -110,6 +139,7 @@ export class ChatQuotaService {
     reservation: ChatReservation,
     status: "COMPLETED" | "REFUNDED" | "CANCELLED",
     reply?: string,
+    userMessage?: string,
   ): Promise<void> {
     if (reservation.reply !== undefined) return;
     await this.prisma.$transaction(async (tx) => {
@@ -125,6 +155,19 @@ export class ChatQuotaService {
           UPDATE chat_daily_usage SET used = used - 1
           WHERE subject_key = ${reservation.subjectKey} AND day = ${rows[0].day}::date AND used > 0
         `;
+      }
+      if (
+        status === "COMPLETED" &&
+        rows[0] &&
+        reply !== undefined &&
+        userMessage !== undefined
+      ) {
+        await this.conversations.appendExchange(
+          tx,
+          reservation.conversationId,
+          userMessage,
+          reply,
+        );
       }
     });
   }

@@ -16,6 +16,7 @@ export const ChatErrorStatusSchema = z.union([
 export type ChatErrorStatus = z.infer<typeof ChatErrorStatusSchema>;
 
 export const ChatStreamEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("meta"), conversationId: z.uuid() }),
   z.object({ type: z.literal("delta"), text: z.string() }),
   z.object({ type: z.literal("done") }),
   z.object({ type: z.literal("error"), status: ChatErrorStatusSchema, message: z.string() }),

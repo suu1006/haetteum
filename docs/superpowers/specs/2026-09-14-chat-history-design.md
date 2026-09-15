@@ -106,8 +106,12 @@ ChatMessage N ─ 1 ChatConversation (onDelete: Cascade)
 
 `conversation_id UUID` 컬럼을 추가한다. 대화 해석(신규 생성/기존 재사용)을 요청
 예약(`reserve`) 트랜잭션 안에서 함께 처리하고, 같은 결과를 idempotent 재시도에도
-그대로 돌려주기 위함이다. `payloadHash` 계산에 `conversationId`를 포함시켜, 같은
-`requestId`가 다른 `conversationId`로 재사용되는 경우를 충돌(409)로 처리한다.
+그대로 돌려주기 위함이다. `payloadHash`는 기존과 동일하게 `messages`만으로
+계산한다 — 스트리밍 중 `meta` 이벤트로 클라이언트의 `conversationId`가
+바뀔 수 있어, 이를 해시에 포함시키면 부분 실패 후 재시도가 영구적으로
+409에 걸리는 회귀가 생긴다(구현 중 발견되어 수정됨). 대화 소유권은
+해시가 아니라 같은 트랜잭션 안의 `ChatConversationService.resolve`가
+검증한다.
 
 ## 6. 대화 해석·저장 경계
 
@@ -212,7 +216,7 @@ GET  /api/v1/chat/conversations/:id/messages
 - 계약 검증 실패: `400`
 - 미로그인: `401 UNAUTHENTICATED`(기존과 동일)
 - 존재하지 않거나 소유하지 않은 대화: `404`
-- 같은 `requestId`를 다른 `conversationId`로 재사용: `409`(기존 충돌 처리 재사용)
+- 같은 `requestId`를 다른 `messages`로 재사용: `409`(기존 충돌 처리, 변경 없음)
 
 ## 9. 프론트엔드 데이터 흐름
 
@@ -280,9 +284,13 @@ apps/web/src/
 
 - `resolve`: conversationId 없을 때 신규 생성, 있을 때 소유자 확인, 타인 소유 시
   404
-- `appendExchange`: user+assistant 메시지 저장, `updatedAt` 갱신
+- `appendExchange`: user+assistant 메시지 저장(1ms 차이의 `createdAt`으로 순서 보장),
+  `updatedAt` 갱신
 - 같은 `requestId` 재시도 시 메시지가 중복 저장되지 않음(멱등성)
-- 같은 `requestId`를 다른 `conversationId`로 보내면 409
+- 같은 `requestId`를 다른 `messages`로 보내면 409
+- 같은 `requestId`를 스트리밍 중 알게 된 `conversationId`와 함께 재시도해도
+  409 없이 성공함(부분 실패 후 재시도 회귀 방지)
+- `listForUser`는 메시지가 하나도 없는 대화를 목록에서 제외함
 - `listForUser`: cursor/limit, `updatedAt DESC` 정렬
 - `getMessages`: 소유자가 아닌 요청은 404
 

@@ -3,20 +3,39 @@ import type { Request, Response } from "express";
 import {
   Body,
   Controller,
+  Get,
   HttpException,
+  Param,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
 } from "@nestjs/common";
 
-import { type ChatRequest, type ChatResponse } from "@haetteum/contracts";
+import {
+  ChatConversationIdParamsSchema,
+  ChatConversationListResponseSchema,
+  ChatConversationMessagesResponseSchema,
+  ListChatConversationsQuerySchema,
+  type AuthUser,
+  type ChatConversationIdParams,
+  type ChatConversationListResponse,
+  type ChatConversationMessagesResponse,
+  type ChatRequest,
+  type ChatResponse,
+  type ListChatConversationsQuery,
+} from "@haetteum/contracts";
 
 import { ChatRequestPipe } from "./chat-request.pipe.js";
 import { chatHttpError } from "./chat-errors.js";
+import { ChatConversationService } from "./chat-conversation.service.js";
 import { ChatService } from "./chat.service.js";
 import { ChatAccessService } from "./chat-access.service.js";
+import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SameOriginGuard } from "../auth/same-origin.guard.js";
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
+import { ZodValidationPipe } from "../common/http/zod-validation.pipe.js";
 
 @Controller({ path: "chat", version: "1" })
 @UseGuards(SameOriginGuard)
@@ -24,6 +43,7 @@ export class ChatController {
   constructor(
     private readonly chat: ChatService,
     private readonly access: ChatAccessService,
+    private readonly conversations: ChatConversationService,
   ) {}
 
   @Post("messages/stream")
@@ -60,14 +80,21 @@ export class ChatController {
     try {
       if (response.destroyed) return;
       if (reservation.reply !== undefined) {
+        write({ type: "meta", conversationId: reservation.conversationId });
         write({ type: "delta", text: reservation.reply });
         write({ type: "done" });
         return;
       }
+      let metaSent = false;
       for await (const event of events) {
         if (event.type === "delta") reply += event.text;
         if (event.type === "done") {
-          await this.access.settle(reservation, "COMPLETED", reply);
+          await this.access.settle(
+            reservation,
+            "COMPLETED",
+            reply,
+            request.messages.at(-1)!.content,
+          );
           settled = true;
         } else if (event.type === "error") {
           await this.access.settle(reservation, "REFUNDED");
@@ -75,6 +102,10 @@ export class ChatController {
           if (!response.headersSent) throw chatHttpError(event.status);
         }
         if (response.destroyed) break;
+        if (!metaSent) {
+          write({ type: "meta", conversationId: reservation.conversationId });
+          metaSent = true;
+        }
         write(event);
       }
     } catch (error) {
@@ -117,14 +148,62 @@ export class ChatController {
       request,
     );
     if (reservation.reply !== undefined)
-      return { status: "ready", reply: reservation.reply };
+      return {
+        status: "ready",
+        reply: reservation.reply,
+        conversationId: reservation.conversationId,
+      };
     try {
       const result = await this.chat.sendMessage(request);
-      await this.access.settle(reservation, "COMPLETED", result.reply);
-      return result;
+      await this.access.settle(
+        reservation,
+        "COMPLETED",
+        result.reply,
+        request.messages.at(-1)!.content,
+      );
+      return { ...result, conversationId: reservation.conversationId };
     } catch (error) {
       await this.access.settle(reservation, "REFUNDED");
       throw error;
     }
+  }
+
+  @Get("conversations")
+  @UseGuards(SessionAuthGuard)
+  async listConversations(
+    @CurrentUser() currentUser: AuthUser,
+    @Query(new ZodValidationPipe(ListChatConversationsQuerySchema))
+    query: ListChatConversationsQuery,
+  ): Promise<ChatConversationListResponse> {
+    const { items, nextCursor } = await this.conversations.listForUser(
+      currentUser.id,
+      query,
+    );
+    return ChatConversationListResponseSchema.parse({
+      items: items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        updatedAt: item.updatedAt.toISOString(),
+        preview: item.preview,
+      })),
+      nextCursor,
+    });
+  }
+
+  @Get("conversations/:conversationId/messages")
+  @UseGuards(SessionAuthGuard)
+  async getConversationMessages(
+    @CurrentUser() currentUser: AuthUser,
+    @Param(new ZodValidationPipe(ChatConversationIdParamsSchema))
+    params: ChatConversationIdParams,
+  ): Promise<ChatConversationMessagesResponse> {
+    const messages = await this.conversations.getMessages(
+      currentUser.id,
+      params.conversationId,
+    );
+    return ChatConversationMessagesResponseSchema.parse({
+      conversationId: params.conversationId,
+      messages,
+    });
   }
 }

@@ -6,6 +6,20 @@ export {
 } from "./auth.js";
 export { CHAT_ERRORS, ChatErrorStatusSchema, ChatStreamEventSchema, type ChatErrorStatus, type ChatStreamEvent } from "./chat-errors.js";
 export {
+  CHAT_CONVERSATIONS_DEFAULT_LIMIT,
+  CHAT_CONVERSATIONS_MAX_LIMIT,
+  ChatConversationIdParamsSchema,
+  ChatConversationListResponseSchema,
+  ChatConversationMessagesResponseSchema,
+  ChatConversationSummarySchema,
+  ListChatConversationsQuerySchema,
+  type ChatConversationIdParams,
+  type ChatConversationListResponse,
+  type ChatConversationMessagesResponse,
+  type ChatConversationSummary,
+  type ListChatConversationsQuery,
+} from "./chat-conversations.js";
+export {
   CHAT_MAX_QUESTION_CHARS,
   CHAT_MAX_CONTEXT_CHARS,
   CHAT_MAX_CONTEXT_MESSAGES,

@@ -29,8 +29,9 @@ export class ChatAccessService {
     reservation: ChatReservation,
     status: "COMPLETED" | "REFUNDED" | "CANCELLED",
     reply?: string,
+    userMessage?: string,
   ): Promise<void> {
-    return this.quota.settle(reservation, status, reply);
+    return this.quota.settle(reservation, status, reply, userMessage);
   }
 
   async prepare(
