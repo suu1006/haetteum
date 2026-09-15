@@ -56,3 +56,20 @@ NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL=http://localhost:4000/uploads/weekly
 기존 `PREPARED` 후보 16곳을 공식 `tourism:enrich` CLI로 상세 수집한 뒤 `weekly:run repair`를 실행했다. 실제 API에서 16곳을 반환하고 홈 HTML에서 16곳의 제목 및 주간 추천 목록 렌더링을 확인했다. 이미지 16개 모두 공개 URL HTTP 성공, SHA-256 파일명 일치, 480×480 디코딩을 확인했다.
 
 검증: 주간 추천 단위/HTTP 테스트 68개, 별도 임시 PostgreSQL 통합 테스트 5개, API 빌드, 변경 범위 ESLint 및 타입 검사 통과. 임시 테스트 DB는 종료 후 삭제했다. 실제 사진의 의미상 일치나 현장 운영 상태를 사람이 확인한 결과는 아니다.
+
+## 2026-09-15 운영 복구
+
+운영 API가 `{ "week": null, "items": [] }`를 반환했다. 운영 DB의 추천 묶음과 후보는 모두 0건이었으며, `WEEKLY_RECOMMENDATIONS_ENABLED`와 이미지 공개 URL/저장 경로 설정이 없었다. 기존 TourAPI 관광지 4,597건 중 상세 수집 기록이 있는 장소는 209건이었다.
+
+- 서버 전용 `api.env`에 주간 추천 활성화, `https://haetteum.kr/uploads/weekly`, 기존 영속 uploads 아래의 weekly 저장 경로를 설정하고 API를 재시작했다.
+- nginx에 `/uploads/weekly/` → API 4000 포트의 동일 경로를 추가했다. 수정 전 동일 이미지가 내부 200/공개 404였고, 설정 검사 후 reload했다. 기존 nginx 설정은 서버에 백업했다.
+- 배포된 `weekly-recommendations.command.js repair`를 실행했다. 추가 TourAPI 수집 없이 저장된 상세로 검증했다.
+- 운영 API에서 2026-09-14 주차 20곳과 이미지 20개 모두 HTTP 200 및 WebP 응답을 확인했다. 운영 홈 HTML에서도 추천 카드 렌더링을 확인했다.
+
+재배포 시 서버 전용 환경파일과 영속 uploads 경로를 보존하고, nginx의 주간 이미지 경로를 유지한다. API health뿐 아니라 주간 추천 건수와 공개 이미지 응답도 확인한다.
+
+### 웹 이미지 누락 후속 복구
+
+직접 이미지 URL의 200 응답만으로 화면 표시까지 검증할 수 없었다. 웹의 `NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL`도 누락되어 `resolveWeeklyThumbnail`이 null을 반환했다. 배포 버전은 서버 컴포넌트에서 이 환경변수를 실행 시 읽으므로 서버 전용 `web.env`에 공개 주소를 추가하고 웹을 재시작했다. 브라우저에서 실제 이미지 요소의 480px 디코딩과 카드 사진 표시를 확인했다.
+
+현재 소스는 클라이언트 컴포넌트에서도 해당 값을 사용하므로 다음 빌드부터 반드시 값을 주입하도록 배포 workflow에도 공개 주소를 추가했다. `NEXT_PUBLIC_` 값은 빌드 시 포함되므로 이후 버전은 실행 환경변수만 변경해서 해결할 수 있다고 가정하지 않는다.
