@@ -20,6 +20,7 @@ import {
 } from "./tourism.constants.js";
 import { TourismSyncService } from "./tourism-sync.service.js";
 import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
+import { NotionBatchRecorder } from "./notion-batch-recorder.js";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
     FestivalSyncService,
     FestivalRepository,
     TourismSyncScheduler,
+    NotionBatchRecorder,
     FestivalSyncScheduler,
     RankingPlaceLinkService,
     TourApiClient,

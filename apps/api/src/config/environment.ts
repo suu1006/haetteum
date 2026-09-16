@@ -73,6 +73,8 @@ const ApiEnvironmentSchema = z
       z.string().url().optional(),
     ),
     TOURISM_SYNC_ENABLED: booleanFromString,
+    NOTION_TOKEN: providerSecret,
+    NOTION_DATA_SOURCE_ID: providerSecret,
     TOUR_API_DAILY_LIMIT: z.coerce.number().int().min(1).default(1000),
     TOUR_API_POLICY_POOL_MAX: z.coerce.number().int().min(1).default(4),
     TOUR_API_MIN_INTERVAL_MS: z.coerce.number().int().min(1).default(1000),

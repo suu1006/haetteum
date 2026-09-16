@@ -77,3 +77,11 @@ tourism-sync
 ## 코드 전환 검증 기록 (2026-09-12)
 
 API 빌드, 전체 단위 테스트 619개, 별도 PostgreSQL DB 통합 테스트 33개와 변경 범위 린트를 통과했다. 후속 작업에서 places/reviews/saved-courses의 서식 오류 22건과 불필요한 타입 단언 2건을 수정한 뒤 전체 API 린트와 API 빌드를 다시 통과했다. 상세한 작업 기록은 [구현 계획](superpowers/plans/2026-09-12-tourapi-db-only.md)을 참고한다.
+
+## 정기 관광지 배치의 Notion 기록
+
+매일 03:30 KST에 실행되는 `tourism-daily-sync`는 종료 시 `fetch`로 Notion 페이지를 한 번 생성한다. 성공·실패, 시작·종료 시각(UTC), 소요 시간을 기록한다. 실패 원문은 외부로 보내지 않으며 서버의 `[BATCH_FAILED] tour-api-sync` 로그에서 확인한다. CLI 수동 수집과 축제·코스 배치는 이 기록 대상에 포함되지 않는다.
+
+활성화하려면 배포 환경에 `NOTION_TOKEN`과 `NOTION_DATA_SOURCE_ID`를 모두 설정하고 API를 재시작한다. Notion 연결에 콘텐츠 삽입 권한을 부여하고 대상 데이터베이스에 연결을 추가해야 한다. 제목 속성 ID `title`을 사용하므로 제목 열 이름은 변경할 필요가 없다. `NOTION_DATA_SOURCE_ID`에는 데이터베이스 ID가 아닌 데이터 소스 ID를 넣는다.
+
+호출은 `POST https://api.notion.com/v1/pages`, `Notion-Version: 2026-03-11`을 사용한다. 두 환경변수 중 하나라도 없으면 기록을 생략한다. Notion 요청은 최대 10초 대기하며, 실패해도 배치의 성공·실패 결과를 바꾸지 않고 `[NOTION_BATCH_RECORD_FAILED]` 경고만 남긴다. 재시도나 누락 기록 복구는 제공하지 않는다. 기록은 TourAPI 배치 잠금 해제 후 수행하며 TourAPI 호출 예산을 사용하지 않는다.

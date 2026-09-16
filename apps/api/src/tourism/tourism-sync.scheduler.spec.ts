@@ -4,6 +4,7 @@ import type { ApiEnvironment } from "../config/environment.js";
 import { TourApiError } from "./tour-api.client.js";
 import { TourismSyncService } from "./tourism-sync.service.js";
 import { TourismSyncScheduler } from "./tourism-sync.scheduler.js";
+import { NotionBatchRecorder } from "./notion-batch-recorder.js";
 
 function createScheduler(
   enabled: boolean,
@@ -25,9 +26,14 @@ function createScheduler(
   } as unknown as TourismSyncService;
 
   return {
-    scheduler: new TourismSyncScheduler(config, sync, {
-      batch: (work: () => Promise<unknown>) => work(),
-    } as never),
+    scheduler: new TourismSyncScheduler(
+      config,
+      sync,
+      {
+        batch: (work: () => Promise<unknown>) => work(),
+      } as never,
+      new NotionBatchRecorder(new ConfigService<ApiEnvironment, true>()),
+    ),
     get incrementalCalls() {
       return incrementalCalls;
     },
