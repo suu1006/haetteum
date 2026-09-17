@@ -4,7 +4,7 @@ const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-docs", "@storybook/addon-a11y", "msw-storybook-addon"],
   framework: "@storybook/nextjs-vite",
-  // Only images are needed; do not copy the application's large video library.
+  // Share application images with component stories.
   staticDirs: [
     { from: "../public/images", to: "/images" },
     { from: "./public", to: "/" },
