@@ -28,10 +28,14 @@ export class TourismSyncScheduler {
 
     const startedAt = new Date();
     let success = false;
+    let failedCount: number | null = null;
+    let failureStage: "list" | "details" = "list";
     try {
       await this.policy.batch(async () => {
         await this.sync.incrementalSync();
+        failureStage = "details";
         const details = await this.sync.enrichPendingPlaceDetails();
+        failedCount = details.failedCount;
         if (details.failedCount > 0)
           throw new Error(
             `Tourism detail sync failed for ${details.failedCount} places`,
@@ -48,7 +52,13 @@ export class TourismSyncScheduler {
 
       throw error;
     } finally {
-      await this.notion.record({ success, startedAt, finishedAt: new Date() });
+      await this.notion.record({
+        success,
+        startedAt,
+        finishedAt: new Date(),
+        failedCount,
+        failureStage,
+      });
     }
   }
 }

@@ -42,6 +42,64 @@ describe("Notion batch recording", () => {
     expect(JSON.stringify(body.children)).toContain("2026-09-16T00:01:00.000Z");
     expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
+  it.each(["success", "details", "list", "interrupted"])(
+    "maps database properties for %s without leaking raw errors",
+    async (scenario) => {
+      const fetch = jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("{}"));
+      const failure = new Error("secret serviceKey=private");
+      const scheduler = new TourismSyncScheduler(
+        new ConfigService<ApiEnvironment, true>({ TOURISM_SYNC_ENABLED: true }),
+        {
+          incrementalSync: () =>
+            scenario === "list" ? Promise.reject(failure) : Promise.resolve(),
+          enrichPendingPlaceDetails: () => {
+            if (scenario === "interrupted") return Promise.reject(failure);
+            return Promise.resolve({
+              requestedCount: 3,
+              succeededCount: scenario === "details" ? 1 : 3,
+              failedCount: scenario === "details" ? 2 : 0,
+            });
+          },
+        } as never,
+        { batch: (work: () => Promise<unknown>) => work() } as never,
+        recorder(),
+      );
+      if (scenario === "success") await scheduler.runDailySync();
+      else await expect(scheduler.runDailySync()).rejects.toThrow();
+      const body = parseBody(fetch.mock.calls[0][1]?.body);
+      expect(body.properties["상태"]).toEqual({
+        status: { name: scenario === "success" ? "성공" : "실패" },
+      });
+      expect(body.properties["날짜"]).toEqual({
+        date: { start: expect.any(String) },
+      });
+      expect(body.properties["필수 갱신 실패 건수"]).toEqual({
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content:
+                scenario === "success"
+                  ? "0"
+                  : scenario === "details"
+                    ? "2"
+                    : "집계 불가",
+            },
+          },
+        ],
+      });
+      expect(body.properties["오류 요약"]).toEqual({
+        rich_text:
+          scenario === "success"
+            ? []
+            : [{ type: "text", text: { content: expect.any(String) } }],
+      });
+      expect(JSON.stringify(body)).not.toContain("serviceKey");
+      expect(JSON.stringify(body)).not.toContain("private");
+    },
+  );
   it("does not send requests without configuration", async () => {
     const fetch = jest.spyOn(globalThis, "fetch");
     await recorder(false).record({ success: true, startedAt, finishedAt });
@@ -89,7 +147,10 @@ function parseBody(body: RequestInit["body"]) {
   if (typeof body !== "string") throw new Error("Expected JSON string body");
   return JSON.parse(body) as {
     parent: { type: string; data_source_id: string };
-    properties: { title: { title: { text: { content: string } }[] } };
+    properties: {
+      [key: string]: unknown;
+      title: { title: { text: { content: string } }[] };
+    };
     children: unknown[];
   };
 }
