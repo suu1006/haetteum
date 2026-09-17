@@ -27,3 +27,16 @@
 HTTP/2 공식 참조: https://nginx.org/en/docs/http/ngx_http_v2_module.html
 
 인증 HTTP 회귀 검사: `node scripts/performance/auth-smoke.mjs http://localhost:4100/api/v1`. 실제 JSON null 직렬화와 private/no-store, 보호 API의 401을 확인한다.
+
+## 주간 추천이 모두 기본 이미지로 나오는 경우
+
+`NEXT_PUBLIC_WEEKLY_THUMBNAIL_BASE_URL`은 주간 추천 이미지의 허용 주소다.
+API가 반환하는 `primaryImageUrl`의 origin과 저장 경로에 맞춰 빌드 시 설정한다.
+로컬 API는 `http://localhost:4000/uploads/weekly`, 운영 API는
+`https://haetteum.kr/uploads/weekly`를 사용한다.
+
+`.env.production`에 API 주소만 설정하면 `.env`의 로컬 썸네일 설정이 함께 적용될 수 있다.
+운영 API로 로컬 프로덕션 빌드를 확인할 때도 두 값을 같은 환경 기준으로 설정한다.
+`NEXT_PUBLIC_*` 값은 브라우저 번들에 포함되므로 환경파일 변경 후 웹을 다시 빌드하고 재시작한다.
+이미지 파일의 HTTP 200만으로는 충분하지 않다. 추천 영역을 스크롤하며 실제 `img`의 로딩과
+기본 이미지 대체 여부를 확인한다. 해결을 위해 이미지 허용 주소 검사를 제거하지 않는다.
