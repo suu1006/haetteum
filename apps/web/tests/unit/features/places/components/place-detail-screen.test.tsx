@@ -5,9 +5,9 @@ import axe from "axe-core";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PlaceDetailScreen } from "@/features/places/components/place-detail-screen";
+import { PlaceDetailScreen } from "../../../../fixtures/components/place-detail-screen";
 import { AuthStoreProvider } from "@/features/auth/auth-store";
-import { getPlaceDetailById } from "@/features/places/place-detail.mock";
+import { getPlaceDetailById } from "../../../../fixtures/place-detail.mock";
 
 const routerMocks = vi.hoisted(() => ({
   back: vi.fn(),

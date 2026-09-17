@@ -11,13 +11,13 @@ import {
   SparkleIcon,
 } from "lucide-react";
 
-import { ConfirmedItineraryItem } from "@/components/domain/course/confirmed-itinerary-item";
-import { SavedCourseSummaryCard } from "@/components/domain/course/saved-course-summary-card";
+import { ConfirmedItineraryItem } from "./confirmed-itinerary-item";
+import { SavedCourseSummaryCard } from "./saved-course-summary-card";
 import { Button } from "@/components/ui/button/button";
 import type {
   SavedCourseFixture,
   SavedCourseStop,
-} from "@/features/courses/saved-course-model";
+} from "./saved-course-model";
 import { cn } from "@/lib/utils";
 
 type SavedCourseScreenProps = {

@@ -167,7 +167,6 @@ export type MainDiscoveryData = {
   places: readonly PlaceRankingItem[];
 };
 export type DiscoveryView = {
-  places: readonly PlaceRankingItem[];
   showRankedPlaces: boolean;
   showAiCourse: boolean;
   showFestivals: boolean;
@@ -327,29 +326,13 @@ export function buildFestivalRegionHref(
   });
 }
 
-function matchesQuery(values: readonly string[], query: string) {
-  return values.some((value) =>
-    value.toLocaleLowerCase("ko-KR").includes(query),
-  );
-}
-
-export function selectDiscoveryView(
-  data: MainDiscoveryData,
-  query: DiscoveryQuery,
-): DiscoveryView {
-  const normalizedQuery = query.q.trim().toLocaleLowerCase("ko-KR");
-  const places = data.places.filter(
-    (place) =>
-      place.region === query.region &&
-      (!normalizedQuery ||
-        matchesQuery([place.title, place.location], normalizedQuery)),
-  );
+export function selectDiscoveryView(query: DiscoveryQuery): DiscoveryView {
+  const normalizedQuery = query.q.trim();
   // 추천 탭에서 검색어가 있으면 랭킹 대신 검색 결과 섹션을 보여준다.
   const isSearchingRecommended =
     query.tab === "recommended" && normalizedQuery !== "";
 
   return {
-    places,
     showRankedPlaces: query.tab === "places",
     showAiCourse: query.tab === "recommended" && !isSearchingRecommended,
     showFestivals: query.tab === "recommended" && !isSearchingRecommended,

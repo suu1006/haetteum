@@ -1,39 +1,29 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { SavedCourseIdParamsSchema } from "@haetteum/contracts";
 
+import { requireCurrentUser } from "@/features/auth/auth-server";
+import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { SavedCourseExperience } from "@/features/courses/saved-course-experience";
-import {
-  getSavedCourseById,
-  savedCourseMock,
-} from "@/features/courses/saved-course.mock";
+import { loadSavedCourseById } from "@/features/trips/my-saved-courses-api";
+import { ErrorState } from "@/components/patterns/error-state/error-state";
 
-type SavedCoursePageProps = {
-  params: Promise<{ courseId: string }>;
+type SavedCoursePageProps = { params: Promise<{ courseId: string }> };
+export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "저장한 코스 | 해뜸",
+  robots: { index: false, follow: false },
 };
-
-export function generateStaticParams() {
-  return [{ courseId: savedCourseMock.id }];
-}
-
-export async function generateMetadata({
-  params,
-}: SavedCoursePageProps): Promise<Metadata> {
-  const { courseId } = await params;
-  const course = getSavedCourseById(courseId);
-
-  if (!course) return { title: "저장된 코스를 찾을 수 없어요 | 해뜸" };
-
-  return {
-    title: `${course.title} | 해뜸`,
-    description: `${course.title}의 저장된 여행 일정과 이동 정보를 확인해 보세요.`,
-  };
-}
 
 export default async function SavedCoursePage({ params }: SavedCoursePageProps) {
   const { courseId } = await params;
-  const course = getSavedCourseById(courseId);
-
-  if (!course) notFound();
-
-  return <SavedCourseExperience course={course} />;
+  if (!SavedCourseIdParamsSchema.safeParse({ id: courseId }).success) notFound();
+  const user = await requireCurrentUser(`/courses/${courseId}`);
+  const result = await loadSavedCourseById(courseId, (await headers()).get("cookie"));
+  if (result.status === "not-found") notFound();
+  if (result.status === "error") {
+    return <main role="alert"><ErrorState title="코스를 불러오지 못했어요" /></main>;
+  }
+  return <><AuthUserHydrator user={user} /><SavedCourseExperience course={result.data} /></>;
 }

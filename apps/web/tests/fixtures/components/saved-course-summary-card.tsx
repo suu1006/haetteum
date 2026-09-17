@@ -7,7 +7,7 @@ import {
 
 import { CourseRouteMap } from "@/components/domain/course/course-route-map";
 import { Card } from "@/components/ui/card/card";
-import type { SavedCourseFixture } from "@/features/courses/saved-course-model";
+import type { SavedCourseFixture } from "./saved-course-model";
 
 type SavedCourseSummaryCardProps = {
   course: SavedCourseFixture;

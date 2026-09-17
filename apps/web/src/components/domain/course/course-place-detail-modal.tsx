@@ -72,16 +72,13 @@ function CoursePlaceDetailModal({
                 <span className="type-caption rounded-full bg-primary-subtle px-3 py-1.5 font-semibold text-primary">
                   {place.category}
                 </span>
-                <span className="type-label inline-flex items-center gap-1">
-                  <StarIcon
-                    aria-hidden="true"
-                    className="size-4 fill-rating text-rating"
-                  />
-                  {detail.rating.toFixed(1)}
-                </span>
-                <span className="type-caption text-muted-foreground">
-                  ({reviewCountFormatter.format(detail.reviewCount)})
-                </span>
+                {detail.rating != null && detail.reviewCount != null ? (
+                  <span className="type-label inline-flex items-center gap-1">
+                    <StarIcon aria-hidden="true" className="size-4 fill-rating text-rating" />
+                    {detail.rating.toFixed(1)} ({reviewCountFormatter.format(detail.reviewCount)})
+                  </span>
+                ) : <span className="type-caption text-muted-foreground">평점 정보 없음</span>}
+
               </div>
 
               <dl className="mt-4 space-y-2 text-muted-foreground">

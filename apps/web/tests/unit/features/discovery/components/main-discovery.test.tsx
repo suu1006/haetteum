@@ -25,7 +25,7 @@ import {
   parseDiscoveryQuery,
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import { mainDiscoveryMock } from "../../../../fixtures/main-discovery.mock";
 import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 import type { MonthlyFestivalsLoadState } from "@/features/festivals/festival-discovery-api";
@@ -122,7 +122,7 @@ describe("MainDiscovery", () => {
       <MainDiscovery
         data={mainDiscoveryMock}
         query={query}
-        view={selectDiscoveryView(mainDiscoveryMock, query)}
+        view={selectDiscoveryView(query)}
         ranking={{ status: "ready", data: {
           ...rankingResponse,
           items: rankingResponse.items.map((place, index) => ({
@@ -152,7 +152,7 @@ describe("MainDiscovery", () => {
   });
 
   it("renders the five approved main-page regions in order", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
+    const view = selectDiscoveryView(defaultDiscoveryQuery);
 
     renderWithQueryClient(
       <MainDiscovery
@@ -223,7 +223,7 @@ describe("MainDiscovery", () => {
   });
 
   it("places the moved festival slider before the AI banner and monthly festivals", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
+    const view = selectDiscoveryView(defaultDiscoveryQuery);
 
     renderWithQueryClient(
       <MainDiscovery
@@ -253,7 +253,7 @@ describe("MainDiscovery", () => {
       tab: "ai-course",
       region: "gyeonggi",
     });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
     renderWithQueryClient(
       <MainDiscovery data={mainDiscoveryMock} query={query} view={view} />,
     );
@@ -270,7 +270,7 @@ describe("MainDiscovery", () => {
   });
 
   it("has no detectable accessibility violations on the assembled discovery surface", async () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, defaultDiscoveryQuery);
+    const view = selectDiscoveryView(defaultDiscoveryQuery);
 
     const { container } = renderWithQueryClient(
       <MainDiscovery
@@ -292,7 +292,7 @@ describe("MainDiscovery", () => {
 
   it("keeps the shared discovery chrome above the festival page", () => {
     const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
@@ -346,7 +346,7 @@ describe("MainDiscovery", () => {
       <MainDiscovery
         data={mainDiscoveryMock}
         query={popularQuery}
-        view={selectDiscoveryView(mainDiscoveryMock, popularQuery)}
+        view={selectDiscoveryView(popularQuery)}
       />,
     );
 
@@ -356,7 +356,7 @@ describe("MainDiscovery", () => {
       <MainDiscovery
         data={mainDiscoveryMock}
         query={festivalQuery}
-        view={selectDiscoveryView(mainDiscoveryMock, festivalQuery)}
+        view={selectDiscoveryView(festivalQuery)}
       />,
     );
 
@@ -370,7 +370,7 @@ describe("MainDiscovery", () => {
 
   it("shows both rankings without reels on the popular-place tab", () => {
     const query = parseDiscoveryQuery({ q: "", region: "jeju", tab: "places" });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
@@ -387,7 +387,7 @@ describe("MainDiscovery", () => {
 
   it("does not expose unpersisted festival engagement controls", () => {
     const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
@@ -399,7 +399,7 @@ describe("MainDiscovery", () => {
 
   it("offers the reference region order and marks Jeju as selected", () => {
     const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
 
     render(<MainDiscovery data={mainDiscoveryMock} query={query} view={view} />);
 
@@ -429,7 +429,7 @@ describe("MainDiscovery", () => {
       <MainDiscovery
         data={errorData}
         query={query}
-        view={selectDiscoveryView(errorData, query)}
+        view={selectDiscoveryView(query)}
       />,
     );
 
@@ -447,7 +447,7 @@ describe("MainDiscovery", () => {
       <MainDiscovery
         data={emptyData}
         query={query}
-        view={selectDiscoveryView(emptyData, query)}
+        view={selectDiscoveryView(query)}
       />,
     );
     expect(
@@ -460,7 +460,7 @@ describe("MainDiscovery", () => {
 
   it("has no detectable accessibility violations on the festival tab", async () => {
     const query = parseDiscoveryQuery({ tab: "festivals", region: "jeju" });
-    const view = selectDiscoveryView(mainDiscoveryMock, query);
+    const view = selectDiscoveryView(query);
     const { container } = render(
       <MainDiscovery data={mainDiscoveryMock} query={query} view={view} />,
     );

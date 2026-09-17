@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as rtlRender, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { AuthStoreProvider } from "@/features/auth/auth-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const navigationMocks = vi.hoisted(() => ({
@@ -65,7 +66,7 @@ function render(ui: ReactElement) {
     defaultOptions: { queries: { retry: false } },
   });
   return rtlRender(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    <AuthStoreProvider><QueryClientProvider client={queryClient}>{ui}</QueryClientProvider></AuthStoreProvider>,
   );
 }
 
@@ -85,8 +86,8 @@ describe("course edit page", () => {
         params: Promise.resolve({ courseId: "icheon-day-trip" }),
       }),
     ).resolves.toMatchObject({
-      title: "이천 하루 코스 일정 수정 | 해뜸",
-      description: expect.stringContaining("방문 순서"),
+      title: "일정 수정 | 해뜸",
+      robots: { index: false, follow: false },
     });
   });
 
@@ -96,19 +97,6 @@ describe("course edit page", () => {
     ).resolves.toMatchObject({
       title: "새 일정 만들기 | 해뜸",
     });
-  });
-
-  it("renders the requested mock course editor", async () => {
-    render(
-      await CourseEditPage({
-        params: Promise.resolve({ courseId: "icheon-day-trip" }),
-      }),
-    );
-
-    expect(
-      screen.getByRole("heading", { level: 1, name: "일정 수정" }),
-    ).toBeVisible();
-    expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("renders a blank editor with no default itinerary for a new schedule", async () => {

@@ -15,7 +15,7 @@ import { FestivalFilterGroup } from "@/components/domain/festival/festival-filte
 import { FestivalDiscoveryListItem } from "@/components/domain/festival/festival-discovery-list-item";
 import { FestivalRankingShowcase } from "@/components/domain/festival/festival-ranking-showcase";
 import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import { mainDiscoveryMock } from "../../../../fixtures/main-discovery.mock";
 
 describe("FestivalDiscoveryListItem", () => {
   const festival = mainDiscoveryMock.festivalDiscovery.festivals[0];

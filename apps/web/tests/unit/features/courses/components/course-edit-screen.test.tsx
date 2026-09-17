@@ -12,8 +12,8 @@ import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CourseEditor } from "@/features/courses/course-editor";
-import type { CourseEditFixture } from "@/features/courses/course-edit-model";
-import { courseEditMock } from "@/features/courses/course-edit.mock";
+import type { CourseEditData } from "@/features/courses/course-edit-model";
+import { courseEditMock } from "../../../../fixtures/course-edit.mock";
 
 const routerMocks = vi.hoisted(() => ({
   back: vi.fn(),
@@ -391,8 +391,8 @@ describe("CourseEditor", () => {
     expect(within(itinerary).getAllByRole("listitem")).toHaveLength(7);
     expect(within(itinerary).getByText("카페 온천")).toBeVisible();
     expect(within(itinerary).getByText("테르메덴 리조트")).toBeVisible();
-    expect(within(itinerary).getByText("18:00")).toBeVisible();
-    expect(within(itinerary).getByText("19:30")).toBeVisible();
+    expect(within(itinerary).queryByText("18:00")).not.toBeInTheDocument();
+    expect(within(itinerary).getAllByText("—")).toHaveLength(2);
     expect(
       screen.getByRole("status", { name: "일정 편집 상태" }),
     ).toHaveTextContent("장소 2개를 일정에 추가했습니다.");
@@ -429,7 +429,7 @@ describe("CourseEditor", () => {
     ).toBeDisabled();
   });
 
-  it("announces a time-slot failure after returning to edit", async () => {
+  it("adds a place without depending on an invented following visit time", async () => {
     const user = userEvent.setup();
     const lateCourse = {
       ...courseEditMock,
@@ -444,7 +444,7 @@ describe("CourseEditor", () => {
           ),
         },
       },
-    } satisfies CourseEditFixture;
+    } satisfies CourseEditData;
 
     render(<CourseEditor course={lateCourse} />);
     await user.click(screen.getByRole("button", { name: "장소 추가하기" }));
@@ -460,8 +460,8 @@ describe("CourseEditor", () => {
     ).toBeVisible();
     expect(
       screen.getByRole("status", { name: "일정 편집 상태" }),
-    ).toHaveTextContent("추가할 일정 시간을 만들 수 없습니다.");
-    expect(screen.queryByText("카페 온천")).not.toBeInTheDocument();
+    ).toHaveTextContent("장소 1개를 일정에 추가했습니다.");
+    expect(screen.getByText("카페 온천")).toBeVisible();
   });
 
   it("adds selected places to the current course", async () => {
@@ -528,7 +528,7 @@ describe("CourseEditor", () => {
 
   it("creates a new saved course when saving a blank draft", async () => {
     const user = userEvent.setup();
-    const blankCourse: CourseEditFixture = {
+    const blankCourse: CourseEditData = {
       id: "new",
       title: "새 일정",
       courses: {

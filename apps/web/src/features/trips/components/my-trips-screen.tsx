@@ -18,7 +18,6 @@ import {
   TripScheduleTabs,
   type TripScheduleTab,
 } from "@/components/domain/course/trip-schedule-tabs";
-import { blankCourseMock } from "@/features/courses/course-edit.mock";
 import type {
   TripSchedule,
   TripScheduleCollection,
@@ -162,7 +161,7 @@ function MyTripsScreen({ trips, initialSavedCourses }: MyTripsScreenProps) {
       <div className="pointer-events-none fixed inset-x-0 bottom-[var(--trips-navigation-reserve)] z-40 mx-auto flex w-full max-w-[30rem] justify-end px-5 pb-1">
         <button
           type="button"
-          onClick={() => router.push(`/courses/${blankCourseMock.id}/edit`)}
+          onClick={() => router.push("/courses/new/edit")}
           aria-label="새 일정 만들기"
           className="pointer-events-auto flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-floating outline-none transition-colors hover:bg-primary-pressed focus-visible:ring-3 focus-visible:ring-ring/30"
         >

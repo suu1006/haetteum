@@ -37,7 +37,7 @@ vi.mock("@/features/places/place-detail-api", async (importOriginal) => ({
 
 import { MyTripsScreen } from "@/features/trips/components/my-trips-screen";
 import type { MyTripsScreenProps } from "@/features/trips/components/my-trips-screen";
-import { blankCourseMock } from "@/features/courses/course-edit.mock";
+import { blankCourseMock } from "../../../../fixtures/course-edit.mock";
 import type { SavedCourseItem } from "@haetteum/contracts";
 
 const rankingCandidate = {

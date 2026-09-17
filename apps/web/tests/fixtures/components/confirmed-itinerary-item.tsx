@@ -1,7 +1,7 @@
 import { CarFrontIcon, ChevronRightIcon } from "lucide-react";
 import Image from "next/image";
 
-import type { SavedCourseStop } from "@/features/courses/saved-course-model";
+import type { SavedCourseStop } from "./saved-course-model";
 
 type ConfirmedItineraryItemProps = {
   stop: SavedCourseStop;

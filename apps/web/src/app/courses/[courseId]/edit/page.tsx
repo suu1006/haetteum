@@ -1,76 +1,44 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { SavedCourseIdParamsSchema } from "@haetteum/contracts";
 
 import { requireCurrentUser } from "@/features/auth/auth-server";
+import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
 import { CourseEditor } from "@/features/courses/course-editor";
-import {
-  blankCourseMock,
-  getEditableCourseById,
-} from "@/features/courses/course-edit.mock";
-import {
-  mapSavedCourseToEditFixture,
-  type CourseEditFixture,
-} from "@/features/courses/course-edit-model";
+import { createEmptyCourse, mapSavedCourseToEditData } from "@/features/courses/course-edit-model";
 import { loadSavedCourseById } from "@/features/trips/my-saved-courses-api";
+import { ErrorState } from "@/components/patterns/error-state/error-state";
 
-type CourseEditPageProps = {
-  params: Promise<{ courseId: string }>;
-};
-
-// Saved schedules require the current request's session, including metadata.
+type CourseEditPageProps = { params: Promise<{ courseId: string }> };
 export const dynamic = "force-dynamic";
 
-async function resolveCourse(
-  courseId: string,
-): Promise<CourseEditFixture | undefined> {
-  const mockCourse = getEditableCourseById(courseId);
-  if (mockCourse) return mockCourse;
-
-  await requireCurrentUser(`/courses/${courseId}/edit`);
-  const cookieHeader = (await headers()).get("cookie");
-  const result = await loadSavedCourseById(courseId, cookieHeader);
-
-  return result.status === "ready"
-    ? mapSavedCourseToEditFixture(result.data)
-    : undefined;
-}
-
-export async function generateMetadata({
-  params,
-}: CourseEditPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: CourseEditPageProps): Promise<Metadata> {
   const { courseId } = await params;
-  const course = await resolveCourse(courseId);
-
-  if (!course) return { title: "코스를 찾을 수 없어요 | 해뜸" };
-
-  if (course.id === blankCourseMock.id) {
-    return {
-      title: "새 일정 만들기 | 해뜸",
-      description: "원하는 장소를 추가해 나만의 일정을 만들어 보세요.",
-    };
-  }
-
   return {
-    title: `${course.title} 일정 수정 | 해뜸`,
-    description: `${course.title}의 방문 순서를 원하는 대로 변경해 보세요.`,
+    title: courseId === "new" ? "새 일정 만들기 | 해뜸" : "일정 수정 | 해뜸",
+    robots: { index: false, follow: false },
   };
 }
 
 export default async function CourseEditPage({ params }: CourseEditPageProps) {
   const { courseId } = await params;
-  const course = await resolveCourse(courseId);
-
-  if (!course) notFound();
-
+  const isNew = courseId === "new";
+  if (!isNew && !SavedCourseIdParamsSchema.safeParse({ id: courseId }).success) notFound();
+  const user = await requireCurrentUser(`/courses/${courseId}/edit`);
+  const result = isNew ? null : await loadSavedCourseById(courseId, (await headers()).get("cookie"));
+  if (result?.status === "not-found") notFound();
+  if (result?.status === "error") {
+    return <main role="alert"><ErrorState title="코스를 불러오지 못했어요" /></main>;
+  }
+  const course = result?.status === "ready" ? mapSavedCourseToEditData(result.data) : createEmptyCourse();
   return (
-    <main className="min-h-screen bg-background">
-      <CourseEditor
-        course={course}
-        initialSource={course.id === blankCourseMock.id ? "custom" : "ai"}
-        mode={course.id === blankCourseMock.id ? "create" : "edit"}
-      />
-    </main>
+    <>
+      <AuthUserHydrator user={user} />
+      <main className="min-h-screen bg-background">
+        <CourseEditor course={course} initialSource="custom" mode={isNew ? "create" : "edit"} />
+      </main>
+    </>
   );
 }
 

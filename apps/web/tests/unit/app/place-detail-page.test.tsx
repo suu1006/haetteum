@@ -11,11 +11,9 @@ import type {
 
 import PlaceDetailPage, {
   generateMetadata,
-  generateStaticParams,
 } from "@/app/places/[placeId]/page";
 import PlaceNotFound from "@/app/places/[placeId]/not-found";
 import { AuthStoreProvider } from "@/features/auth/auth-store";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 
 const navigationMocks = vi.hoisted(() => ({
   back: vi.fn(),
@@ -59,40 +57,8 @@ function renderWithQueryClient(ui: ReactNode) {
 }
 
 describe("place detail page", () => {
-  it("projects every discovery place into static route params", () => {
-    expect(generateStaticParams()).toEqual(
-      mainDiscoveryMock.places.map(({ id }) => ({ placeId: id })),
-    );
-  });
-
-  it("builds place-specific review metadata", async () => {
-    await expect(
-      generateMetadata({
-        params: Promise.resolve({ placeId: "icheon-termeden" }),
-      }),
-    ).resolves.toMatchObject({
-      title: "이천 테르메덴 후기 | 해뜸",
-      description: expect.stringContaining("2,345개"),
-    });
-  });
-
-  it("renders the requested place and URL-selected provider", async () => {
-    renderWithQueryClient(
-      await PlaceDetailPage({
-        params: Promise.resolve({ placeId: "icheon-termeden" }),
-        searchParams: Promise.resolve({ tab: "reviews", source: "google" }),
-      }),
-    );
-
-    expect(
-      screen.getByRole("heading", { level: 1, name: "이천 테르메덴" }),
-    ).toBeVisible();
-    expect(screen.getByRole("heading", { name: /통합 후기/ })).toHaveTextContent(
-      "2,345개",
-    );
-    expect(
-      screen.getByRole("article", { name: "Traveler_J의 후기" }),
-    ).toBeVisible();
+  it("does not publish sample review counts in metadata", async () => {
+    await expect(generateMetadata({ params: Promise.resolve({ placeId: "icheon-termeden" }) })).resolves.toEqual({ title: "장소를 찾을 수 없어요 | 해뜸" });
   });
 
   it("delegates unknown place IDs to the scoped not-found boundary", async () => {

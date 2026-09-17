@@ -1,4 +1,4 @@
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import { mainDiscoveryMock } from "./main-discovery.mock";
 import type {
   PlaceCourseDetail,
   PlaceInformationDetail,

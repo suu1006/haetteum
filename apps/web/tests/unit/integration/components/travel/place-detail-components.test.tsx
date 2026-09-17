@@ -15,7 +15,7 @@ import { ReviewProviderMark } from "@/components/domain/review/review-provider-m
 import { ReviewSourceFilter } from "@/components/domain/review/review-source-filter";
 import { AuthStoreProvider } from "@/features/auth/auth-store";
 import { AuthUserHydrator } from "@/features/auth/auth-user-hydrator";
-import { getPlaceDetailById } from "@/features/places/place-detail.mock";
+import { getPlaceDetailById } from "../../../../fixtures/place-detail.mock";
 
 const routerMocks = vi.hoisted(() => ({
   back: vi.fn(),

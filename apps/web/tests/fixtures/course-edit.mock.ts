@@ -1,5 +1,5 @@
 import type {
-  CourseEditFixture,
+  CourseEditData,
   CoursePlaceDetail,
 } from "@/features/courses/course-edit-model";
 
@@ -251,7 +251,7 @@ export const courseEditMock = {
       ],
     },
   },
-} as const satisfies CourseEditFixture;
+} as const satisfies CourseEditData;
 
 export const blankCourseMock = {
   id: "new",
@@ -260,7 +260,7 @@ export const blankCourseMock = {
     ai: { source: "ai", slots: [], places: [], recommendedOrder: [] },
     custom: { source: "custom", slots: [], places: [], recommendedOrder: [] },
   },
-} as const satisfies CourseEditFixture;
+} as const satisfies CourseEditData;
 
 export function getEditableCourseById(courseId: string) {
   if (courseId === courseEditMock.id) return courseEditMock;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shortenCourse, replaceCoursePlaces } from "@/features/courses/course-alternatives";
-import { courseEditMock } from "@/features/courses/course-edit.mock";
+import { courseEditMock } from "../../../fixtures/course-edit.mock";
 
 const base = courseEditMock.courses.ai.places[0]!;
 const places = [0, 3, 1, 2].map((longitude, index) => ({

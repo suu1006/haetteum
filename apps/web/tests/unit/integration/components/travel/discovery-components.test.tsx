@@ -19,7 +19,7 @@ import { PlaceRankingCard } from "@/components/domain/place/place-ranking-card";
 import { PlaceRankingRetryButton } from "@/components/domain/place/place-ranking-retry-button";
 import { CourseQuickSaveCard } from "@/components/domain/course/course-quick-save-card";
 import { defaultDiscoveryQuery } from "@/features/discovery/discovery-model";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import { mainDiscoveryMock } from "../../../../fixtures/main-discovery.mock";
 
 const routerMocks = vi.hoisted(() => ({ refresh: vi.fn() }));
 

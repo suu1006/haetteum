@@ -162,10 +162,10 @@ function SortableItineraryCard({
       className="relative grid min-w-0 grid-cols-[3.25rem_0.875rem_minmax(0,1fr)] gap-2 pb-4 last:pb-0"
     >
       <time
-        dateTime={slot.time}
+        dateTime={slot.time || undefined}
         className="type-label pt-5 text-right text-muted-foreground"
       >
-        {slot.time}
+        {slot.time || "—"}
       </time>
 
       <div className="relative flex justify-center pt-6" aria-hidden="true">
@@ -186,7 +186,7 @@ function SortableItineraryCard({
         </button>
 
         <article
-          aria-label={`${slot.time} ${place.title}`}
+          aria-label={[slot.time, place.title].filter(Boolean).join(" ")}
           className={cn(
             "relative flex min-h-20 min-w-0 touch-pan-y items-center gap-3 rounded-2xl border bg-card p-3 shadow-card transition-[border-color,box-shadow,opacity] duration-180 ease-[var(--ease-standard)]",
             isDragging

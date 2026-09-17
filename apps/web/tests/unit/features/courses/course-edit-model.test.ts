@@ -2,17 +2,18 @@ import type { GeneratedCourseStop, PlaceListItem, SavedCourseItem } from "@haett
 import { describe, expect, it } from "vitest";
 
 import {
-  appendFollowingTimeSlots,
+  appendUntimedSlots,
   appendUniqueCoursePlaces,
   formatMoveAnnouncement,
-  mapSavedCourseToEditFixture,
+  mapSavedCourseToEditData,
+  buildStopsFromDraft,
   movePlace,
   removePlace,
 } from "@/features/courses/course-edit-model";
 import {
   courseEditMock,
   getEditableCourseById,
-} from "@/features/courses/course-edit.mock";
+} from "../../../fixtures/course-edit.mock";
 
 const searchedPlaces = [
   {
@@ -112,8 +113,8 @@ describe("course edit model", () => {
       [searchedPlaces[2]],
     );
     expect(withCafe.at(-1)?.detail).toMatchObject({
-      rating: 0,
-      reviewCount: 0,
+      rating: null,
+      reviewCount: null,
       addressLabel: "경기 이천시 온천로 1",
     });
   });
@@ -128,40 +129,14 @@ describe("course edit model", () => {
     expect(next).toHaveLength(current.length + 1);
   });
 
-  it("appends stable time slots at ninety-minute intervals", () => {
+  it("adds empty time slots without fabricating visit times", () => {
     const slots = courseEditMock.courses.ai.slots;
-
-    const next = appendFollowingTimeSlots("ai", slots, 2, 90);
-
-    expect(next.slice(-2)).toEqual([
-      { id: "ai-slot-6", time: "18:00" },
-      { id: "ai-slot-7", time: "19:30" },
+    expect(appendUntimedSlots("ai", slots, 2).slice(-2)).toEqual([
+      { id: "ai-slot-6", time: "" }, { id: "ai-slot-7", time: "" },
     ]);
+    expect(appendUntimedSlots("custom", [], 1)).toEqual([{ id: "custom-slot-1", time: "" }]);
+    expect(appendUntimedSlots("ai", slots, 0)).toBe(slots);
     expect(slots).toHaveLength(5);
-  });
-
-  it("starts a blank schedule at 09:00 instead of leaving it empty", () => {
-    const empty = [] as const;
-
-    const next = appendFollowingTimeSlots("custom", empty, 2, 90);
-
-    expect(next).toEqual([
-      { id: "custom-slot-1", time: "09:00" },
-      { id: "custom-slot-2", time: "10:30" },
-    ]);
-  });
-
-  it("keeps the same slots when a following time cannot be created", () => {
-    const invalid = [{ id: "bad-slot", time: "25:99" }] as const;
-    const midnightOverflow = [{ id: "late-slot", time: "23:30" }] as const;
-    const slots = courseEditMock.courses.ai.slots;
-
-    expect(appendFollowingTimeSlots("ai", invalid, 1, 90)).toBe(invalid);
-    expect(appendFollowingTimeSlots("ai", midnightOverflow, 1, 90)).toBe(
-      midnightOverflow,
-    );
-    expect(appendFollowingTimeSlots("ai", slots, 0, 90)).toBe(slots);
-    expect(appendFollowingTimeSlots("ai", slots, 1, 0)).toBe(slots);
   });
 
   it("removes a place and drops one slot to keep the arrays in sync", () => {
@@ -233,7 +208,7 @@ describe("course edit model", () => {
       stops,
     };
 
-    const fixture = mapSavedCourseToEditFixture(savedCourse);
+    const fixture = mapSavedCourseToEditData(savedCourse);
 
     expect(fixture.id).toBe(savedCourse.id);
     expect(fixture.title).toBe(savedCourse.title);
@@ -276,4 +251,17 @@ describe("course edit model", () => {
       );
     }
   });
+});
+
+it("does not invent ratings, review counts or visit times for a persisted stop", () => {
+  const stop: GeneratedCourseStop = {
+    role: "cafe", sequence: 1, placeId: null, title: "저장된 카페", categoryLabel: null,
+    address: null, latitude: 37.5, longitude: 127, distanceMeters: 320,
+    placeUrl: "https://place.map.kakao.com/123",
+  };
+  const course = mapSavedCourseToEditData({ id: "40000000-0000-4000-8000-000000000001", title: "코스", savedAt: "2026-09-17T00:00:00Z", stops: [stop] });
+  expect(course.courses.custom.places[0].detail.rating).toBeNull();
+  expect(course.courses.custom.places[0].detail.reviewCount).toBeNull();
+  expect(course.courses.custom.slots[0].time).toBe("");
+  expect(buildStopsFromDraft(course.courses.custom.places)).toEqual([stop]);
 });

@@ -6,10 +6,10 @@ import {
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
 import { loadHotPlaceRankings } from "@/features/discovery/hot-place-ranking-api";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 import { loadPlaceRankings } from "@/features/discovery/place-ranking-api";
 import { searchPlaces } from "@/features/places/place-search-api";
 import {
+  emptyFestivalDiscovery,
   festivalBrowseRegion,
   loadFestivalDiscovery,
 } from "@/features/festivals/festival-discovery-api";
@@ -22,7 +22,7 @@ type DiscoveryContentProps = {
 
 async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
   const query = parseDiscoveryQuery(await searchParams);
-  const view = selectDiscoveryView(mainDiscoveryMock, query);
+  const view = selectDiscoveryView(query);
   const [festivalDiscovery, ranking, hotRanking, weeklyPlaces, searchResults] =
     await Promise.all([
       query.tab === "festivals" || (query.tab === "recommended" && !query.q.trim())
@@ -40,7 +40,10 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
 
   return (
     <MainDiscovery
-      data={festivalDiscovery ? { ...mainDiscoveryMock, festivalDiscovery } : mainDiscoveryMock}
+      data={{
+        aiCourse: { src: "/images/discovery/reference-main/ai-course-robot.png", alt: "여행 코스 안내" },
+        festivalDiscovery: festivalDiscovery ?? emptyFestivalDiscovery("ready"),
+      }}
       query={query}
       view={view}
       ranking={ranking}

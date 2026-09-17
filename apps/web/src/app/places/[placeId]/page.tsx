@@ -5,13 +5,8 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PlaceDetailScreen } from "@/features/places/components/place-detail-screen";
 import { LivePlaceDetailScreen } from "@/features/places/components/live-place-detail-screen";
 import { loadPlaceDetail, loadPlaceReviews } from "@/features/places/place-detail-api";
-import {
-  getPlaceDetailById,
-  getPlaceStaticParams,
-} from "@/features/places/place-detail.mock";
 import {
   parsePlaceDetailQuery,
   type PlaceDetailSearchParams,
@@ -26,12 +21,7 @@ type PlaceDetailPageProps = {
   searchParams: Promise<PlaceDetailSearchParams>;
 };
 
-const reviewCountFormatter = new Intl.NumberFormat("ko-KR");
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function generateStaticParams() {
-  return getPlaceStaticParams();
-}
 
 export async function generateMetadata({
   params,
@@ -45,14 +35,7 @@ export async function generateMetadata({
     return publicMetadata(`/places/${placeId}`, `${result.data.title} 소개 | 해뜸`,
       result.data.overview ?? result.data.address ?? `${result.data.title}의 여행 정보를 확인해 보세요.`);
   }
-  const place = getPlaceDetailById(placeId);
-
-  if (!place) {
-    return { title: "장소를 찾을 수 없어요 | 해뜸" };
-  }
-
-  return publicMetadata(`/places/${placeId}`, `${place.title} 후기 | 해뜸`,
-    `${place.title}의 통합 후기 ${reviewCountFormatter.format(place.reviewCount)}개를 확인해 보세요.`);
+  return { title: "장소를 찾을 수 없어요 | 해뜸" };
 }
 
 export default async function PlaceDetailPage({
@@ -106,18 +89,7 @@ export default async function PlaceDetailPage({
     );
   }
 
-  const place = getPlaceDetailById(placeId);
-
-  if (!place) notFound();
-
-  return (
-    <main className="min-h-screen bg-background">
-      <PlaceDetailScreen
-        place={place}
-        query={query}
-      />
-    </main>
-  );
+  notFound();
 }
 
 export type { PlaceDetailPageProps };

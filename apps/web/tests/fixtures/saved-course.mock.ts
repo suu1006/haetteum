@@ -1,4 +1,4 @@
-import type { SavedCourseFixture } from "@/features/courses/saved-course-model";
+import type { SavedCourseFixture } from "./components/saved-course-model";
 
 export const savedCourseMock = {
   id: "icheon-day-trip",

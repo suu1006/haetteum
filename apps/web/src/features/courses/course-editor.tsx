@@ -23,14 +23,14 @@ import {
 import { CoursePlaceDetailModal } from "@/components/domain/course/course-place-detail-modal";
 import { CoursePlacePicker } from "@/features/courses/course-place-picker";
 import {
-  appendFollowingTimeSlots,
+  appendUntimedSlots,
   appendUniqueCoursePlaces,
   buildCourseDraftFromGeneratedStops,
   buildStopsFromDraft,
   formatMoveAnnouncement,
   movePlace,
   removePlace,
-  type CourseEditFixture,
+  type CourseEditData,
   type CoursePlace,
   type CourseSource,
   type CourseTimeSlot,
@@ -46,7 +46,7 @@ const noEligiblePlacesMessage =
   "좌표 정보가 있는 장소가 없어 저장할 수 없어요.";
 
 type CourseEditorProps = {
-  course: CourseEditFixture;
+  course: CourseEditData;
   initialSource?: CourseSource;
   mode?: CourseEditMode;
 };
@@ -56,7 +56,7 @@ type CourseDraft = {
   slots: readonly CourseTimeSlot[];
 };
 
-function initialDrafts(course: CourseEditFixture) {
+function initialDrafts(course: CourseEditData) {
   return {
     ai: {
       places: [...course.courses.ai.places],
@@ -132,17 +132,11 @@ function CourseEditor({
         return current;
       }
 
-      const nextSlots = appendFollowingTimeSlots(
+      const nextSlots = appendUntimedSlots(
         source,
         currentDraft.slots,
         addedCount,
-        90,
       );
-
-      if (nextSlots === currentDraft.slots) {
-        setStatus("추가할 일정 시간을 만들 수 없습니다.");
-        return current;
-      }
 
       setStatus(`장소 ${addedCount}개를 일정에 추가했습니다.`);
       return { ...current, [source]: { places: nextPlaces, slots: nextSlots } };
@@ -231,8 +225,7 @@ function CourseEditor({
         });
       }
 
-      // /courses/[courseId]는 아직 데모 코스만 보여주는 화면이라
-      // 실제로 저장된 코스는 목록이 이미 실데이터로 연동된 내 일정으로 보낸다.
+      // 저장 후 실데이터 목록으로 돌아간다.
       router.push("/trips");
     } catch {
       setStatus(saveErrorMessage);

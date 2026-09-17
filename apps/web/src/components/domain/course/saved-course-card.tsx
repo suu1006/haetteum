@@ -97,7 +97,7 @@ function SavedCourseCard({
       {expanded ? (
         <div className="mt-3">
           <SavedCourseRouteMap stops={course.stops} />
-          <GeneratedCourseStopList stops={course.stops} anchorLabel="출발지" />
+          <GeneratedCourseStopList stops={course.stops} anchorLabel="기준 장소" />
         </div>
       ) : null}
     </article>

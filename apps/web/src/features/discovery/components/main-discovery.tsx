@@ -24,7 +24,7 @@ import type { WeeklyPlacesLoadState } from "@/features/places/weekly-places";
 import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
 
 export type MainDiscoveryProps = {
-  data: MainDiscoveryData;
+  data: Pick<MainDiscoveryData, "aiCourse" | "festivalDiscovery">;
   query: DiscoveryQuery;
   view: DiscoveryView;
   ranking?: PlaceRankingLoadState | null;

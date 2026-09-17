@@ -10,7 +10,7 @@ import { PlaceReviewOverview } from "@/components/domain/review/place-review-ove
 import { ReviewCard } from "@/components/domain/review/review-card";
 import { ReviewProviderMark } from "@/components/domain/review/review-provider-mark";
 import { ReviewSourceFilter } from "@/components/domain/review/review-source-filter";
-import { PlaceCourseRecommendation } from "@/features/courses/components/place-course-recommendation";
+import { PlaceCourseRecommendation } from "./place-course-recommendation";
 import {
   buildPlaceDetailHref,
   selectPlaceReviews,

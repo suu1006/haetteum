@@ -158,7 +158,7 @@ function formatDateRange(start: string, end: string): string {
   return `${startLabel} – ${endLabel}`;
 }
 
-function emptyFestivalDiscovery(
+export function emptyFestivalDiscovery(
   loadState: FestivalDiscoveryData["loadState"],
 ): FestivalDiscoveryData {
   return {

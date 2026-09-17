@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
+import { mainDiscoveryMock } from "../../../fixtures/main-discovery.mock";
 import {
   buildPlaceDetailHref,
   parsePlaceDetailQuery,
@@ -9,7 +9,7 @@ import {
 import {
   getPlaceDetailById,
   getPlaceStaticParams,
-} from "@/features/places/place-detail.mock";
+} from "../../../fixtures/place-detail.mock";
 
 describe("place detail model", () => {
   it("normalizes unknown route values to the introduction default", () => {

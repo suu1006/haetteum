@@ -10,8 +10,8 @@ import { resolveOfficialImageSource } from "@/lib/official-image";
 export type CourseSource = "ai" | "custom";
 
 export type CoursePlaceDetail = {
-  rating: number;
-  reviewCount: number;
+  rating: number | null;
+  reviewCount: number | null;
   addressLabel: string;
   hoursLabel: string;
   description: string;
@@ -32,6 +32,7 @@ export type CoursePlace = {
   detail: CoursePlaceDetail;
   latitude: number | null;
   longitude: number | null;
+  originalStop?: GeneratedCourseStop;
 };
 
 export type CourseTimeSlot = {
@@ -46,7 +47,7 @@ export type EditableCourse = {
   recommendedOrder: readonly string[];
 };
 
-export type CourseEditFixture = {
+export type CourseEditData = {
   id: string;
   title: string;
   courses: Readonly<Record<CourseSource, EditableCourse>>;
@@ -99,8 +100,8 @@ export function toCoursePlace(place: PlaceListItem): CoursePlace {
     latitude: place.latitude,
     longitude: place.longitude,
     detail: {
-      rating: 0,
-      reviewCount: 0,
+      rating: null,
+      reviewCount: null,
       addressLabel: place.address ?? location,
       hoursLabel: "운영시간 확인 필요",
       description: "상세 정보를 준비 중이에요.",
@@ -118,6 +119,7 @@ export function toCoursePlaceFromGeneratedStop(
 
   return {
     id: stop.placeId ?? `generated-stop-${stop.sequence}`,
+    originalStop: stop,
     title: stop.title,
     category: stop.categoryLabel ?? "장소",
     image: {
@@ -127,8 +129,8 @@ export function toCoursePlaceFromGeneratedStop(
     latitude: stop.latitude,
     longitude: stop.longitude,
     detail: {
-      rating: 0,
-      reviewCount: 0,
+      rating: null,
+      reviewCount: null,
       addressLabel: stop.address ?? location,
       hoursLabel: "운영시간 확인 필요",
       description: "상세 정보를 준비 중이에요.",
@@ -149,13 +151,13 @@ export function buildCourseDraftFromGeneratedStops(
 
   return {
     places,
-    slots: appendFollowingTimeSlots(source, [], places.length, 90),
+    slots: appendUntimedSlots(source, [], places.length),
   };
 }
 
-export function mapSavedCourseToEditFixture(
+export function mapSavedCourseToEditData(
   item: SavedCourseItem,
-): CourseEditFixture {
+): CourseEditData {
   const places = [...item.stops]
     .sort((a, b) => a.sequence - b.sequence)
     .map(toCoursePlaceFromGeneratedStop);
@@ -163,7 +165,7 @@ export function mapSavedCourseToEditFixture(
   function buildCourse(source: CourseSource): EditableCourse {
     return {
       source,
-      slots: appendFollowingTimeSlots(source, [], places.length, 90),
+      slots: appendUntimedSlots(source, [], places.length),
       places,
       recommendedOrder: places.map(({ id }) => id),
     };
@@ -192,51 +194,6 @@ export function appendUniqueCoursePlaces(
   return additions.length > 0 ? [...current, ...additions] : current;
 }
 
-const DEFAULT_START_MINUTES = 9 * 60;
-
-export function appendFollowingTimeSlots(
-  source: CourseSource,
-  slots: readonly CourseTimeSlot[],
-  count: number,
-  intervalMinutes: number,
-): readonly CourseTimeSlot[] {
-  if (count <= 0 || intervalMinutes <= 0) return slots;
-
-  const lastSlot = slots.at(-1);
-  let baseMinutes: number;
-  let firstOffsetMinutes: number;
-
-  if (lastSlot === undefined) {
-    baseMinutes = DEFAULT_START_MINUTES;
-    firstOffsetMinutes = 0;
-  } else {
-    const match = lastSlot.time.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-    const hoursLabel = match?.[1];
-    const minutesLabel = match?.[2];
-    if (!hoursLabel || !minutesLabel) return slots;
-
-    baseMinutes = Number(hoursLabel) * 60 + Number(minutesLabel);
-    firstOffsetMinutes = intervalMinutes;
-  }
-
-  const additions: CourseTimeSlot[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const totalMinutes =
-      baseMinutes + firstOffsetMinutes + intervalMinutes * index;
-    if (totalMinutes >= 24 * 60) return slots;
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    additions.push({
-      id: `${source}-slot-${slots.length + index + 1}`,
-      time: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
-    });
-  }
-
-  return [...slots, ...additions];
-}
-
 export function formatMoveAnnouncement(place: CoursePlace, index: number) {
   return `${place.title}이 ${index + 1}번째 일정으로 이동했습니다.`;
 }
@@ -246,8 +203,7 @@ const UUID_PATTERN =
 
 /**
  * 편집 화면의 장소 목록(CoursePlace[])을 저장 API가 받는 GeneratedCourseStop[]로 변환한다.
- * 편집 화면은 role/placeUrl/distanceMeters를 보존하지 않으므로,
- * 첫 장소를 anchor로, 나머지를 attraction으로 취급하고 placeUrl/distanceMeters는 null로 채운다.
+ * 저장된 경유지의 출처 필드는 유지하고 새 장소에만 기본 역할을 부여한다.
  * 좌표가 없는 장소는 저장 요청 스키마를 만족할 수 없어 제외한다.
  */
 export function buildStopsFromDraft(
@@ -259,15 +215,39 @@ export function buildStopsFromDraft(
   );
 
   return eligible.map((place, index) => ({
-    role: index === 0 ? "anchor" : "attraction",
+    role: place.originalStop?.role ?? (index === 0 ? "anchor" : "attraction"),
     sequence: index + 1,
     placeId: UUID_PATTERN.test(place.id) ? place.id : null,
     title: place.title,
-    categoryLabel: place.category,
-    address: place.detail.addressLabel,
+    categoryLabel: place.originalStop ? place.originalStop.categoryLabel : place.category,
+    address: place.originalStop ? place.originalStop.address : place.detail.addressLabel,
     longitude: place.longitude,
     latitude: place.latitude,
-    distanceMeters: null,
-    placeUrl: null,
+    distanceMeters: place.originalStop?.distanceMeters ?? null,
+    placeUrl: place.originalStop?.placeUrl ?? null,
   }));
+}
+
+export function createEmptyCourse(): CourseEditData {
+  return {
+    id: "new",
+    title: "새 일정",
+    courses: {
+      ai: { source: "ai", slots: [], places: [], recommendedOrder: [] },
+      custom: { source: "custom", slots: [], places: [], recommendedOrder: [] },
+    },
+  };
+}
+
+/** The API stores stop order, not visit times. Keep unknown times empty. */
+export function appendUntimedSlots(
+  source: CourseSource,
+  slots: readonly CourseTimeSlot[],
+  count: number,
+): readonly CourseTimeSlot[] {
+  if (count <= 0) return slots;
+  return [...slots, ...Array.from({ length: count }, (_, index) => ({
+    id: `${source}-slot-${slots.length + index + 1}`,
+    time: "",
+  }))];
 }

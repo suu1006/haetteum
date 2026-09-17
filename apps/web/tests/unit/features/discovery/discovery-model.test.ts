@@ -8,7 +8,6 @@ import {
   parseDiscoveryQuery,
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
-import { mainDiscoveryMock } from "@/features/discovery/main-discovery.mock";
 
 describe("parseDiscoveryQuery", () => {
   it("uses the approved recommendation and Gyeonggi defaults", () => {
@@ -108,43 +107,19 @@ describe("parseDiscoveryQuery", () => {
 });
 
 describe("selectDiscoveryView", () => {
-  it("selects the three approved Gyeonggi recommendations by default", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, parseDiscoveryQuery({}));
-
-    expect(view.places.map((place) => place.title)).toEqual([
-      "이천 테르메덴",
-      "에버랜드",
-      "수원 화성",
-    ]);
-    expect(view.places.map((place) => place.location)).toEqual([
-      "이천",
-      "용인",
-      "수원",
-    ]);
-    expect(view.places.map((place) => place.rating)).toEqual([4.6, 4.5, 4.4]);
-    expect(view.places.map((place) => place.reviewCount)).toEqual([
-      2345, 3892, 1987,
-    ]);
+  it("uses the query to select sections without sample place data", () => {
+    const view = selectDiscoveryView(parseDiscoveryQuery({}));
+    expect(view).toMatchObject({ showAiCourse: true, showFestivals: true, showSearchResults: false });
+    expect(view).not.toHaveProperty("places");
   });
 
-  it("filters the place ranking with a trimmed Korean query", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
-      q: "  성산  ",
-      region: "jeju",
-      tab: "places",
-      audience: "all",
-      hotAudience: "all",
-      reelRegion: "all",
-      festivalFilters: defaultFestivalFilters,
-    });
-
-    expect(view.places.map((place) => place.title)).toEqual(["성산일출봉"]);
-    expect(view.showRankedPlaces).toBe(true);
-    expect(view.showFestivals).toBe(false);
+  it("shows API search results for a nonempty recommended query", () => {
+    const view = selectDiscoveryView(parseDiscoveryQuery({ q: "  성산  " }));
+    expect(view).toMatchObject({ showSearchResults: true, showAiCourse: false, showFestivals: false });
   });
 
   it("selects rankings without reels or festivals for the places tab", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
+    const view = selectDiscoveryView({
       q: "  성산  ",
       region: "jeju",
       tab: "places",
@@ -161,7 +136,7 @@ describe("selectDiscoveryView", () => {
   });
 
   it("shows all approved sections for the recommendation tab", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
+    const view = selectDiscoveryView({
       q: "",
       region: "gyeonggi",
       tab: "recommended",
@@ -178,7 +153,7 @@ describe("selectDiscoveryView", () => {
   });
 
   it("uses the dedicated festival discovery only for the festival tab", () => {
-    const view = selectDiscoveryView(mainDiscoveryMock, {
+    const view = selectDiscoveryView({
       q: "",
       region: "jeju",
       tab: "festivals",

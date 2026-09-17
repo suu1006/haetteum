@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   getSavedCourseById,
   savedCourseMock,
-} from "@/features/courses/saved-course.mock";
-import type { SavedCourseStop } from "@/features/courses/saved-course-model";
+} from "../../../fixtures/saved-course.mock";
+import type { SavedCourseStop } from "../../../fixtures/components/saved-course-model";
 
 describe("saved course mock", () => {
   it("provides the complete Icheon day-trip summary and ordered itinerary", () => {
