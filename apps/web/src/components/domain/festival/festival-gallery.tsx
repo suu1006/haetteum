@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, type UIEvent } from "react";
-import Image from "next/image";
+import { FestivalRemoteImage } from "@/components/domain/festival/festival-remote-image";
+import {
+  officialImageHostname,
+  resolvePlacePhotoSource,
+} from "@/lib/official-image";
 
 import type { DiscoveryImage } from "@/features/discovery/discovery-model";
 
@@ -32,21 +36,28 @@ function FestivalGallery({ gallery }: FestivalGalleryProps) {
         className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
         onScroll={handleScroll}
       >
-        {gallery.map((image, index) => (
-          <li key={image.src} className="w-full shrink-0 snap-center">
-            <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-              <Image
-                src={image.src}
-                alt={image.alt}
-                fill
-                loading={index === 0 ? "eager" : "lazy"}
-                fetchPriority={index === 0 ? "high" : undefined}
-                sizes="(max-width: 480px) 100vw, 480px"
-                className="object-cover"
-              />
-            </div>
-          </li>
-        ))}
+        {gallery.map((image, index) => {
+          const src = resolvePlacePhotoSource(image.src);
+          // The official image origin is faster than our on-demand optimizer.
+          // Keep other allowed providers on the existing optimization path.
+          const direct =
+            src?.startsWith(`https://${officialImageHostname}/`) ?? false;
+          return (
+            <li key={image.src} className="w-full shrink-0 snap-center">
+              <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+                <FestivalRemoteImage
+                  src={src}
+                  alt={image.alt}
+                  unoptimized={direct}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : undefined}
+                  sizes="(max-width: 480px) 100vw, 480px"
+                  className="object-cover"
+                />
+              </div>
+            </li>
+          );
+        })}
       </ul>
       <p className="type-caption absolute right-3 bottom-3 rounded-full bg-image-scrim px-2.5 py-1 text-image-foreground">
         {currentIndex + 1}/{gallery.length}

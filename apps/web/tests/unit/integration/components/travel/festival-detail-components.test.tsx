@@ -50,6 +50,69 @@ describe("festival detail presentation components", () => {
     }
   });
 
+  it("serves official gallery photos directly without the image optimizer", () => {
+    render(<FestivalGallery gallery={festival.gallery} />);
+    const images = screen.getAllByRole("img");
+    expect(images[0]).toHaveAttribute(
+      "src",
+      "https://tong.visitkorea.or.kr/cms/resource/1/a.jpg",
+    );
+    expect(images[0]).not.toHaveAttribute("srcset");
+    expect(images[1]).toHaveAttribute(
+      "src",
+      "https://tong.visitkorea.or.kr/cms/resource/2/b.jpg",
+    );
+  });
+
+  it("keeps other approved providers on the optimizer", () => {
+    render(
+      <FestivalGallery
+        gallery={[
+          {
+            src: "https://upload.wikimedia.org/wikipedia/commons/photo.jpg",
+            alt: "다른 출처",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "다른 출처" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("/_next/image?"),
+    );
+  });
+
+  it("normalizes official HTTP photos and does not load unapproved sources", () => {
+    render(
+      <FestivalGallery
+        gallery={[
+          {
+            src: "http://tong.visitkorea.or.kr/cms/resource/1/a.jpg",
+            alt: "공식 사진",
+          },
+          { src: "https://unapproved.example/photo.jpg", alt: "미승인 사진" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "공식 사진" })).toHaveAttribute(
+      "src",
+      "https://tong.visitkorea.or.kr/cms/resource/1/a.jpg",
+    );
+    expect(screen.getByRole("img", { name: "미승인 사진" })).toHaveAttribute(
+      "data-image-state",
+      "placeholder",
+    );
+  });
+
+  it("replaces a failed gallery photo without retrying the slow optimizer", () => {
+    render(<FestivalGallery gallery={festival.gallery} />);
+    fireEvent.error(screen.getByRole("img", { name: "1" }));
+    expect(screen.getByRole("img", { name: "1" })).toHaveAttribute(
+      "data-image-state",
+      "placeholder",
+    );
+    expect(screen.getByText("1/3")).toBeVisible();
+  });
+
   it("renders summary status, category, schedule, location and phone", () => {
     render(<FestivalSummary festival={festival} />);
 
@@ -58,9 +121,10 @@ describe("festival detail presentation components", () => {
     expect(screen.getByText("문화예술축제")).toBeVisible();
     expect(screen.getByText(festival.dateLabel)).toBeVisible();
     expect(screen.getByText(festival.location)).toBeVisible();
-    expect(
-      screen.getByRole("link", { name: "02-3291-5506" }),
-    ).toHaveAttribute("href", "tel:02-3291-5506");
+    expect(screen.getByRole("link", { name: "02-3291-5506" })).toHaveAttribute(
+      "href",
+      "tel:02-3291-5506",
+    );
   });
 
   it("omits the phone row when the festival has no telephone", () => {
@@ -80,10 +144,9 @@ describe("festival detail presentation components", () => {
 
     await user.click(save);
 
-    expect(screen.getByRole("button", { name: "축제 찜 해제" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "축제 찜 해제" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("copies the page URL when Web Share is unavailable", async () => {
@@ -136,7 +199,9 @@ describe("festival detail presentation components", () => {
 
     await user.click(screen.getByRole("button", { name: "축제 소개 더보기" }));
 
-    expect(screen.getByRole("button", { name: "축제 소개 접기" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "축제 소개 접기" }),
+    ).toBeVisible();
     scrollHeight.mockRestore();
     clientHeight.mockRestore();
   });
@@ -149,9 +214,7 @@ describe("festival detail presentation components", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "프로그램" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "프로그램" })).toBeVisible();
     expect(screen.queryByText("축제 소개")).not.toBeInTheDocument();
   });
 
@@ -176,10 +239,17 @@ describe("festival detail presentation components", () => {
   });
 
   it("renders only the available link when the other is missing", () => {
-    render(<FestivalDetailActions homepage="https://www.ddmac.or.kr/" mapUrl={null} />);
+    render(
+      <FestivalDetailActions
+        homepage="https://www.ddmac.or.kr/"
+        mapUrl={null}
+      />,
+    );
 
     expect(screen.getByRole("link", { name: /홈페이지/ })).toBeVisible();
-    expect(screen.queryByRole("link", { name: /지도보기/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /지도보기/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders nothing when neither the homepage nor the map link is available", () => {
