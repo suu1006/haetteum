@@ -12,6 +12,7 @@ import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 import { FestivalSyncService } from "../src/tourism/festival-sync.service.js";
 import { TourApiError } from "../src/tourism/tour-api.client.js";
+import { TourApiPolicy } from "../src/tourism/tour-api-policy.js";
 import type {
   FestivalApiPort,
   TourApiFestival,
@@ -183,6 +184,10 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       .useValue(provider)
       .overrideProvider(TOUR_API_PORT)
       .useValue(provider)
+      // This suite verifies PostgreSQL festival persistence with an in-memory
+      // provider. Policy accounting is covered by tour-api-policy.e2e-spec.ts.
+      .overrideProvider(TourApiPolicy)
+      .useValue({ ensureCapacity: async () => undefined })
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
@@ -308,7 +313,7 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
     provider.detailFailureIds.add("festival-1");
 
     await expect(service.fullSync(RANGE)).resolves.toMatchObject({
-      status: "SUCCEEDED",
+      status: "FAILED",
       failedCount: 1,
     });
     const stale = await prisma.festival.findFirstOrThrow({

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake boundaries preserve async interfaces */
 import type { FestivalRepository } from "./festival.repository.js";
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
 import { FestivalSyncService } from "./festival-sync.service.js";
 import { TourApiError } from "./tour-api.client.js";
 import {
@@ -319,7 +320,20 @@ describe("FestivalSyncService", () => {
     );
     details.error = new TourApiPolicyError("TOUR_API_DAILY_LIMIT");
 
-    await expect(service.fullSync(RANGE)).rejects.toBe(details.error);
+    const error = await service
+      .fullSync(RANGE)
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(DetailEnrichmentError);
+    if (!(error instanceof DetailEnrichmentError))
+      throw new Error("Expected fatal detail progress");
+    expect(error.cause).toBe(details.error);
+    expect(error.summary).toEqual({
+      status: "FAILED",
+      requestedCount: 2,
+      succeededCount: 0,
+      failedCount: 1,
+      remainingCount: 2,
+    });
     expect(details.calls).toEqual(["common:festival-1"]);
     expect(repository.failures).toHaveLength(1);
   });
@@ -341,9 +355,23 @@ describe("FestivalSyncService", () => {
     );
     details.error = new TourApiError("detailCommon2", "22", 200);
 
-    await expect(service.fullSync(RANGE)).rejects.toThrow(
-      "Festival synchronization failed (22)",
+    const error = await service
+      .fullSync(RANGE)
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(DetailEnrichmentError);
+    if (!(error instanceof DetailEnrichmentError))
+      throw new Error("Expected fatal detail progress");
+    expect(error.message).toBe(
+      "Tourism detail synchronization stopped after a fatal error",
     );
+    expect(error.summary).toEqual({
+      status: "FAILED",
+      requestedCount: 2,
+      succeededCount: 0,
+      failedCount: 1,
+      remainingCount: 2,
+    });
+    expect(error.cause).toBe(details.error);
     expect(details.calls).toEqual(["common:festival-1"]);
   });
 

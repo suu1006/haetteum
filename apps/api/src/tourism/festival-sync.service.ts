@@ -1,4 +1,7 @@
-import type { DetailEnrichmentSummary } from "./detail-enrichment-summary.js";
+import {
+  DetailEnrichmentError,
+  type DetailEnrichmentSummary,
+} from "./detail-enrichment-summary.js";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
@@ -114,7 +117,12 @@ export class FestivalSyncService {
           details.succeededCount++;
           details.remainingCount--;
         } catch (error) {
-          if (isFatalTourApiError(error)) throw error;
+          if (error instanceof TourApiBudgetDeferredError) throw error;
+          if (isFatalTourApiError(error)) {
+            details.failedCount++;
+            details.status = "FAILED";
+            throw new DetailEnrichmentError({ ...details }, error);
+          }
           counters.failedCount += 1;
           details.failedCount++;
           details.status = "FAILED";
@@ -129,6 +137,10 @@ export class FestivalSyncService {
         details,
       };
     } catch (error) {
+      if (error instanceof DetailEnrichmentError) {
+        await this.repository.failSyncRun(run.id, counters, error.message);
+        throw error;
+      }
       if (error instanceof TourApiBudgetDeferredError) {
         if (details) {
           details.status = details.failedCount > 0 ? "FAILED" : "DEFERRED";
