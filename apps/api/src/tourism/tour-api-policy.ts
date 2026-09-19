@@ -139,9 +139,37 @@ export class TourApiPolicy implements OnModuleDestroy {
         throw error;
       }
       this.assertBatch();
-      const result = await work();
-      this.assertBatch();
-      return result;
+      let outcome: { result: T } | { error: unknown };
+      try {
+        const result = await work();
+        this.assertBatch();
+        outcome = { result };
+      } catch (error) {
+        outcome = { error };
+      }
+      try {
+        // Reservation/COMMIT latency must not consume the HTTP spacing window.
+        // Persist completion while still holding REQUEST_LOCK, also on failure.
+        // Reuse the latest ledger row if the attempt crossed KST midnight.
+        await connection.query(
+          `UPDATE tour_api_daily_usage SET last_started_at = clock_timestamp()
+           WHERE day = (SELECT MAX(day) FROM tour_api_daily_usage)`,
+        );
+        this.assertBatch();
+      } catch (error) {
+        state.active = false;
+        // If the session still owns its lock, protect the next batch even when
+        // the timestamp cannot be persisted. A lost session is already closed.
+        await new Promise<void>((resolve) => setTimeout(resolve, interval));
+        if (!("error" in outcome))
+          outcome = {
+            error: new TourApiPolicyError("TOUR_API_REQUEST_TIMING_FAILED", {
+              cause: error,
+            }),
+          };
+      }
+      if ("error" in outcome) throw outcome.error;
+      return outcome.result;
     } finally {
       await this.release(connection, locked ? REQUEST_LOCK : null);
       connection.removeListener("error", lost);

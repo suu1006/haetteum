@@ -195,6 +195,51 @@ describe("TourAPI execution policy", () => {
     expect(connection.release).toHaveBeenCalled();
   });
 
+  it.each([
+    { failWork: false, disconnect: false },
+    { failWork: true, disconnect: false },
+    { failWork: false, disconnect: true },
+    { failWork: true, disconnect: true },
+  ])(
+    "fails closed on timing failure without masking work errors (work failure=$failWork, disconnect=$disconnect)",
+    async ({ failWork, disconnect }) => {
+      const { policy, connection } = harness();
+      const original = connection.query.getMockImplementation()!;
+      const workError = new Error("HTTP failed");
+      connection.query.mockImplementation(async (sql) => {
+        if (sql.startsWith("UPDATE tour_api_daily_usage")) {
+          if (disconnect) {
+            connection.emit("error", new Error("timing socket lost"));
+            return { rows: [] };
+          }
+          throw new Error("timing write failed");
+        }
+        return original(sql);
+      });
+      let attempts = 0;
+      await policy.batch(async () => {
+        const attempt = policy.request(async () => {
+          attempts++;
+          if (failWork) throw workError;
+          return "response";
+        });
+        if (failWork) await expect(attempt).rejects.toBe(workError);
+        else
+          await expect(attempt).rejects.toThrow(
+            "TOUR_API_REQUEST_TIMING_FAILED",
+          );
+        await expect(
+          policy.request(async () => {
+            attempts++;
+          }),
+        ).rejects.toThrow("BATCH_REQUIRED");
+        expect(policy.currentBatchRequestCount()).toBe(1);
+      });
+      expect(attempts).toBe(1);
+      expect(connection.release).toHaveBeenCalled();
+    },
+  );
+
   it("does not execute a duplicate batch", async () => {
     const { policy, connection } = harness();
     connection.query.mockResolvedValueOnce({

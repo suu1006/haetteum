@@ -82,6 +82,66 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
     expect(result.rows).toEqual([{ calls: 3 }]);
   });
 
+  it.each([
+    { failFirst: false, failTimingWrite: false },
+    { failFirst: true, failTimingWrite: false },
+    { failFirst: false, failTimingWrite: true },
+    { failFirst: true, failTimingWrite: true },
+  ])(
+    "spaces actual HTTP starts after delayed commit (work failure=$failFirst, timing failure=$failTimingWrite)",
+    async ({ failFirst, failTimingWrite }) => {
+      // The first reservation timestamp is already committed before the injected
+      // delay. A second policy instance has no local timing state to inherit.
+      const delayedPool = {
+        on: pool.on.bind(pool),
+        connect: async () => {
+          const client = await pool.connect();
+          return {
+            on: client.on.bind(client),
+            removeListener: client.removeListener.bind(client),
+            release: client.release.bind(client),
+            query: async (sql: string, values?: unknown[]) => {
+              if (
+                failTimingWrite &&
+                sql.startsWith("UPDATE tour_api_daily_usage")
+              )
+                throw new Error("timing write failed");
+              const result = await client.query(sql, values);
+              if (sql === "COMMIT")
+                await new Promise((resolve) => setTimeout(resolve, 120));
+              return result;
+            },
+          };
+        },
+      };
+      const delayed = new TourApiPolicy(config as never, delayedPool as never);
+      const starts: number[] = [];
+      const workError = new Error("HTTP failed after delayed reservation");
+      const attempt = delayed.batch(() =>
+        delayed.request(async () => {
+          starts.push(performance.now());
+          if (failFirst) throw workError;
+        }),
+      );
+      if (failFirst) await expect(attempt).rejects.toBe(workError);
+      else if (failTimingWrite)
+        await expect(attempt).rejects.toThrow("TOUR_API_REQUEST_TIMING_FAILED");
+      else await attempt;
+      await second.batch(() =>
+        second.request(async () => {
+          starts.push(performance.now());
+        }),
+      );
+      expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(60);
+      expect(
+        (await pool.query("SELECT calls FROM tour_api_daily_usage")).rows,
+      ).toEqual([{ calls: 2 }]);
+      expect(
+        (await pool.query("SELECT calls FROM tour_api_job_daily_usage")).rows,
+      ).toEqual([{ calls: 2 }]);
+    },
+  );
+
   it("uses a new KST calendar day budget without deleting prior usage", async () => {
     await pool.query(`INSERT INTO tour_api_daily_usage VALUES
       ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date - 1, 3, clock_timestamp() - interval '1 day')`);
