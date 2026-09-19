@@ -163,6 +163,10 @@ export class TourApiPolicy implements OnModuleDestroy {
       throw new TourApiPolicyError("TOUR_API_INVALID_CAPACITY");
     const state = this.context.getStore()!;
     const connection = await this.pool.connect();
+    const lost = () => {
+      state.active = false;
+    };
+    connection.on("error", lost);
     let locked = false;
     try {
       await connection.query("SELECT pg_advisory_lock($1)", [REQUEST_LOCK]);
@@ -178,6 +182,7 @@ export class TourApiPolicy implements OnModuleDestroy {
            (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1), 0) AS job_calls`,
         [state.job],
       );
+      this.assertBatch();
       const row = usage.rows[0];
       if (
         Number(row.global_calls) + minimumCalls >
@@ -188,6 +193,7 @@ export class TourApiPolicy implements OnModuleDestroy {
         throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
     } finally {
       await this.release(connection, locked ? REQUEST_LOCK : null);
+      connection.removeListener("error", lost);
     }
   }
 
