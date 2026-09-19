@@ -1,3 +1,5 @@
+import type { DetailEnrichmentSummary } from "./detail-enrichment-summary.js";
+import type { TourApiDeferredReason } from "./tour-api-policy.js";
 import { Injectable } from "@nestjs/common";
 
 import type { Prisma } from "../generated/prisma/client.js";
@@ -21,7 +23,9 @@ export type FestivalPageDelta = Pick<
 
 export type FestivalSyncSummary = FestivalSyncCounters & {
   runId: string;
-  status: "SUCCEEDED";
+  status: "SUCCEEDED" | "DEFERRED" | "FAILED";
+  deferredReason?: TourApiDeferredReason;
+  details?: DetailEnrichmentSummary;
 };
 
 export type PendingFestivalDetail = {
@@ -176,7 +180,7 @@ export class FestivalRepository {
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
       data: {
-        status: "SUCCEEDED",
+        status: counters.failedCount > 0 ? "FAILED" : "SUCCEEDED",
         finishedAt: new Date(),
         ...counters,
         errorSummary:
@@ -188,15 +192,34 @@ export class FestivalRepository {
 
     return {
       runId,
-      status: "SUCCEEDED",
+      status: counters.failedCount > 0 ? "FAILED" : "SUCCEEDED",
       ...counters,
     };
+  }
+
+  async deferSyncRun(
+    runId: string,
+    counters: FestivalSyncCounters,
+    reason: TourApiDeferredReason,
+  ): Promise<FestivalSyncSummary> {
+    const status = counters.failedCount > 0 ? "FAILED" : "DEFERRED";
+    await this.prisma.tourismSyncRun.update({
+      where: { id: runId },
+      data: {
+        ...counters,
+        status,
+        finishedAt: new Date(),
+        errorSummary: reason,
+      },
+    });
+    return { ...counters, runId, status, deferredReason: reason };
   }
 
   async failSyncRun(
     runId: string,
     counters: FestivalSyncCounters,
     errorSummary: string,
+    options: { incrementFailedCount?: boolean } = {},
   ): Promise<void> {
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
@@ -204,7 +227,10 @@ export class FestivalRepository {
         status: "FAILED",
         finishedAt: new Date(),
         ...counters,
-        failedCount: counters.failedCount + 1,
+        failedCount:
+          options.incrementFailedCount === false
+            ? counters.failedCount
+            : counters.failedCount + 1,
         errorSummary,
       },
     });

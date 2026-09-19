@@ -1,69 +1,222 @@
 import { ConfigService } from "@nestjs/config";
 
 import type { ApiEnvironment } from "../config/environment.js";
-import { FestivalSyncService } from "./festival-sync.service.js";
+import {
+  DetailEnrichmentError,
+  type DetailEnrichmentSummary,
+} from "./detail-enrichment-summary.js";
+import type { FestivalSyncSummary } from "./festival.repository.js";
+import type { FestivalSyncService } from "./festival-sync.service.js";
 import { FestivalSyncScheduler } from "./festival-sync.scheduler.js";
+import type {
+  NotionBatchRecorder,
+  NotionBatchResult,
+} from "./notion-batch-recorder.js";
+import type { TourApiPolicy } from "./tour-api-policy.js";
 import { FESTIVAL_SYNC_RANGE } from "./tourism.constants.js";
 
-function createScheduler(
-  enabled: boolean,
-  fullSync: () => Promise<unknown> = () => Promise.resolve({}),
-): {
-  scheduler: FestivalSyncScheduler;
-  calls: unknown[];
-} {
-  const calls: unknown[] = [];
-  const config = {
-    get: () => enabled,
-  } as unknown as ConfigService<ApiEnvironment, true>;
-  const sync = {
-    fullSync: (range: unknown) => {
-      calls.push(range);
-      return fullSync();
-    },
-  } as unknown as FestivalSyncService;
-
+function details(
+  overrides: Partial<DetailEnrichmentSummary> = {},
+): DetailEnrichmentSummary {
   return {
-    scheduler: new FestivalSyncScheduler(config, sync, {
-      batch: (work: () => Promise<unknown>) => work(),
-    } as never),
-    calls,
+    status: "SUCCEEDED",
+    requestedCount: 2,
+    succeededCount: 2,
+    failedCount: 0,
+    remainingCount: 0,
+    ...overrides,
   };
 }
 
+function summary(
+  overrides: Partial<FestivalSyncSummary> = {},
+): FestivalSyncSummary {
+  return {
+    runId: "run-1",
+    status: "SUCCEEDED",
+    fetchedCount: 2,
+    insertedCount: 2,
+    updatedCount: 0,
+    deactivatedCount: 0,
+    failedCount: 0,
+    details: details(),
+    ...overrides,
+  };
+}
+
+function createScheduler(
+  options: {
+    enabled?: boolean;
+    fullSync?: () => Promise<FestivalSyncSummary>;
+    requestCount?: number;
+    record?: (result: NotionBatchResult) => Promise<void>;
+  } = {},
+) {
+  const calls: unknown[] = [];
+  const records: NotionBatchResult[] = [];
+  let inBatch = false;
+  const scheduler = new FestivalSyncScheduler(
+    {
+      get: () => options.enabled ?? true,
+    } as unknown as ConfigService<ApiEnvironment, true>,
+    {
+      fullSync: async (range: unknown) => {
+        calls.push(range);
+        return await (options.fullSync?.() ?? Promise.resolve(summary()));
+      },
+    } as unknown as FestivalSyncService,
+    {
+      batch: async (work: () => Promise<unknown>) => {
+        inBatch = true;
+        try {
+          return await work();
+        } finally {
+          inBatch = false;
+        }
+      },
+      currentBatchRequestCount: () => {
+        if (!inBatch) throw new Error("request count read outside batch");
+        return options.requestCount ?? 7;
+      },
+    } as unknown as TourApiPolicy,
+    {
+      record: async (record: NotionBatchResult) => {
+        records.push(record);
+        await (options.record?.(record) ?? Promise.resolve());
+      },
+    } as unknown as NotionBatchRecorder,
+  );
+  return { calls, records, scheduler };
+}
+
 describe("FestivalSyncScheduler", () => {
-  it("does not call the provider when tourism sync is disabled", async () => {
-    const { scheduler, calls } = createScheduler(false);
+  it("does not run or record when tourism sync is disabled", async () => {
+    const fixture = createScheduler({ enabled: false });
 
-    await expect(scheduler.runDailySync()).resolves.toBeUndefined();
+    await expect(fixture.scheduler.runDailySync()).resolves.toBeUndefined();
 
-    expect(calls).toEqual([]);
+    expect(fixture.calls).toEqual([]);
+    expect(fixture.records).toEqual([]);
   });
 
-  it("runs the approved fixed range when enabled", async () => {
-    const { scheduler, calls } = createScheduler(true);
+  it("records a successful fixed-range run and its request count", async () => {
+    const fixture = createScheduler({ requestCount: 14 });
 
-    await scheduler.runDailySync();
+    await expect(fixture.scheduler.runDailySync()).resolves.toBeUndefined();
 
-    expect(calls).toEqual([FESTIVAL_SYNC_RANGE]);
+    expect(fixture.calls).toEqual([FESTIVAL_SYNC_RANGE]);
+    expect(fixture.records[0]).toMatchObject({
+      batchName: "festival-daily-sync",
+      status: "SUCCEEDED",
+      stage: "details",
+      reason: null,
+      requestCount: 14,
+      details: details(),
+    });
   });
 
-  it("reports partial detail failures to the scheduler", async () => {
-    const { scheduler } = createScheduler(true, () =>
-      Promise.resolve({ failedCount: 2 }),
+  it("records a list budget stop as deferred with unknown detail counts", async () => {
+    const fixture = createScheduler({
+      fullSync: () =>
+        Promise.resolve(
+          summary({
+            status: "DEFERRED",
+            deferredReason: "TOUR_API_DAILY_LIMIT",
+            details: undefined,
+          }),
+        ),
+      requestCount: 3,
+    });
+
+    await expect(fixture.scheduler.runDailySync()).resolves.toBeUndefined();
+
+    expect(fixture.records[0]).toMatchObject({
+      status: "DEFERRED",
+      stage: "list",
+      reason: "TOUR_API_DAILY_LIMIT",
+      requestCount: 3,
+      details: null,
+    });
+  });
+
+  it("keeps FAILED precedence when detail failures are followed by deferral", async () => {
+    const progress = details({
+      status: "FAILED",
+      succeededCount: 0,
+      failedCount: 1,
+      remainingCount: 2,
+      deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+    });
+    const fixture = createScheduler({
+      fullSync: () =>
+        Promise.resolve(
+          summary({
+            status: "FAILED",
+            failedCount: 1,
+            deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+            details: progress,
+          }),
+        ),
+    });
+
+    await expect(fixture.scheduler.runDailySync()).rejects.toThrow(
+      "1 festivals",
     );
-    await expect(scheduler.runDailySync()).rejects.toThrow("2");
+
+    expect(fixture.records[0]).toMatchObject({
+      status: "FAILED",
+      stage: "details",
+      reason: "DETAILS_FAILED",
+      details: progress,
+    });
   });
 
-  it("propagates sync failures without exposing credentials", async () => {
-    const failure = new Error(
-      "Festival synchronization failed (SERVICE_UNAVAILABLE)",
-    );
-    const { scheduler } = createScheduler(true, () => Promise.reject(failure));
+  it("records fatal detail progress when terminal persistence also failed", async () => {
+    const progress = details({
+      status: "FAILED",
+      succeededCount: 1,
+      failedCount: 1,
+      remainingCount: 1,
+    });
+    const rootCause = new Error("secret serviceKey=private");
+    const persistenceFailure = new Error("run persistence unavailable");
+    const failure = new DetailEnrichmentError(progress, rootCause);
+    failure.retainPersistenceFailure(persistenceFailure);
+    const fixture = createScheduler({
+      fullSync: () => Promise.reject(failure),
+      requestCount: 6,
+    });
 
-    await expect(scheduler.runDailySync()).rejects.toBe(failure);
+    await expect(fixture.scheduler.runDailySync()).rejects.toBe(failure);
 
-    expect(failure.message).not.toContain("serviceKey");
-    expect(failure.message).not.toContain("SERVICE_KEY");
+    expect(failure.cause).toBe(rootCause);
+    expect(failure.persistenceFailure).toBe(persistenceFailure);
+
+    expect(fixture.records[0]).toMatchObject({
+      status: "FAILED",
+      stage: "details",
+      reason: "DETAILS_FAILED",
+      requestCount: 6,
+      details: progress,
+    });
+  });
+
+  it("records list failures without invented detail counts and recorder rejection cannot mask them", async () => {
+    const failure = new Error("secret SERVICE_KEY=private");
+    const fixture = createScheduler({
+      fullSync: () => Promise.reject(failure),
+      requestCount: 1,
+      record: () => Promise.reject(new Error("unexpected recorder rejection")),
+    });
+
+    await expect(fixture.scheduler.runDailySync()).rejects.toBe(failure);
+
+    expect(fixture.records[0]).toMatchObject({
+      status: "FAILED",
+      stage: "list",
+      reason: "LIST_FAILED",
+      requestCount: 1,
+      details: null,
+    });
   });
 });

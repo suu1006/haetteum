@@ -11,6 +11,15 @@ import type { ApiEnvironment } from "../config/environment.js";
 
 export class TourApiPolicyError extends Error {}
 
+export type TourApiJob = "tourism" | "festival";
+export type TourApiDeferredReason =
+  "TOUR_API_DAILY_LIMIT" | "TOUR_API_JOB_DAILY_LIMIT";
+export class TourApiBudgetDeferredError extends TourApiPolicyError {
+  constructor(readonly reason: TourApiDeferredReason) {
+    super(reason);
+  }
+}
+
 export const TOUR_API_POLICY_POOL = Symbol("TOUR_API_POLICY_POOL");
 const BATCH_LOCK = 74812001;
 const REQUEST_LOCK = 74812002;
@@ -19,7 +28,11 @@ const REQUEST_LOCK = 74812002;
 @Injectable()
 export class TourApiPolicy implements OnModuleDestroy {
   private readonly logger = new Logger(TourApiPolicy.name);
-  private readonly context = new AsyncLocalStorage<{ active: boolean }>();
+  private readonly context = new AsyncLocalStorage<{
+    active: boolean;
+    job: TourApiJob;
+    calls: number;
+  }>();
 
   constructor(
     private readonly config: ConfigService<ApiEnvironment, true>,
@@ -30,10 +43,15 @@ export class TourApiPolicy implements OnModuleDestroy {
     });
   }
 
-  async batch<T>(work: () => Promise<T>): Promise<T> {
+  async batch<T>(
+    work: () => Promise<T>,
+    job: TourApiJob = "tourism",
+  ): Promise<T> {
+    if (job !== "tourism" && job !== "festival")
+      throw new TourApiPolicyError("TOUR_API_INVALID_JOB");
     const connection = await this.pool.connect();
     let locked = false;
-    const state = { active: true };
+    const state = { active: true, job, calls: 0 };
     const lost = () => {
       state.active = false;
     };
@@ -91,17 +109,35 @@ export class TourApiPolicy implements OnModuleDestroy {
           setTimeout(resolve, Math.ceil(wait)),
         );
       this.assertBatch();
-      // Autocommit before HTTP: network errors and process crashes still consume a call.
-      const reserved = await connection.query(
-        `INSERT INTO tour_api_daily_usage (day, calls, last_started_at)
-         VALUES ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date, 1, clock_timestamp())
-         ON CONFLICT (day) DO UPDATE SET calls = tour_api_daily_usage.calls + 1,
-           last_started_at = clock_timestamp()
-         WHERE tour_api_daily_usage.calls < $1 RETURNING calls`,
-        [limit],
-      );
-      if (reserved.rows.length === 0)
-        throw new TourApiPolicyError("TOUR_API_DAILY_LIMIT");
+      // Commit both ledgers before HTTP: failures/retries/crashes consume a call.
+      // The existing session lock serializes reservations across processes.
+      await connection.query("BEGIN");
+      try {
+        const reserved = await connection.query(
+          `INSERT INTO tour_api_daily_usage (day, calls, last_started_at)
+           VALUES ((transaction_timestamp() AT TIME ZONE 'Asia/Seoul')::date, 1, clock_timestamp())
+           ON CONFLICT (day) DO UPDATE SET calls = tour_api_daily_usage.calls + 1,
+             last_started_at = clock_timestamp()
+           WHERE tour_api_daily_usage.calls < $1 RETURNING calls`,
+          [limit],
+        );
+        if (reserved.rows.length === 0)
+          throw new TourApiBudgetDeferredError("TOUR_API_DAILY_LIMIT");
+        const jobReserved = await connection.query(
+          `INSERT INTO tour_api_job_daily_usage (day, job, calls)
+           VALUES ((transaction_timestamp() AT TIME ZONE 'Asia/Seoul')::date, $1, 1)
+           ON CONFLICT (day, job) DO UPDATE SET calls = tour_api_job_daily_usage.calls + 1
+           WHERE tour_api_job_daily_usage.calls < $2 RETURNING calls`,
+          [state.job, this.jobLimit(state.job)],
+        );
+        if (jobReserved.rows.length === 0)
+          throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+        await connection.query("COMMIT");
+        state.calls++;
+      } catch (error) {
+        await connection.query("ROLLBACK");
+        throw error;
+      }
       this.assertBatch();
       const result = await work();
       this.assertBatch();
@@ -110,6 +146,67 @@ export class TourApiPolicy implements OnModuleDestroy {
       await this.release(connection, locked ? REQUEST_LOCK : null);
       connection.removeListener("error", lost);
     }
+  }
+
+  currentBatchRequestCount(): number {
+    const state = this.context.getStore();
+    if (!state) throw new TourApiPolicyError("TOUR_API_BATCH_REQUIRED");
+    return state.calls;
+  }
+
+  /** Avoid starting a detail bundle that cannot fit its minimum requests.
+   * Actual attempts (including retries) still reserve under request()'s lock.
+   */
+  async ensureCapacity(minimumCalls: number): Promise<void> {
+    this.assertBatch();
+    if (!Number.isInteger(minimumCalls) || minimumCalls < 1)
+      throw new TourApiPolicyError("TOUR_API_INVALID_CAPACITY");
+    const state = this.context.getStore()!;
+    const connection = await this.pool.connect();
+    const lost = () => {
+      state.active = false;
+    };
+    connection.on("error", lost);
+    let locked = false;
+    try {
+      await connection.query("SELECT pg_advisory_lock($1)", [REQUEST_LOCK]);
+      locked = true;
+      this.assertBatch();
+      const usage = await connection.query<{
+        global_calls: number;
+        job_calls: number;
+      }>(
+        `SELECT COALESCE((SELECT calls FROM tour_api_daily_usage WHERE day =
+           (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date), 0) AS global_calls,
+         COALESCE((SELECT calls FROM tour_api_job_daily_usage WHERE day =
+           (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1), 0) AS job_calls`,
+        [state.job],
+      );
+      this.assertBatch();
+      const row = usage.rows[0];
+      if (
+        Number(row.global_calls) + minimumCalls >
+        this.config.get("TOUR_API_DAILY_LIMIT", { infer: true })
+      )
+        throw new TourApiBudgetDeferredError("TOUR_API_DAILY_LIMIT");
+      if (Number(row.job_calls) + minimumCalls > this.jobLimit(state.job))
+        throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+    } finally {
+      await this.release(connection, locked ? REQUEST_LOCK : null);
+      connection.removeListener("error", lost);
+    }
+  }
+
+  private jobLimit(job: TourApiJob): number {
+    const limit = this.config.get(
+      job === "festival"
+        ? "TOUR_API_FESTIVAL_DAILY_BUDGET"
+        : "TOUR_API_TOURISM_DAILY_BUDGET",
+      { infer: true },
+    );
+    if (!Number.isInteger(limit) || limit < 1)
+      throw new TourApiPolicyError("TOUR_API_INVALID_LIMIT_CONFIGURATION");
+    return limit;
   }
 
   private assertBatch(): void {

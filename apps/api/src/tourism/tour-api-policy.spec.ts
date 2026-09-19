@@ -11,6 +11,8 @@ function harness() {
       queries.push(sql);
       if (sql.includes("pg_try_advisory_lock"))
         return { rows: [{ locked: true }] };
+      if (sql.includes("tour_api_job_daily_usage"))
+        return { rows: [{ calls: 1 }] };
       if (sql.includes("RETURNING"))
         return { rows: count++ < 2 ? [{ calls: count }] : [] };
       if (sql.includes("wait_ms")) return { rows: [{ wait_ms: 0 }] };
@@ -46,11 +48,25 @@ describe("TourAPI execution policy", () => {
     });
   });
 
+  it("retains charged attempt counts for reporting after the request connection is lost", async () => {
+    const { policy, connection } = harness();
+    await policy.batch(async () => {
+      await expect(
+        policy.request(async () => {
+          connection.emit("error", new Error("connection lost"));
+        }),
+      ).rejects.toThrow("BATCH_REQUIRED");
+      expect(policy.currentBatchRequestCount()).toBe(1);
+    });
+  });
+
   it("does not start HTTP if the batch lock is lost while reserving quota", async () => {
     const { policy, connection } = harness();
     const original = connection.query.getMockImplementation()!;
     connection.query.mockImplementation(async (sql) => {
       const result = await original(sql);
+      if (sql.includes("tour_api_job_daily_usage"))
+        return { rows: [{ calls: 1 }] };
       if (sql.includes("RETURNING"))
         connection.emit("error", new Error("lock lost"));
       return result;
@@ -61,6 +77,89 @@ describe("TourAPI execution policy", () => {
     });
     expect(work).not.toHaveBeenCalled();
   });
+
+  it.each(["lock-reject", "usage-reject", "usage-resolve"] as const)(
+    "handles a distinct preflight connection loss (%s), blocks HTTP, and cleans up",
+    async (failure) => {
+      const socketError = new Error("preflight socket lost");
+      let queryStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        queryStarted = resolve;
+      });
+      let settleQuery!: () => void;
+      let disconnected = false;
+      const batchConnection = Object.assign(new EventEmitter(), {
+        query: jest.fn(async () => ({ rows: [{ locked: true }] })),
+        release: jest.fn(),
+      });
+      const preflightConnection = Object.assign(new EventEmitter(), {
+        query: jest.fn((sql: string) => {
+          if (disconnected) return Promise.reject(socketError);
+          if (
+            sql.includes(
+              failure === "lock-reject"
+                ? "pg_advisory_lock"
+                : "SELECT COALESCE",
+            )
+          ) {
+            return new Promise((resolve, reject) => {
+              settleQuery = () =>
+                failure === "usage-resolve"
+                  ? resolve({ rows: [{ global_calls: 0, job_calls: 0 }] })
+                  : reject(socketError);
+              queryStarted();
+            });
+          }
+          return Promise.resolve({ rows: [] });
+        }),
+        release: jest.fn(),
+      });
+      const pool = Object.assign(new EventEmitter(), {
+        connect: jest
+          .fn<() => Promise<unknown>>()
+          .mockResolvedValueOnce(batchConnection)
+          .mockResolvedValueOnce(preflightConnection),
+      });
+      const policy = new TourApiPolicy(
+        { get: () => 1000 } as never,
+        pool as never,
+      );
+      let httpCalls = 0;
+      await policy.batch(async () => {
+        const result = policy
+          .ensureCapacity(4)
+          .catch((error: unknown) => error);
+        await started;
+        disconnected = true;
+        let uncaught: unknown;
+        try {
+          preflightConnection.emit("error", socketError);
+        } catch (error) {
+          uncaught = error;
+        }
+        settleQuery();
+        const error = await result;
+        expect(uncaught).toBeUndefined();
+        if (failure === "usage-resolve")
+          expect(error).toEqual(new Error("TOUR_API_BATCH_REQUIRED"));
+        else expect(error).toBe(socketError);
+        await expect(
+          policy.request(async () => {
+            httpCalls++;
+          }),
+        ).rejects.toThrow("BATCH_REQUIRED");
+        expect(httpCalls).toBe(0);
+        expect(pool.connect).toHaveBeenCalledTimes(2);
+        expect(preflightConnection.release).toHaveBeenCalledTimes(1);
+        if (failure !== "lock-reject")
+          expect(preflightConnection.release).toHaveBeenCalledWith(true);
+        expect(preflightConnection.listenerCount("error")).toBe(0);
+        expect(batchConnection.listenerCount("error")).toBe(1);
+      });
+      expect(batchConnection.listenerCount("error")).toBe(0);
+      expect(batchConnection.release).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("rejects calls outside a batch before touching the network or DB", async () => {
     const { policy, pool } = harness();

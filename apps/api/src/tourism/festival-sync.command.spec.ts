@@ -47,6 +47,31 @@ describe("festival sync command", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("returns a distinct deferred exit code and prints the remaining progress", async () => {
+    const output: string[] = [];
+    const code = await executeFestivalSync(
+      {
+        fullSync: async () => ({
+          runId: "partial",
+          status: "DEFERRED",
+          fetchedCount: 1,
+          insertedCount: 1,
+          updatedCount: 0,
+          deactivatedCount: 0,
+          failedCount: 0,
+          deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+        }),
+      },
+      (value) => output.push(value),
+      () => undefined,
+    );
+    expect(code).toBe(2);
+    expect(JSON.parse(output[0])).toMatchObject({
+      status: "DEFERRED",
+      deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+    });
+  });
+
   it("returns a failure exit code when the list succeeds but details fail", async () => {
     const code = await executeFestivalSync(
       {

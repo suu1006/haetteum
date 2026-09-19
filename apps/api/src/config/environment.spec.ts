@@ -19,6 +19,20 @@ describe("validateEnvironment", () => {
     });
   });
 
+  it("rejects overallocated daily budgets and permits explicit lower allocations", () => {
+    expect(() =>
+      validateEnvironment({ ...validEnvironment, TOUR_API_DAILY_LIMIT: "100" }),
+    ).toThrow("TourAPI job budgets");
+    expect(
+      validateEnvironment({
+        ...validEnvironment,
+        TOUR_API_DAILY_LIMIT: "100",
+        TOUR_API_TOURISM_DAILY_BUDGET: "70",
+        TOUR_API_FESTIVAL_DAILY_BUDGET: "30",
+      }),
+    ).toMatchObject({ TOUR_API_DAILY_LIMIT: 100 });
+  });
+
   it("rejects a missing database URL", () => {
     const { DATABASE_URL: _removed, ...invalid } = validEnvironment;
     expect(() => validateEnvironment(invalid)).toThrow("DATABASE_URL");

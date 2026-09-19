@@ -1,4 +1,7 @@
-import { TourApiPolicy } from "./tour-api-policy.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicy,
+} from "./tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -81,6 +84,7 @@ function printSummary(
   console.log(
     JSON.stringify({
       operation,
+      phase: "list",
       result: summary.status,
       runId: summary.runId,
       fetchedCount: summary.fetchedCount,
@@ -129,7 +133,8 @@ async function run(): Promise<void> {
         console.log(
           JSON.stringify({ operation: "enrich-pending", ...details }),
         );
-        if (details.failedCount > 0) process.exitCode = 1;
+        if (details.status !== "SUCCEEDED")
+          process.exitCode = details.status === "DEFERRED" ? 2 : 1;
         return;
       }
 
@@ -139,7 +144,8 @@ async function run(): Promise<void> {
         console.log(
           JSON.stringify({ operation: "enrich-pending", ...details }),
         );
-        if (details.failedCount > 0) process.exitCode = 1;
+        if (details.status !== "SUCCEEDED")
+          process.exitCode = details.status === "DEFERRED" ? 2 : 1;
         return;
       }
 
@@ -148,14 +154,16 @@ async function run(): Promise<void> {
         console.log(
           JSON.stringify({ operation: "enrich-pending", ...details }),
         );
-        if (details.failedCount > 0) process.exitCode = 1;
+        if (details.status !== "SUCCEEDED")
+          process.exitCode = details.status === "DEFERRED" ? 2 : 1;
         return;
       }
 
       if (command.mode === "enrich-ranked") {
         const details = await sync.enrichRankedPlaceDetails();
         console.log(JSON.stringify({ operation: "enrich-ranked", ...details }));
-        if (details.failedCount > 0) process.exitCode = 1;
+        if (details.status !== "SUCCEEDED")
+          process.exitCode = details.status === "DEFERRED" ? 2 : 1;
         return;
       }
 
@@ -167,10 +175,21 @@ async function run(): Promise<void> {
           contentId: command.contentId,
         }),
       );
-    });
-  } catch {
-    console.error("Tourism sync command failed.");
-    process.exitCode = 1;
+    }, "tourism");
+  } catch (error) {
+    if (error instanceof TourApiBudgetDeferredError) {
+      console.log(
+        JSON.stringify({
+          operation: command.mode,
+          status: "DEFERRED",
+          deferredReason: error.reason,
+        }),
+      );
+      process.exitCode = 2;
+    } else {
+      console.error("Tourism sync command failed.");
+      process.exitCode = 1;
+    }
   } finally {
     if (app != null) {
       try {

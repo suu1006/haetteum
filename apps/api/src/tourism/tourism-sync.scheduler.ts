@@ -1,11 +1,20 @@
-import { TourApiPolicy } from "./tour-api-policy.js";
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicy,
+} from "./tour-api-policy.js";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
 
 import type { ApiEnvironment } from "../config/environment.js";
 import { TourismSyncService } from "./tourism-sync.service.js";
-import { NotionBatchRecorder } from "./notion-batch-recorder.js";
+import {
+  NotionBatchRecorder,
+  type NotionBatchReason,
+  type NotionBatchStatus,
+} from "./notion-batch-recorder.js";
+import type { DetailEnrichmentSummary } from "./detail-enrichment-summary.js";
 
 @Injectable()
 export class TourismSyncScheduler {
@@ -27,24 +36,46 @@ export class TourismSyncScheduler {
     if (!this.config.get("TOURISM_SYNC_ENABLED", { infer: true })) return;
 
     const startedAt = new Date();
-    let success = false;
-    let failedCount: number | null = null;
-    let failureStage: "list" | "details" = "list";
+    let status: NotionBatchStatus = "FAILED";
+    let stage: "list" | "details" = "list";
+    let reason: NotionBatchReason | null = "LIST_FAILED";
+    let details: DetailEnrichmentSummary | null = null;
+    let requestCount = 0;
     try {
       await this.policy.batch(async () => {
-        await this.sync.incrementalSync();
-        failureStage = "details";
-        const details = await this.sync.enrichPendingPlaceDetails();
-        failedCount = details.failedCount;
-        if (details.failedCount > 0)
-          throw new Error(
-            `Tourism detail sync failed for ${details.failedCount} places`,
-          );
-      });
+        try {
+          await this.sync.incrementalSync();
+          stage = "details";
+          reason = "DETAILS_FAILED";
+          details = await this.sync.enrichPendingPlaceDetails();
+          if (details.failedCount > 0)
+            throw new Error(
+              `Tourism detail sync failed for ${details.failedCount} places`,
+            );
+          if (details.status === "DEFERRED" && details.deferredReason)
+            throw new TourApiBudgetDeferredError(details.deferredReason);
+        } finally {
+          requestCount = this.policy.currentBatchRequestCount();
+        }
+      }, "tourism");
 
       this.logger.log("[BATCH_SUCCESS] tour-api-sync");
-      success = true;
+      status = "SUCCEEDED";
+      reason = null;
     } catch (error) {
+      if (error instanceof DetailEnrichmentError) {
+        stage = "details";
+        reason = "DETAILS_FAILED";
+        details = error.summary;
+      }
+      if (error instanceof TourApiBudgetDeferredError) {
+        status = "DEFERRED";
+        reason = error.reason;
+        this.logger.warn(`[BATCH_DEFERRED] tour-api-sync ${error.reason}`);
+        return;
+      }
+      status = "FAILED";
+      reason = stage === "details" ? "DETAILS_FAILED" : "LIST_FAILED";
       this.logger.error(
         "[BATCH_FAILED] tour-api-sync",
         error instanceof Error ? error.stack : String(error),
@@ -52,13 +83,20 @@ export class TourismSyncScheduler {
 
       throw error;
     } finally {
-      await this.notion.record({
-        success,
-        startedAt,
-        finishedAt: new Date(),
-        failedCount,
-        failureStage,
-      });
+      try {
+        await this.notion.record({
+          batchName: "tourism-daily-sync",
+          status,
+          stage,
+          reason,
+          startedAt,
+          finishedAt: new Date(),
+          requestCount,
+          details,
+        });
+      } catch {
+        this.logger.warn("[NOTION_BATCH_RECORD_FAILED] Unexpected rejection");
+      }
     }
   }
 }
