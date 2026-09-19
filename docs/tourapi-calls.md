@@ -60,6 +60,7 @@ tourism-sync
 - `TourApiClient`의 모든 실제 요청·재시도는 `TourApiPolicy.request()`를 거친다. 배치 문맥 밖에서는 HTTP 전송 전에 거절한다.
 - PostgreSQL 세션 advisory lock으로 배치를 하나만 실행하고 실제 HTTP 요청 간격도 직렬화한다. 이 연결은 직접 PostgreSQL 연결 또는 세션 풀링을 사용해야 하며 트랜잭션 풀링 연결을 사용하지 않는다. 동일 서비스 키를 사용하는 실행 환경은 같은 DB와 한도 설정을 공유해야 한다. 이 DB를 거치지 않는 다른 시스템의 호출량까지 집계하지는 않는다.
 - 제공자 승인 한도는 하루 1,000회다. 기본값은 `TOUR_API_DAILY_LIMIT=1000`, `TOUR_API_TOURISM_DAILY_BUDGET=700`, `TOUR_API_FESTIVAL_DAILY_BUDGET=300`, `TOUR_API_MIN_INTERVAL_MS=1000`이다. 두 배치 예산의 합은 공용 한도를 넘을 수 없다.
+- 요청 종료 시각을 요청 잠금 해제 전에 영구 저장하고 다음 요청까지 최소 간격을 기다린다. 예산 예약·COMMIT 응답이 늦어져도 실제 HTTP 시도가 몰리지 않도록 보수적으로 종료→다음 시작 간격을 보장한다. 시각 저장 실패는 현재 배치를 중단하며 기존 HTTP 오류를 보존한다.
 - `tour_api_daily_usage`와 `tour_api_job_daily_usage`에 KST 날짜별 공용·배치별 시도 수를 HTTP 전에 저장한다. 실패·재시도·재시작도 요청 수에 포함되며, 실제 HTTP 예약만 이번 실행 요청 수에 포함한다. 사전 용량 확인과 거절된 예약은 포함하지 않는다.
 - 목록 체크포인트(`TourismSyncRun.checkpointAt`)는 성공한 수집의 시작 시각이다. 해당 날짜를 포함해 다시 조회하여 당일 뒤늦은 변경을 놓치지 않는다. API 필터 동작을 추가로 검증하기 전까지 날짜·지역·노출 여부 필터는 유지한다.
 - 장소와 축제의 `detailSourceModifiedAt`은 상세 수집이 완료된 원본 버전이다. 신규·변경·이전 실패 항목만 추가 수집하고, 실패 시 이전 상세를 유지한다. 주간 추천은 최신 목록 버전에 맞는 상세가 완료된 후보만 선정한다.
