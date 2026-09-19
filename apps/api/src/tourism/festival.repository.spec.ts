@@ -257,6 +257,26 @@ describe("FestivalRepository", () => {
       failedCount: 1,
       errorSummary: "Festival synchronization failed (22)",
     });
+
+    const terminalWriteRun = await repository.createSyncRun(
+      new Date("2026-01-01T00:00:00.000Z"),
+    );
+    await repository.failSyncRun(
+      terminalWriteRun.id,
+      {
+        fetchedCount: 2,
+        insertedCount: 2,
+        updatedCount: 0,
+        deactivatedCount: 0,
+        failedCount: 0,
+      },
+      "Tourism detail synchronization stopped after a fatal error",
+      { incrementFailedCount: false },
+    );
+    expect(prisma.runs.get(terminalWriteRun.id)).toMatchObject({
+      status: "FAILED",
+      failedCount: 0,
+    });
   });
 
   it("selects only visible festival rows with missing or stale detail versions", async () => {

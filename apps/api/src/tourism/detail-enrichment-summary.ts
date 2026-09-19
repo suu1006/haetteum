@@ -11,6 +11,8 @@ export type DetailEnrichmentSummary = {
 };
 
 export class DetailEnrichmentError extends Error {
+  #persistenceFailure: unknown;
+
   constructor(
     readonly summary: DetailEnrichmentSummary,
     cause: unknown,
@@ -18,5 +20,13 @@ export class DetailEnrichmentError extends Error {
     super("Tourism detail synchronization stopped after a fatal error", {
       cause,
     });
+  }
+
+  get persistenceFailure(): unknown {
+    return this.#persistenceFailure;
+  }
+
+  retainPersistenceFailure(error: unknown): void {
+    this.#persistenceFailure ??= error;
   }
 }

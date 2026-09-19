@@ -138,28 +138,71 @@ export class FestivalSyncService {
       };
     } catch (error) {
       if (error instanceof DetailEnrichmentError) {
-        await this.repository.failSyncRun(run.id, counters, error.message);
-        throw error;
+        throw await this.retainDetailFailure(run.id, counters, error, true);
       }
       if (error instanceof TourApiBudgetDeferredError) {
         if (details) {
           details.status = details.failedCount > 0 ? "FAILED" : "DEFERRED";
           details.deferredReason = error.reason;
         }
-        return {
-          ...(await this.repository.deferSyncRun(
-            run.id,
-            counters,
-            error.reason,
-          )),
-          ...(details ? { details } : {}),
-        };
+        try {
+          return {
+            ...(await this.repository.deferSyncRun(
+              run.id,
+              counters,
+              error.reason,
+            )),
+            ...(details ? { details } : {}),
+          };
+        } catch (persistenceFailure) {
+          if (details) {
+            const terminalError = new DetailEnrichmentError(
+              { ...details, status: "FAILED" },
+              persistenceFailure,
+            );
+            throw await this.retainDetailFailure(
+              run.id,
+              counters,
+              terminalError,
+              false,
+            );
+          }
+          throw sanitizeFestivalSyncError(persistenceFailure);
+        }
+      }
+      if (details) {
+        const terminalError = new DetailEnrichmentError(
+          { ...details, status: "FAILED" },
+          error,
+        );
+        throw await this.retainDetailFailure(
+          run.id,
+          counters,
+          terminalError,
+          false,
+        );
       }
       const sanitized = sanitizeFestivalSyncError(error);
       await this.repository.failSyncRun(run.id, counters, sanitized.message);
       if (error instanceof TourApiPolicyError) throw error;
       throw sanitized;
     }
+  }
+
+  private async retainDetailFailure(
+    runId: string,
+    counters: FestivalSyncCounters,
+    error: DetailEnrichmentError,
+    incrementFailedCount: boolean,
+  ): Promise<DetailEnrichmentError> {
+    try {
+      await this.repository.failSyncRun(runId, counters, error.message, {
+        incrementFailedCount,
+      });
+    } catch (persistenceFailure) {
+      error.retainPersistenceFailure(persistenceFailure);
+    }
+    return error;
   }
 
   private async enrichDetail(festival: {

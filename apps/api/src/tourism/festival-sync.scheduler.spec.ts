@@ -171,23 +171,26 @@ describe("FestivalSyncScheduler", () => {
     });
   });
 
-  it("records fatal detail progress and preserves the typed error", async () => {
+  it("records fatal detail progress when terminal persistence also failed", async () => {
     const progress = details({
       status: "FAILED",
       succeededCount: 1,
       failedCount: 1,
       remainingCount: 1,
     });
-    const failure = new DetailEnrichmentError(
-      progress,
-      new Error("secret serviceKey=private"),
-    );
+    const rootCause = new Error("secret serviceKey=private");
+    const persistenceFailure = new Error("run persistence unavailable");
+    const failure = new DetailEnrichmentError(progress, rootCause);
+    failure.retainPersistenceFailure(persistenceFailure);
     const fixture = createScheduler({
       fullSync: () => Promise.reject(failure),
       requestCount: 6,
     });
 
     await expect(fixture.scheduler.runDailySync()).rejects.toBe(failure);
+
+    expect(failure.cause).toBe(rootCause);
+    expect(failure.persistenceFailure).toBe(persistenceFailure);
 
     expect(fixture.records[0]).toMatchObject({
       status: "FAILED",

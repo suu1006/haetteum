@@ -219,6 +219,7 @@ export class FestivalRepository {
     runId: string,
     counters: FestivalSyncCounters,
     errorSummary: string,
+    options: { incrementFailedCount?: boolean } = {},
   ): Promise<void> {
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
@@ -226,7 +227,10 @@ export class FestivalRepository {
         status: "FAILED",
         finishedAt: new Date(),
         ...counters,
-        failedCount: counters.failedCount + 1,
+        failedCount:
+          options.incrementFailedCount === false
+            ? counters.failedCount
+            : counters.failedCount + 1,
         errorSummary,
       },
     });

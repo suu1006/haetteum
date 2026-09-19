@@ -64,13 +64,20 @@ class FakeFestivalApi implements FestivalApiPort {
 class FakeFestivalRepository {
   readonly storedIds = new Set<string>();
   readonly pages: string[][] = [];
-  readonly failures: Array<{ summary: string; counters: unknown }> = [];
+  readonly failures: Array<{
+    summary: string;
+    counters: unknown;
+    options?: { incrementFailedCount?: boolean };
+  }> = [];
   readonly deactivateCalls: Array<{
     rangeStart: Date;
     rangeEnd: Date;
     seenExternalIds: readonly string[];
   }> = [];
   completeCalls = 0;
+  completeError: Error | undefined;
+  deferError: Error | undefined;
+  failError: Error | undefined;
   upsertError: Error | undefined;
   deactivatedCount = 0;
   readonly pendingDetails: Array<{
@@ -135,6 +142,7 @@ class FakeFestivalRepository {
     },
   ) {
     this.completeCalls += 1;
+    if (this.completeError) throw this.completeError;
     return {
       runId,
       status:
@@ -148,6 +156,7 @@ class FakeFestivalRepository {
     counters: { failedCount: number },
     deferredReason: string,
   ) {
+    if (this.deferError) throw this.deferError;
     return {
       runId,
       ...counters,
@@ -156,8 +165,14 @@ class FakeFestivalRepository {
     };
   }
 
-  async failSyncRun(_runId: string, counters: unknown, summary: string) {
-    this.failures.push({ counters, summary });
+  async failSyncRun(
+    _runId: string,
+    counters: unknown,
+    summary: string,
+    options?: { incrementFailedCount?: boolean },
+  ) {
+    this.failures.push({ counters, summary, options });
+    if (this.failError) throw this.failError;
   }
 }
 
@@ -181,27 +196,44 @@ class FakeTourApi {
     },
   ];
   error: Error | undefined;
+  errorContentId: string | undefined;
 
   async getPlaceCommonDetail(contentId: string) {
     this.calls.push(`common:${contentId}`);
-    if (this.error) throw this.error;
+    if (
+      this.error &&
+      (!this.errorContentId || this.errorContentId === contentId)
+    )
+      throw this.error;
     return this.common;
   }
 
   async getFestivalIntro(contentId: string) {
     this.calls.push(`intro:${contentId}`);
-    if (this.error) throw this.error;
+    if (
+      this.error &&
+      (!this.errorContentId || this.errorContentId === contentId)
+    )
+      throw this.error;
     return this.intro;
   }
 
   async getPlaceImages(contentId: string) {
     this.calls.push(`images:${contentId}`);
-    if (this.error) throw this.error;
+    if (
+      this.error &&
+      (!this.errorContentId || this.errorContentId === contentId)
+    )
+      throw this.error;
     return this.images;
   }
 }
 
-function setup() {
+function setup(
+  policy: { ensureCapacity: () => Promise<void> } = {
+    ensureCapacity: async () => undefined,
+  },
+) {
   const provider = new FakeFestivalApi();
   const details = new FakeTourApi();
   const repository = new FakeFestivalRepository();
@@ -209,7 +241,7 @@ function setup() {
     provider,
     details as unknown as TourApiPort,
     repository as unknown as FestivalRepository,
-    { ensureCapacity: async () => undefined } as never,
+    policy as never,
   );
   return { details, provider, repository, service };
 }
@@ -373,6 +405,125 @@ describe("FestivalSyncService", () => {
     });
     expect(error.cause).toBe(details.error);
     expect(details.calls).toEqual(["common:festival-1"]);
+  });
+
+  it("preserves partial fatal progress and both causes when failing the run also rejects", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push(
+      {
+        id: "festival-row-1",
+        externalId: "festival-1",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+      {
+        id: "festival-row-2",
+        externalId: "festival-2",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+    );
+    const fatal = new TourApiPolicyError("TOUR_API_POLICY_CONNECTION_LOST");
+    const persistenceFailure = new Error("run persistence unavailable");
+    details.error = fatal;
+    details.errorContentId = "festival-2";
+    repository.failError = persistenceFailure;
+
+    const error = await service
+      .fullSync(RANGE)
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(DetailEnrichmentError);
+    if (!(error instanceof DetailEnrichmentError))
+      throw new Error("Expected fatal detail progress");
+    expect(error.summary).toEqual({
+      status: "FAILED",
+      requestedCount: 2,
+      succeededCount: 1,
+      failedCount: 1,
+      remainingCount: 1,
+    });
+    expect(error.cause).toBe(fatal);
+    expect(
+      (error as DetailEnrichmentError & { persistenceFailure?: unknown })
+        .persistenceFailure,
+    ).toBe(persistenceFailure);
+  });
+
+  it("surfaces complete-run persistence failure with measured detail counts", async () => {
+    const { provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")]));
+    repository.pendingDetails.push({
+      id: "festival-row-1",
+      externalId: "festival-1",
+      providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+    });
+    const persistenceFailure = new Error("complete run unavailable");
+    repository.completeError = persistenceFailure;
+
+    const error = await service
+      .fullSync(RANGE)
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(DetailEnrichmentError);
+    if (!(error instanceof DetailEnrichmentError))
+      throw new Error("Expected measured terminal failure");
+    expect(error.summary).toEqual({
+      status: "FAILED",
+      requestedCount: 1,
+      succeededCount: 1,
+      failedCount: 0,
+      remainingCount: 0,
+    });
+    expect(error.cause).toBe(persistenceFailure);
+    expect(repository.failures[0]?.options).toEqual({
+      incrementFailedCount: false,
+    });
+  });
+
+  it("surfaces defer-run persistence failure as FAILED with partial progress", async () => {
+    let capacityChecks = 0;
+    const fixture = setup({
+      ensureCapacity: async () => {
+        capacityChecks += 1;
+        if (capacityChecks === 2)
+          throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+      },
+    });
+    fixture.provider.pages.set(1, page([festival("festival-1")]));
+    fixture.repository.pendingDetails.push(
+      {
+        id: "festival-row-1",
+        externalId: "festival-1",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+      {
+        id: "festival-row-2",
+        externalId: "festival-2",
+        providerModifiedAt: new Date("2026-08-23T15:00:00.000Z"),
+      },
+    );
+    const persistenceFailure = new Error("defer run unavailable");
+    fixture.repository.deferError = persistenceFailure;
+
+    const error = await fixture.service
+      .fullSync(RANGE)
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(DetailEnrichmentError);
+    if (!(error instanceof DetailEnrichmentError))
+      throw new Error("Expected measured terminal failure");
+    expect(error.summary).toEqual({
+      status: "FAILED",
+      requestedCount: 2,
+      succeededCount: 1,
+      failedCount: 0,
+      remainingCount: 1,
+      deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+    });
+    expect(error.cause).toBe(persistenceFailure);
+    expect(fixture.repository.failures[0]?.options).toEqual({
+      incrementFailedCount: false,
+    });
   });
 
   it("counts mismatched detail identities without storing a mixed snapshot", async () => {
