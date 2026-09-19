@@ -155,7 +155,7 @@ describe("PlacesService", () => {
               slug: { in: ["seoul", "gyeonggi", "gangwon", "busan", "jeju"] },
             },
           },
-        }),
+        }) as Prisma.PlaceWhereInput,
       }),
     );
   });
