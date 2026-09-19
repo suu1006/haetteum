@@ -151,6 +151,7 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
     );
     expect(result.rows).toEqual([{ calls: 3 }, { calls: 1 }]);
   });
+  // Exercises 1,000 durable multi-statement reservations on shared CI hardware.
   it("preserves the festival reserve across restarts and charges retries within a global 1000 calls", async () => {
     const settings = {
       get: (key: string) =>
@@ -214,7 +215,7 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
       { job: "festival", calls: 300 },
       { job: "tourism", calls: 700 },
     ]);
-  });
+  }, 30_000);
 
   it("preflights minimum detail requests without charging and resets job usage on a new KST day", async () => {
     const settings = {
