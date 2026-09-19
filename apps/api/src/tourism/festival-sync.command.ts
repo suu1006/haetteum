@@ -31,9 +31,15 @@ export async function executeFestivalSync(
         deactivatedCount: summary.deactivatedCount,
         failedCount: summary.failedCount,
         runId: summary.runId,
+        deferredReason: summary.deferredReason,
+        details: summary.details,
       }),
     );
-    return summary.failedCount > 0 ? 1 : 0;
+    return summary.failedCount > 0 || summary.status === "FAILED"
+      ? 1
+      : summary.status === "DEFERRED"
+        ? 2
+        : 0;
   } catch {
     errorOutput("Festival sync command failed.");
     return 1;
@@ -55,12 +61,14 @@ async function run(): Promise<void> {
       logger: false,
     });
     const service = app.get(FestivalSyncService);
-    const exitCode = await app.get(TourApiPolicy).batch(() =>
-      executeFestivalSync(
-        service,
-        (message) => console.log(message),
-        (message) => console.error(message),
-      ),
+    const exitCode = await app.get(TourApiPolicy).batch(
+      () =>
+        executeFestivalSync(
+          service,
+          (message) => console.log(message),
+          (message) => console.error(message),
+        ),
+      "festival",
     );
     if (exitCode !== 0) process.exitCode = exitCode;
   } catch {

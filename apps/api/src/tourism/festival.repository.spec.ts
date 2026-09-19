@@ -217,7 +217,7 @@ describe("FestivalRepository", () => {
 
     expect(success).toMatchObject({
       runId: run.id,
-      status: "SUCCEEDED",
+      status: "FAILED",
       fetchedCount: 2,
       insertedCount: 1,
       updatedCount: 1,
@@ -225,7 +225,7 @@ describe("FestivalRepository", () => {
       failedCount: 2,
     });
     expect(prisma.runs.get(run.id)).toMatchObject({
-      status: "SUCCEEDED",
+      status: "FAILED",
       fetchedCount: 2,
       insertedCount: 1,
       updatedCount: 1,

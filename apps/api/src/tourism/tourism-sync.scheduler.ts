@@ -1,4 +1,8 @@
-import { TourApiPolicy } from "./tour-api-policy.js";
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicy,
+} from "./tour-api-policy.js";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron } from "@nestjs/schedule";
@@ -40,11 +44,19 @@ export class TourismSyncScheduler {
           throw new Error(
             `Tourism detail sync failed for ${details.failedCount} places`,
           );
-      });
+        if (details.deferredReason)
+          throw new TourApiBudgetDeferredError(details.deferredReason);
+      }, "tourism");
 
       this.logger.log("[BATCH_SUCCESS] tour-api-sync");
       success = true;
     } catch (error) {
+      if (error instanceof DetailEnrichmentError)
+        failedCount = error.summary.failedCount;
+      if (error instanceof TourApiBudgetDeferredError) {
+        this.logger.warn(`[BATCH_DEFERRED] tour-api-sync ${error.reason}`);
+        return;
+      }
       this.logger.error(
         "[BATCH_FAILED] tour-api-sync",
         error instanceof Error ? error.stack : String(error),

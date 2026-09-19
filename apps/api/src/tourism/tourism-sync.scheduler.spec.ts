@@ -1,3 +1,4 @@
+import { TourApiBudgetDeferredError } from "./tour-api-policy.js";
 import { ConfigService } from "@nestjs/config";
 
 import type { ApiEnvironment } from "../config/environment.js";
@@ -47,6 +48,15 @@ describe("TourismSyncScheduler", () => {
     await expect(scheduler.scheduler.runDailySync()).resolves.toBeUndefined();
 
     expect(scheduler.incrementalCalls).toBe(0);
+  });
+
+  it("reports budget exhaustion as deferred without throwing a batch failure", async () => {
+    const scheduler = createScheduler(true, () =>
+      Promise.reject(
+        new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT"),
+      ),
+    );
+    await expect(scheduler.scheduler.runDailySync()).resolves.toBeUndefined();
   });
 
   it("runs incremental sync when enabled", async () => {

@@ -2,7 +2,10 @@
 import type { FestivalRepository } from "./festival.repository.js";
 import { FestivalSyncService } from "./festival-sync.service.js";
 import { TourApiError } from "./tour-api.client.js";
-import { TourApiPolicyError } from "./tour-api-policy.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicyError,
+} from "./tour-api-policy.js";
 import type {
   FestivalApiPort,
   TourApiFestival,
@@ -133,8 +136,22 @@ class FakeFestivalRepository {
     this.completeCalls += 1;
     return {
       runId,
-      status: "SUCCEEDED" as const,
+      status:
+        counters.failedCount > 0 ? ("FAILED" as const) : ("SUCCEEDED" as const),
       ...counters,
+    };
+  }
+
+  async deferSyncRun(
+    runId: string,
+    counters: { failedCount: number },
+    deferredReason: string,
+  ) {
+    return {
+      runId,
+      ...counters,
+      status: counters.failedCount > 0 ? "FAILED" : "DEFERRED",
+      deferredReason,
     };
   }
 
@@ -191,17 +208,32 @@ function setup() {
     provider,
     details as unknown as TourApiPort,
     repository as unknown as FestivalRepository,
+    { ensureCapacity: async () => undefined } as never,
   );
   return { details, provider, repository, service };
 }
 
 describe("FestivalSyncService", () => {
+  it("defers an incomplete list without deactivating missing festivals", async () => {
+    const { provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("festival-1")], 1, 1, 2));
+    provider.pages.set(
+      2,
+      new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT"),
+    );
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      status: "DEFERRED",
+      fetchedCount: 1,
+      failedCount: 0,
+    });
+    expect(repository.deactivateCalls).toHaveLength(0);
+  });
   it("traverses every page, maps items, and completes exact counters", async () => {
     const { provider, repository, service } = setup();
     provider.pages.set(1, page([festival("festival-1")], 1, 1, 2));
     provider.pages.set(2, page([festival("festival-2")], 2, 1, 2));
 
-    await expect(service.fullSync(RANGE)).resolves.toEqual({
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
       runId: "run-1",
       status: "SUCCEEDED",
       fetchedCount: 2,
@@ -263,7 +295,7 @@ describe("FestivalSyncService", () => {
     details.error = new TourApiError("detailCommon2", "EMPTY_RESPONSE");
 
     await expect(service.fullSync(RANGE)).resolves.toMatchObject({
-      status: "SUCCEEDED",
+      status: "FAILED",
       failedCount: 1,
     });
     expect(repository.savedDetails).toHaveLength(0);

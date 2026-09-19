@@ -1,3 +1,4 @@
+import type { DetailEnrichmentSummary } from "./detail-enrichment-summary.js";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import {
@@ -7,7 +8,11 @@ import {
 } from "./festival.repository.js";
 import { createFestivalDetailSnapshot } from "./festival-detail-snapshot.js";
 import { TourApiError } from "./tour-api.client.js";
-import { TourApiPolicyError } from "./tour-api-policy.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicy,
+  TourApiPolicyError,
+} from "./tour-api-policy.js";
 import { mapFestival } from "./tour-api.mapper.js";
 import type { FestivalApiPort, TourApiPort } from "./tour-api.types.js";
 import { FESTIVAL_API_PORT, TOUR_API_PORT } from "./tourism.constants.js";
@@ -27,6 +32,7 @@ export class FestivalSyncService {
     @Inject(FESTIVAL_API_PORT) private readonly provider: FestivalApiPort,
     @Inject(TOUR_API_PORT) private readonly details: TourApiPort,
     private readonly repository: FestivalRepository,
+    private readonly policy: TourApiPolicy,
   ) {}
 
   async fullSync(range: FestivalSyncRange): Promise<FestivalSyncSummary> {
@@ -46,6 +52,7 @@ export class FestivalSyncService {
     const seenExternalIds = new Set<string>();
     const lastSyncedAt = new Date();
     const run = await this.repository.createSyncRun(rangeStart);
+    let details: DetailEnrichmentSummary | undefined;
 
     try {
       let pageNo = 1;
@@ -94,20 +101,48 @@ export class FestivalSyncService {
       });
 
       const pendingDetails = await this.repository.findPendingDetails();
+      details = {
+        status: "SUCCEEDED",
+        requestedCount: pendingDetails.length,
+        succeededCount: 0,
+        failedCount: 0,
+        remainingCount: pendingDetails.length,
+      };
       for (const festival of pendingDetails) {
         try {
           await this.enrichDetail(festival);
+          details.succeededCount++;
+          details.remainingCount--;
         } catch (error) {
           if (isFatalTourApiError(error)) throw error;
           counters.failedCount += 1;
+          details.failedCount++;
+          details.status = "FAILED";
           this.logger.warn(
             `Festival detail synchronization failed for content ${festival.externalId}`,
           );
         }
       }
 
-      return await this.repository.completeSyncRun(run.id, counters);
+      return {
+        ...(await this.repository.completeSyncRun(run.id, counters)),
+        details,
+      };
     } catch (error) {
+      if (error instanceof TourApiBudgetDeferredError) {
+        if (details) {
+          details.status = details.failedCount > 0 ? "FAILED" : "DEFERRED";
+          details.deferredReason = error.reason;
+        }
+        return {
+          ...(await this.repository.deferSyncRun(
+            run.id,
+            counters,
+            error.reason,
+          )),
+          ...(details ? { details } : {}),
+        };
+      }
       const sanitized = sanitizeFestivalSyncError(error);
       await this.repository.failSyncRun(run.id, counters, sanitized.message);
       if (error instanceof TourApiPolicyError) throw error;
@@ -120,6 +155,7 @@ export class FestivalSyncService {
     externalId: string;
     providerModifiedAt: Date;
   }): Promise<void> {
+    await this.policy.ensureCapacity(3);
     const common = await this.details.getPlaceCommonDetail(festival.externalId);
     const intro = await this.details.getFestivalIntro(festival.externalId);
     const images = await this.details.getPlaceImages(festival.externalId);

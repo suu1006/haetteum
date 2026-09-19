@@ -902,3 +902,12 @@ model UploadedImage {
   @@index([ownerId, createdAt])
   @@map("uploaded_images")
 }
+
+/// Named budgets share the global daily ledger and survive manual reruns/restarts.
+model TourApiJobDailyUsage {
+  day DateTime @db.Date
+  job String @db.VarChar(32)
+  calls Int
+  @@id([day, job])
+  @@map("tour_api_job_daily_usage")
+}

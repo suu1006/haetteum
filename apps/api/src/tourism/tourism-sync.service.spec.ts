@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/require-await */
-import { TourApiPolicyError } from "./tour-api-policy.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicyError,
+} from "./tour-api-policy.js";
 import type { PrismaService } from "../prisma/prisma.service.js";
 import type {
   TourApiChangedPlace,
@@ -561,12 +564,15 @@ class FakePrisma {
 /* eslint-enable @typescript-eslint/no-unsafe-call */
 /* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
-function setup() {
+function setup(
+  ensureCapacity: (minimum: number) => Promise<void> = async () => undefined,
+) {
   const provider = new FakeTourApi();
   const prisma = new FakePrisma();
   const service = new TourismSyncService(
     provider,
     prisma as unknown as PrismaService,
+    { ensureCapacity } as never,
   );
   return { provider, prisma, service };
 }
@@ -1122,6 +1128,88 @@ describe("TourismSyncService", () => {
     expect(provider.changedCalls[0]?.modifiedDate).toBe("20260823");
   });
 
+  it("does not start a four-call detail bundle when only three calls remain", async () => {
+    const { prisma, provider, service } = setup(async (minimum) => {
+      if (minimum > 3)
+        throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+    });
+    prisma.seedPlace("50", "pending");
+    await expect(service.enrichPendingPlaceDetails()).resolves.toMatchObject({
+      status: "DEFERRED",
+      remainingCount: 1,
+      failedCount: 0,
+    });
+    expect(provider.detailCalls).toEqual([]);
+  });
+
+  it("returns completed, failed and remaining detail counts on budget deferral", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    for (const id of ["a", "b", "c"])
+      prisma.seedPlace("50", id, {
+        providerModifiedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+    provider.getPlaceCommonDetail = async (id: string) => {
+      if (id === "b")
+        throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+      return { contentid: id };
+    };
+    provider.intro = { contentid: "a" };
+    await expect(service.enrichPendingPlaceDetails()).resolves.toMatchObject({
+      status: "DEFERRED",
+      requestedCount: 3,
+      succeededCount: 1,
+      failedCount: 0,
+      remainingCount: 2,
+      deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+    });
+    expect(
+      prisma.places.find((place) => place.externalId === "a")
+        ?.detailSourceModifiedAt,
+    ).toEqual(new Date("2026-09-01T00:00:00Z"));
+    expect(
+      prisma.places.find((place) => place.externalId === "b")
+        ?.detailSourceModifiedAt == null,
+    ).toBe(true);
+    const restartedCalls: string[] = [];
+    provider.getPlaceCommonDetail = async (id: string) => {
+      restartedCalls.push(id);
+      return { contentid: id };
+    };
+    provider.getPlaceIntro = async (id: string) => ({ contentid: id });
+    const restarted = new TourismSyncService(
+      provider,
+      prisma as unknown as PrismaService,
+      { ensureCapacity: async () => undefined } as never,
+    );
+    await expect(restarted.enrichPendingPlaceDetails()).resolves.toMatchObject({
+      status: "SUCCEEDED",
+      succeededCount: 2,
+      remainingCount: 0,
+    });
+    expect(restartedCalls).toEqual(["b", "c"]);
+    restartedCalls.length = 0;
+    await restarted.enrichPendingPlaceDetails();
+    expect(restartedCalls).toEqual([]);
+  });
+
+  it("keeps genuine failures visible when a later detail is deferred", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    for (const id of ["a", "b"]) prisma.seedPlace("50", id);
+    provider.getPlaceCommonDetail = async (id: string) => {
+      if (id === "b")
+        throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+      throw new Error("provider failure");
+    };
+    await expect(service.enrichPendingPlaceDetails()).resolves.toMatchObject({
+      status: "FAILED",
+      succeededCount: 0,
+      failedCount: 1,
+      remainingCount: 2,
+      deferredReason: "TOUR_API_JOB_DAILY_LIMIT",
+    });
+  });
   it("restarts pending details from DB and does not revisit completed or hidden places", async () => {
     const { prisma, provider, service } = setup();
     prisma.seedDistricts();
@@ -1137,7 +1225,7 @@ describe("TourismSyncService", () => {
     });
     provider.detail = { contentid: "wrong" };
     provider.intro = { contentid: "pending" };
-    expect(await service.enrichPendingPlaceDetails()).toEqual({
+    expect(await service.enrichPendingPlaceDetails()).toMatchObject({
       requestedCount: 1,
       succeededCount: 0,
       failedCount: 1,
@@ -1146,14 +1234,15 @@ describe("TourismSyncService", () => {
     const restarted = new TourismSyncService(
       provider,
       prisma as unknown as PrismaService,
+      { ensureCapacity: async () => undefined } as never,
     );
-    expect(await restarted.enrichPendingPlaceDetails()).toEqual({
+    expect(await restarted.enrichPendingPlaceDetails()).toMatchObject({
       requestedCount: 1,
       succeededCount: 1,
       failedCount: 0,
     });
     provider.detailCalls.length = 0;
-    expect(await restarted.enrichPendingPlaceDetails()).toEqual({
+    expect(await restarted.enrichPendingPlaceDetails()).toMatchObject({
       requestedCount: 0,
       succeededCount: 0,
       failedCount: 0,
@@ -1245,7 +1334,7 @@ describe("TourismSyncService", () => {
     expect(prisma.placeDetailInfos).toHaveLength(1);
   });
 
-  it("records a stopped ranked detail batch as failed when its quota is exhausted", async () => {
+  it("preserves progress for a fatal policy failure in a ranked detail batch", async () => {
     const { prisma, provider, service } = setup();
     prisma.seedDistricts();
     const place = prisma.seedPlace("50", "quota-place");
@@ -1254,7 +1343,7 @@ describe("TourismSyncService", () => {
       throw new TourApiPolicyError("TOUR_API_DAILY_LIMIT");
     };
     await expect(service.enrichRankedPlaceDetails()).rejects.toThrow(
-      "DAILY_LIMIT",
+      "fatal error",
     );
     expect(prisma.syncRuns.at(-1)).toMatchObject({
       status: "FAILED",
@@ -1270,7 +1359,7 @@ describe("TourismSyncService", () => {
     provider.detail = { contentid: "ranked-detail-id", overview: "소개" };
     provider.intro = { contentid: "ranked-detail-id" };
 
-    await expect(service.enrichRankedPlaceDetails()).resolves.toEqual({
+    await expect(service.enrichRankedPlaceDetails()).resolves.toMatchObject({
       requestedCount: 1,
       succeededCount: 1,
       failedCount: 0,

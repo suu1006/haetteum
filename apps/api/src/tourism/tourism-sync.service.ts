@@ -1,4 +1,12 @@
-import { TourApiPolicyError } from "./tour-api-policy.js";
+import {
+  DetailEnrichmentError,
+  type DetailEnrichmentSummary,
+} from "./detail-enrichment-summary.js";
+import {
+  TourApiBudgetDeferredError,
+  TourApiPolicy,
+  TourApiPolicyError,
+} from "./tour-api-policy.js";
 import { Inject, Injectable } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
@@ -36,11 +44,7 @@ export type SyncSummary = {
   failedCount: 0;
 };
 
-export type RankedPlaceDetailEnrichmentSummary = {
-  requestedCount: number;
-  succeededCount: number;
-  failedCount: number;
-};
+export type RankedPlaceDetailEnrichmentSummary = DetailEnrichmentSummary;
 
 type SyncCounters = {
   fetchedCount: number;
@@ -114,6 +118,7 @@ export class TourismSyncService {
   constructor(
     @Inject(TOUR_API_PORT) private readonly provider: TourApiPort,
     private readonly prisma: PrismaService,
+    private readonly policy: TourApiPolicy,
   ) {}
 
   async fullSync(): Promise<SyncSummary> {
@@ -221,6 +226,7 @@ export class TourismSyncService {
             place.providerModifiedAt.getTime())
       )
         return;
+      await this.policy.ensureCapacity(4);
       const common =
         await this.provider.getPlaceCommonDetail(normalizedContentId);
       const intro = await this.provider.getPlaceIntro(normalizedContentId);
@@ -293,22 +299,40 @@ export class TourismSyncService {
         place.detailSourceModifiedAt.getTime() !==
           place.providerModifiedAt.getTime(),
     );
-    let succeededCount = 0;
-    let failedCount = 0;
-    for (const place of pending) {
+    return this.enrichDetails(pending.map((place) => place.externalId));
+  }
+
+  private async enrichDetails(
+    contentIds: readonly string[],
+  ): Promise<DetailEnrichmentSummary> {
+    const summary: DetailEnrichmentSummary = {
+      status: "SUCCEEDED",
+      requestedCount: contentIds.length,
+      succeededCount: 0,
+      failedCount: 0,
+      remainingCount: contentIds.length,
+    };
+    for (const contentId of contentIds) {
       try {
-        await this.enrichPlaceDetails(place.externalId);
-        succeededCount++;
+        await this.enrichPlaceDetails(contentId);
+        summary.succeededCount++;
+        summary.remainingCount--;
       } catch (error) {
+        if (error instanceof TourApiBudgetDeferredError) {
+          summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
+          summary.deferredReason = error.reason;
+          return summary;
+        }
+        summary.failedCount++;
+        summary.status = "FAILED";
         if (
           error instanceof TourApiPolicyError ||
           (error instanceof TourApiError && error.providerCode === "22")
         )
-          throw error;
-        failedCount++;
+          throw new DetailEnrichmentError(summary, error);
       }
     }
-    return { requestedCount: pending.length, succeededCount, failedCount };
+    return summary;
   }
 
   async enrichPlace(contentId: string): Promise<void> {
@@ -332,50 +356,40 @@ export class TourismSyncService {
       distinct: ["placeId"],
       orderBy: { placeId: "asc" },
     });
-    let succeededCount = 0;
-    let failedCount = 0;
-    for (const row of rows) {
-      if (row.place == null) continue;
-      try {
-        await this.enrichPlaceDetails(row.place.externalId);
-        succeededCount += 1;
-      } catch (error) {
-        if (
-          error instanceof TourApiPolicyError ||
-          (error instanceof TourApiError && error.providerCode === "22")
-        ) {
-          await this.prisma.tourismSyncRun.update({
-            where: { id: run.id },
-            data: {
-              status: "FAILED",
-              finishedAt: new Date(),
-              fetchedCount: succeededCount + failedCount + 1,
-              updatedCount: succeededCount,
-              failedCount: failedCount + 1,
-              errorSummary:
-                "Tourism ranked detail synchronization stopped by TourAPI limit",
-            },
-          });
-          throw error;
-        }
-        failedCount += 1;
+    let summary: DetailEnrichmentSummary;
+    try {
+      summary = await this.enrichDetails(
+        rows.flatMap((row) => (row.place ? [row.place.externalId] : [])),
+      );
+    } catch (error) {
+      if (error instanceof DetailEnrichmentError) {
+        await this.saveRankedDetailRun(run.id, error.summary);
       }
+      throw error;
     }
+    await this.saveRankedDetailRun(run.id, summary);
+    return summary;
+  }
+
+  private async saveRankedDetailRun(
+    runId: string,
+    summary: DetailEnrichmentSummary,
+  ): Promise<void> {
     await this.prisma.tourismSyncRun.update({
-      where: { id: run.id },
+      where: { id: runId },
       data: {
-        status: failedCount === 0 ? "SUCCEEDED" : "FAILED",
+        status: summary.status,
         finishedAt: new Date(),
-        fetchedCount: rows.length,
-        updatedCount: succeededCount,
-        failedCount,
+        fetchedCount: summary.succeededCount + summary.failedCount,
+        updatedCount: summary.succeededCount,
+        failedCount: summary.failedCount,
         errorSummary:
-          failedCount === 0
-            ? null
-            : `Tourism ranked detail synchronization failed for ${failedCount} place(s).`,
+          summary.deferredReason ??
+          (summary.failedCount > 0
+            ? `Tourism ranked detail synchronization failed for ${summary.failedCount} place(s).`
+            : null),
       },
     });
-    return { requestedCount: rows.length, succeededCount, failedCount };
   }
 
   private async fullSyncRegion(
@@ -713,14 +727,18 @@ export class TourismSyncService {
     counters: SyncCounters,
     error: unknown,
   ): Promise<Error> {
-    const sanitized = sanitizedSyncError(mode, error);
+    const deferred = error instanceof TourApiBudgetDeferredError;
+    const sanitized =
+      error instanceof TourApiPolicyError
+        ? error
+        : sanitizedSyncError(mode, error);
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
       data: {
-        status: "FAILED",
+        status: deferred ? "DEFERRED" : "FAILED",
         finishedAt: new Date(),
         ...counters,
-        failedCount: 1,
+        failedCount: deferred ? 0 : 1,
         errorSummary: sanitized.message,
       },
     });

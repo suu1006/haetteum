@@ -76,6 +76,8 @@ const ApiEnvironmentSchema = z
     NOTION_TOKEN: providerSecret,
     NOTION_DATA_SOURCE_ID: providerSecret,
     TOUR_API_DAILY_LIMIT: z.coerce.number().int().min(1).default(1000),
+    TOUR_API_TOURISM_DAILY_BUDGET: z.coerce.number().int().min(1).default(700),
+    TOUR_API_FESTIVAL_DAILY_BUDGET: z.coerce.number().int().min(1).default(300),
     TOUR_API_POLICY_POOL_MAX: z.coerce.number().int().min(1).default(4),
     TOUR_API_MIN_INTERVAL_MS: z.coerce.number().int().min(1).default(1000),
     WEEKLY_RECOMMENDATIONS_ENABLED: booleanFromString,
@@ -97,6 +99,17 @@ const ApiEnvironmentSchema = z
     CHAT_BEDROCK_MODEL_ID: providerSecret,
   })
   .superRefine((value, context) => {
+    if (
+      value.TOUR_API_TOURISM_DAILY_BUDGET +
+        value.TOUR_API_FESTIVAL_DAILY_BUDGET >
+      value.TOUR_API_DAILY_LIMIT
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["TOUR_API_TOURISM_DAILY_BUDGET"],
+        message: "TourAPI job budgets must fit within the global daily limit",
+      });
+    }
     if (value.SMTP_HOST && (!value.SMTP_PORT || !value.SMTP_FROM)) {
       context.addIssue({
         code: "custom",

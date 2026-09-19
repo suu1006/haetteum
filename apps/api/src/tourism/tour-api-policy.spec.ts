@@ -11,6 +11,8 @@ function harness() {
       queries.push(sql);
       if (sql.includes("pg_try_advisory_lock"))
         return { rows: [{ locked: true }] };
+      if (sql.includes("tour_api_job_daily_usage"))
+        return { rows: [{ calls: 1 }] };
       if (sql.includes("RETURNING"))
         return { rows: count++ < 2 ? [{ calls: count }] : [] };
       if (sql.includes("wait_ms")) return { rows: [{ wait_ms: 0 }] };
@@ -46,11 +48,25 @@ describe("TourAPI execution policy", () => {
     });
   });
 
+  it("retains charged attempt counts for reporting after the request connection is lost", async () => {
+    const { policy, connection } = harness();
+    await policy.batch(async () => {
+      await expect(
+        policy.request(async () => {
+          connection.emit("error", new Error("connection lost"));
+        }),
+      ).rejects.toThrow("BATCH_REQUIRED");
+      expect(policy.currentBatchRequestCount()).toBe(1);
+    });
+  });
+
   it("does not start HTTP if the batch lock is lost while reserving quota", async () => {
     const { policy, connection } = harness();
     const original = connection.query.getMockImplementation()!;
     connection.query.mockImplementation(async (sql) => {
       const result = await original(sql);
+      if (sql.includes("tour_api_job_daily_usage"))
+        return { rows: [{ calls: 1 }] };
       if (sql.includes("RETURNING"))
         connection.emit("error", new Error("lock lost"));
       return result;
