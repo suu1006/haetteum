@@ -58,10 +58,8 @@ describe("PostgreSQL durable capture and recovery", () => {
   function runtime(job: "tourism" | "festival") {
     const policy = recoveryPolicy();
     policy.currentJob = () => job;
-    const recovery = new TourApiRecovery(
-      new TourApiRecoveryRepository(prisma),
-      policy,
-    );
+    const recoveryRepository = new TourApiRecoveryRepository(prisma);
+    const recovery = new TourApiRecovery(recoveryRepository, policy);
     let calls = 0;
     const client = new TourApiClient(
       new ConfigService({
@@ -96,7 +94,7 @@ describe("PostgreSQL durable capture and recovery", () => {
       policy,
       recovery,
     );
-    return { policy, recovery, client, calls: () => calls };
+    return { policy, recovery, recoveryRepository, client, calls: () => calls };
   }
   it("tourism destination failure survives repository restart, replays without HTTP, preserves ID and relations", async () => {
     const region = await prisma.tourismRegion.findFirstOrThrow();
@@ -292,10 +290,8 @@ describe("PostgreSQL durable capture and recovery", () => {
       },
     });
     const policy = recoveryPolicy();
-    const recovery = new TourApiRecovery(
-      new TourApiRecoveryRepository(prisma),
-      policy,
-    );
+    const recoveryRepository = new TourApiRecoveryRepository(prisma);
+    const recovery = new TourApiRecovery(recoveryRepository, policy);
     let calls = 0;
     const client = new TourApiClient(
       new ConfigService({
@@ -347,4 +343,224 @@ describe("PostgreSQL durable capture and recovery", () => {
       },
     });
   });
+  async function seedDestination(
+    job: "tourism" | "festival",
+    id: string,
+    version = modified,
+    complete = false,
+  ) {
+    const common = {
+      source: "TOUR_API",
+      externalId: id,
+      title: "Recovery identity",
+      providerModifiedAt: version,
+      lastSyncedAt: version,
+      ...(complete ? { detailSourceModifiedAt: version } : {}),
+    };
+    if (job === "tourism") {
+      const region = await prisma.tourismRegion.findFirstOrThrow();
+      return prisma.place.create({
+        data: { ...common, contentTypeId: 12, regionId: region.id },
+      });
+    }
+    return prisma.festival.create({
+      data: {
+        ...common,
+        contentTypeId: 15,
+        eventStartDate: version,
+        eventEndDate: version,
+      },
+    });
+  }
+  async function seedFailure(
+    job: "tourism" | "festival",
+    id: string,
+    version = modified,
+    state = "FAILED",
+  ) {
+    const identity = {
+      job,
+      contentId: id,
+      sourceVersion: version.toISOString(),
+    };
+    await new TourApiRecoveryRepository(prisma).saveFailure({
+      ...identity,
+      stage: "PERSISTENCE",
+      code: "PROCESSING_FAILED",
+      attemptCount: state === "QUARANTINED" ? 3 : 1,
+      nextAttemptAt: new Date(0),
+      state,
+      updatedAt: new Date(0),
+    });
+    return identity;
+  }
+  describe.each(["tourism", "festival"] as const)(
+    "%s version-preserving recovery",
+    (job) => {
+      it("cannot use a historical failure to select the quarantined current version", async () => {
+        const current = new Date("2026-09-02T00:00:00Z");
+        await seedDestination(job, ids[0], current);
+        await seedFailure(job, ids[0]);
+        await seedFailure(job, ids[0], current, "QUARANTINED");
+        expect(await runtime(job).recovery.failedItems(job, ids, 1)).toEqual(
+          [],
+        );
+      });
+      it("does not spend replay slots on historical failures when current destination is complete", async () => {
+        await seedDestination(
+          job,
+          ids[0],
+          new Date("2026-09-02T00:00:00Z"),
+          true,
+        );
+        await seedFailure(job, ids[0]);
+        expect(await runtime(job).recovery.failedItems(job, ids, 1)).toEqual(
+          [],
+        );
+      });
+      it("selects current actionable identities after obsolete failures without spending the limit", async () => {
+        await seedDestination(job, ids[0], new Date("2026-09-02T00:00:00Z"));
+        await seedFailure(job, ids[0]);
+        await seedDestination(job, ids[1]);
+        const active = await seedFailure(job, ids[1]);
+        expect(await runtime(job).recovery.failedItems(job, ids, 1)).toEqual([
+          active,
+        ]);
+      });
+
+      it("reconciles completed current failures without spending an actionable slot", async () => {
+        await seedDestination(job, ids[0], modified, true);
+        const completed = await seedFailure(job, ids[0]);
+        await seedDestination(job, ids[1]);
+        const active = await seedFailure(job, ids[1]);
+        const r = runtime(job);
+        expect(await r.recovery.failedItems(job, ids, 1)).toEqual([active]);
+        expect((await r.recoveryRepository.failure(completed))?.state).toBe(
+          "COMPLETE",
+        );
+      });
+      it("requeues only the selected current identity within the execution limit", async () => {
+        await seedDestination(job, ids[0]);
+        await seedDestination(job, ids[1]);
+        const first = await seedFailure(job, ids[0], modified, "QUARANTINED");
+        const second = await seedFailure(job, ids[1], modified, "QUARANTINED");
+        const r = runtime(job);
+        expect(await r.recovery.failedItems(job, ids, 1, true)).toEqual([
+          first,
+        ]);
+        expect((await r.recoveryRepository.failure(first))?.state).toBe(
+          "FAILED",
+        );
+        expect((await r.recoveryRepository.failure(second))?.state).toBe(
+          "QUARANTINED",
+        );
+      });
+      it.each(["version", "quarantine"] as const)(
+        "revalidates selected %s before allowing HTTP",
+        async (change) => {
+          const destination = await seedDestination(job, ids[0]);
+          const identity = await seedFailure(job, ids[0]);
+          const r = runtime(job);
+          expect(await r.recovery.failedItems(job, ids, 1)).toEqual([identity]);
+          if (change === "quarantine")
+            await seedFailure(job, ids[0], modified, "QUARANTINED");
+          else if (job === "tourism")
+            await prisma.place.update({
+              where: { id: destination.id },
+              data: { providerModifiedAt: new Date("2026-09-02T00:00:00Z") },
+            });
+          else
+            await prisma.festival.update({
+              where: { id: destination.id },
+              data: { providerModifiedAt: new Date("2026-09-02T00:00:00Z") },
+            });
+          const work =
+            job === "tourism"
+              ? new TourismSyncService(
+                  r.client,
+                  prisma,
+                  r.policy,
+                  r.recovery,
+                ).enrichPlaceDetails(identity.contentId, identity.sourceVersion)
+              : new FestivalSyncService(
+                  r.client,
+                  r.client,
+                  new FestivalRepository(prisma),
+                  r.policy,
+                  r.recovery,
+                ).enrichContentId(identity.contentId, identity.sourceVersion);
+          await expect(work).rejects.toThrow(
+            "TOUR_API_RECOVERY_SELECTION_CHANGED",
+          );
+          expect(r.calls()).toBe(0);
+        },
+      );
+      it.each(["complete", "resolve"] as const)(
+        "reconciles committed destination after %s storage failure with zero HTTP",
+        async (faultPoint) => {
+          const destination = await seedDestination(job, ids[0]);
+          const identity = await seedFailure(job, ids[0]);
+          const first = runtime(job);
+          const fault = jest
+            .spyOn(first.recoveryRepository, faultPoint)
+            .mockRejectedValueOnce(new Error("completion storage unavailable"));
+          const execute = (r: ReturnType<typeof runtime>) =>
+            job === "tourism"
+              ? new TourismSyncService(
+                  r.client,
+                  prisma,
+                  r.policy,
+                  r.recovery,
+                ).enrichPlaceDetails(ids[0])
+              : new FestivalSyncService(
+                  r.client,
+                  r.client,
+                  new FestivalRepository(prisma),
+                  r.policy,
+                  r.recovery,
+                ).enrichContentId(ids[0]);
+          await expect(execute(first)).rejects.toThrow(
+            "TOUR_API_RECOVERY_STORAGE_FAILED",
+          );
+          fault.mockRestore();
+          const second = runtime(job);
+          await execute(second);
+          expect(second.calls()).toBe(0);
+          const saved =
+            job === "tourism"
+              ? await prisma.place.findUniqueOrThrow({
+                  where: { id: destination.id },
+                })
+              : await prisma.festival.findUniqueOrThrow({
+                  where: { id: destination.id },
+                });
+          expect(saved).toMatchObject({
+            id: destination.id,
+            detailSourceModifiedAt: modified,
+          });
+          expect(
+            (await second.recoveryRepository.failure(identity))?.state,
+          ).toBe("COMPLETE");
+          expect(
+            await prisma.tourApiCapture.count({
+              where: { job, contentId: ids[0], state: { not: "COMPLETE" } },
+            }),
+          ).toBe(0);
+          const before = await prisma.tourApiCapture.count({
+            where: { job, contentId: ids[0] },
+          });
+          expect(before).toBe(job === "tourism" ? 4 : 3);
+          await second.recoveryRepository.cleanup(
+            new Date(Date.now() + 1000),
+            1000,
+          );
+          expect(
+            await prisma.tourApiCapture.count({
+              where: { job, contentId: ids[0] },
+            }),
+          ).toBe(0);
+        },
+      );
+    },
+  );
 });

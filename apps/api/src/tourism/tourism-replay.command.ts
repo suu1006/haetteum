@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 import {
   TourApiLocalMissingError,
+  TourApiRecoverySelectionChangedError,
   TourApiRecovery,
 } from "./tour-api-recovery.js";
 export type ReplayCommand = {
@@ -74,7 +75,7 @@ async function run(): Promise<void> {
     await policy.batch(
       () =>
         recovery.local(command, async () => {
-          const ids = await recovery.failedIds(
+          const items = await recovery.failedItems(
             command.job,
             command.ids,
             command.limit,
@@ -82,20 +83,30 @@ async function run(): Promise<void> {
           );
           const summary = {
             job: command.job,
-            requestedCount: ids.length,
+            requestedCount: items.length,
             succeededCount: 0,
             failedCount: 0,
             deferredCount: 0,
             requests: 0,
           };
-          for (const id of ids) {
+          for (const item of items) {
             try {
               if (command.job === "tourism")
-                await tourism.enrichPlaceDetails(id);
-              else await festival.enrichContentId(id);
+                await tourism.enrichPlaceDetails(
+                  item.contentId,
+                  item.sourceVersion,
+                );
+              else
+                await festival.enrichContentId(
+                  item.contentId,
+                  item.sourceVersion,
+                );
               summary.succeededCount++;
             } catch (error) {
-              if (error instanceof TourApiLocalMissingError)
+              if (
+                error instanceof TourApiLocalMissingError ||
+                error instanceof TourApiRecoverySelectionChangedError
+              )
                 summary.deferredCount++;
               else if (error instanceof TourApiPolicyError) throw error;
               else summary.failedCount++;

@@ -11,6 +11,9 @@ import type {
 } from "../src/tourism/tour-api-recovery.repository.js";
 import type { TourApiPolicy } from "../src/tourism/tour-api-policy.js";
 export class MemoryRecoveryRepository {
+  async selectCurrent(): Promise<ItemIdentity[]> {
+    return [];
+  }
   rows: TourApiCapture[] = [];
   failuresByKey = new Map<string, TourApiItemRecovery>();
   async capture(input: CaptureInput) {

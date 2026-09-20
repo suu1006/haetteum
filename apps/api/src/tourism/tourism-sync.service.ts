@@ -2,6 +2,7 @@ import {
   TourApiRecovery,
   TourApiListReplayRefreshError,
   TourApiRecoveryError,
+  TourApiRecoverySelectionChangedError,
   isDatabaseSystemError,
 } from "./tour-api-recovery.js";
 import {
@@ -229,7 +230,10 @@ export class TourismSyncService {
     }
   }
 
-  async enrichPlaceDetails(contentId: string): Promise<void> {
+  async enrichPlaceDetails(
+    contentId: string,
+    expectedVersion?: string,
+  ): Promise<void> {
     const normalizedContentId = contentId.trim();
     if (!normalizedContentId) {
       throw new SafeSyncError(
@@ -252,13 +256,30 @@ export class TourismSyncService {
           detailSourceModifiedAt: true,
         },
       });
+      const identity = {
+        job: "tourism" as const,
+        contentId: normalizedContentId,
+        sourceVersion: place.providerModifiedAt.toISOString(),
+      };
       if (
-        !place.isVisible ||
-        (place.detailSourceModifiedAt != null &&
-          place.detailSourceModifiedAt.getTime() ===
-            place.providerModifiedAt.getTime())
+        expectedVersion !== undefined &&
+        expectedVersion !== identity.sourceVersion
       )
+        throw new TourApiRecoverySelectionChangedError();
+      if (
+        place.detailSourceModifiedAt?.getTime() ===
+        place.providerModifiedAt.getTime()
+      ) {
+        await this.recovery.reconcile(identity);
         return;
+      }
+      if (!place.isVisible) {
+        if (expectedVersion !== undefined)
+          throw new TourApiRecoverySelectionChangedError();
+        return;
+      }
+      if (expectedVersion !== undefined)
+        await this.recovery.assertSelected(identity);
       await this.recovery.item(
         {
           job: "tourism",
@@ -334,6 +355,7 @@ export class TourismSyncService {
   }
 
   async enrichPendingPlaceDetails(): Promise<RankedPlaceDetailEnrichmentSummary> {
+    await this.recovery.reconcileCommitted("tourism");
     const places = await this.prisma.place.findMany({
       where: { source: TOUR_API_SOURCE, isVisible: true },
       select: {

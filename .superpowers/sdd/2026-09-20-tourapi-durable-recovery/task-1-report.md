@@ -54,3 +54,28 @@ Additional focused tests cover partial request identities, new source versions, 
 - Failure repository exposes `failures(job)`, `failedIds(job, ids, limit, requeue)` through recovery; the latter is bounded in returned IDs. Dedicated inspect/report view can list safe failure rows without raw bodies.
 - Missing local raw data is deferred, not counted as item execution failure. Recovery-storage system errors stop the batch.
 - Historical 103-failure cause remains unproven; newly retained raw responses and stages support future diagnosis. No provider schema relaxation was made.
+
+## Review fix round 1 (base 8af4197)
+
+Addressed both Important findings and the related bounded-selection finding from `task-1-review.md`.
+
+- Replaced `failedIds()` with `failedItems(): Promise<ItemIdentity[]>`. Repository selection joins failures against the destination's current source version before ordered LIMIT; obsolete failures, newly changed unfailed versions, completed destinations and quarantined versions without explicit requeue cannot occupy actionable slots. CLI passes the selected version through execution, which rereads the destination and rechecks the exact FAILED identity before any HTTP. Selection/version/state races report safe `TOUR_API_RECOVERY_SELECTION_CHANGED` deferral.
+- Requeue mutates only the concretely selected, bounded identities; `--ids=A,B --limit=1 --requeue` cannot requeue both. Festival CLI uses a targeted unique lookup rather than scanning all pending rows for each ID.
+- Already-committed destinations reconcile matching validated captures and failure rows to COMPLETE without remapping or HTTP. Both the pre-complete and pre-resolve crash windows converge after a new service/repository instance. COMPLETE evidence is then eligible for retention. CLI performs a separately bounded committed-state reconciliation without consuming actionable execution slots. Scheduled detail collection similarly reconciles at most 100 current committed identities per run.
+- Obsolete historical evidence remains retained for inspection, but is excluded from current actionable selection. No schema or migration change was needed.
+
+### Regression evidence
+
+Initial real-PostgreSQL RED run produced **10 failed / 5 passed**: for both jobs, historical failure selected current quarantine/current-complete/obsolete-limit cases, and both post-commit `complete()` and `resolve()` faults left FAILED state unresolved. Log: `/private/tmp/tourapi-task1-review-red.log`.
+
+Final focused commands (from worktree root):
+
+```sh
+pnpm --filter @haetteum/api exec node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand tour-api-recovery.spec.ts tourism-replay.command.spec.ts tourism-sync.service.spec.ts festival-sync.service.spec.ts festival.repository.spec.ts
+DATABASE_URL=postgresql://test:test@127.0.0.1:55439/haetteum_tourapi_test_recovery pnpm --filter @haetteum/api exec node --experimental-vm-modules node_modules/jest/bin/jest.js --config test/jest-e2e.json --runInBand tour-api-recovery.e2e-spec.ts
+pnpm --filter @haetteum/api exec tsc --noEmit -p tsconfig.build.json
+```
+
+Results: focused units **5 suites / 75 passed** (`/private/tmp/tourapi-task1-review-units.log`); actual PostgreSQL recovery **23 passed** (`/private/tmp/tourapi-task1-review-db.log`); production typecheck passed. PostgreSQL coverage additionally verifies both version and quarantine changes after selection, current-complete reconciliation without consuming execution slots, and requeue limited to one selected identity. Both crash-window tests assert zero subsequent HTTP, same destination ID, terminal failure/capture state, and successful COMPLETE-only cleanup.
+
+Changed-file ESLint passed (run from apps/api): `pnpm exec eslint src/tourism/tour-api-recovery.ts src/tourism/tour-api-recovery.repository.ts src/tourism/tourism-sync.service.ts src/tourism/festival-sync.service.ts src/tourism/festival.repository.ts src/tourism/tourism-replay.command.ts test/tour-api-recovery-fixture.ts test/tour-api-recovery.e2e-spec.ts --max-warnings=0`. Log: `/private/tmp/tourapi-task1-review-lint.log`. No broad unrelated suite rerun. Task 2/3 remain separate; their interface notes above should use `failedItems` rather than removed `failedIds`.

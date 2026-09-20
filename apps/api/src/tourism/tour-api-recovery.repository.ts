@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { Prisma } from "../generated/prisma/client.js";
 import type {
-  Prisma,
   TourApiCapture,
   TourApiItemRecovery,
 } from "../generated/prisma/client.js";
@@ -94,9 +94,53 @@ export class TourApiRecoveryRepository {
       data: { state: "COMPLETE", nextAttemptAt: null, updatedAt: new Date() },
     });
   }
-  async requeue(job: string, ids: readonly string[]): Promise<void> {
+
+  /** Join before LIMIT: obsolete history never occupies an actionable replay slot. */
+  selectCurrent(
+    job: ItemIdentity["job"],
+    ids: readonly string[],
+    limit: number,
+    committed: boolean,
+    includeQuarantined = false,
+  ): Promise<ItemIdentity[]> {
+    if (
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      ids.length > 100
+    )
+      throw new Error("Invalid recovery selection");
+    const table = Prisma.raw(job === "tourism" ? "places" : "festivals");
+    const state = includeQuarantined
+      ? Prisma.sql`r.state IN ('FAILED','QUARANTINED')`
+      : Prisma.sql`r.state = 'FAILED'`;
+    return this.prisma.$queryRaw<ItemIdentity[]>(Prisma.sql`
+      SELECT ${job}::text AS job, d.external_id AS "contentId",
+        to_char(d.provider_modified_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "sourceVersion"
+      FROM ${table} d
+      WHERE d.source='TOUR_API'
+        AND ${ids.length ? Prisma.sql`d.external_id IN (${Prisma.join(ids)})` : Prisma.sql`TRUE`}
+        AND ${
+          committed
+            ? Prisma.sql`
+          d.detail_source_modified_at=d.provider_modified_at AND (
+            EXISTS (SELECT 1 FROM tour_api_item_recovery r WHERE r.job=${job} AND r.content_id=d.external_id
+              AND r.source_version=to_char(d.provider_modified_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AND r.state <> 'COMPLETE')
+            OR EXISTS (SELECT 1 FROM tour_api_captures c WHERE c.job=${job} AND c.content_id=d.external_id
+              AND c.source_version=to_char(d.provider_modified_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AND c.state='VALIDATED')
+          )`
+            : Prisma.sql`
+          d.is_visible=true AND d.detail_source_modified_at IS DISTINCT FROM d.provider_modified_at
+          AND EXISTS (SELECT 1 FROM tour_api_item_recovery r WHERE r.job=${job} AND r.content_id=d.external_id
+            AND r.source_version=to_char(d.provider_modified_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AND ${state})`
+        }
+      ORDER BY d.external_id ASC LIMIT ${limit}
+    `);
+  }
+  async requeue(identities: readonly ItemIdentity[]): Promise<void> {
+    if (identities.length === 0) return;
     await this.prisma.tourApiItemRecovery.updateMany({
-      where: { job, contentId: { in: [...ids] }, state: "QUARANTINED" },
+      where: { OR: [...identities], state: "QUARANTINED" },
       data: {
         state: "FAILED",
         attemptCount: 0,

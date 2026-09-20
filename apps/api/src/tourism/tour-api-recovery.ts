@@ -18,6 +18,11 @@ export class TourApiListReplayRefreshError extends TourApiPolicyError {
     super("TOUR_API_LIST_REPLAY_REQUIRES_REFRESH");
   }
 }
+export class TourApiRecoverySelectionChangedError extends TourApiPolicyError {
+  constructor() {
+    super("TOUR_API_RECOVERY_SELECTION_CHANGED");
+  }
+}
 export class TourApiLocalMissingError extends TourApiPolicyError {
   constructor() {
     super("TOUR_API_LOCAL_RESPONSE_MISSING");
@@ -277,25 +282,46 @@ export class TourApiRecovery {
   local<T>(options: ReplayOptions, work: () => Promise<T>): Promise<T> {
     return this.replayContext.run({ ...options, requests: 0 }, work);
   }
-  async failedIds(
-    job: string,
+
+  /** The caller has read the matching committed destination version. No HTTP or remapping is needed. */
+  async reconcile(identity: ItemIdentity): Promise<void> {
+    this.policy.assertBatch();
+    await this.storage(() =>
+      this.repository.complete(identity.job, itemScope(identity)),
+    );
+    await this.storage(() => this.repository.resolve(identity));
+  }
+  async assertSelected(identity: ItemIdentity): Promise<void> {
+    this.policy.assertBatch();
+    const failure = await this.storage(() => this.repository.failure(identity));
+    if (failure?.state !== "FAILED")
+      throw new TourApiRecoverySelectionChangedError();
+  }
+  async reconcileCommitted(
+    job: ItemIdentity["job"],
+    ids: readonly string[] = [],
+    limit = 100,
+  ): Promise<void> {
+    this.policy.assertBatch();
+    const committed = await this.storage(() =>
+      this.repository.selectCurrent(job, ids, limit, true),
+    );
+    for (const identity of committed) await this.reconcile(identity);
+  }
+  async failedItems(
+    job: ItemIdentity["job"],
     ids: readonly string[],
     limit: number,
     requeue = false,
-  ): Promise<string[]> {
-    if (requeue) await this.storage(() => this.repository.requeue(job, ids));
-    const failures = await this.storage(() => this.repository.failures(job));
-    return [
-      ...new Set(
-        failures
-          .filter(
-            (f) =>
-              f.state === "FAILED" &&
-              (ids.length === 0 || ids.includes(f.contentId)),
-          )
-          .map((f) => f.contentId),
-      ),
-    ].slice(0, limit);
+  ): Promise<ItemIdentity[]> {
+    this.policy.assertBatch();
+    // Separately bounded reconciliation does not consume execution slots.
+    await this.reconcileCommitted(job, ids, limit);
+    const selected = await this.storage(() =>
+      this.repository.selectCurrent(job, ids, limit, false, requeue),
+    );
+    if (requeue) await this.storage(() => this.repository.requeue(selected));
+    return selected;
   }
   private async storage<T>(work: () => Promise<T>): Promise<T> {
     try {

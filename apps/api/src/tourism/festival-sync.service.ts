@@ -1,5 +1,6 @@
 import {
   TourApiRecovery,
+  TourApiRecoverySelectionChangedError,
   TourApiListReplayRefreshError,
   isDatabaseSystemError,
 } from "./tour-api-recovery.js";
@@ -129,6 +130,7 @@ export class FestivalSyncService {
         lastSyncedAt,
       });
 
+      await this.recovery.reconcileCommitted("festival");
       const allPending = await this.repository.findPendingDetails();
       const pendingDetails = await this.recovery.eligible(
         "festival",
@@ -247,10 +249,41 @@ export class FestivalSyncService {
     return error;
   }
 
-  async enrichContentId(contentId: string): Promise<void> {
-    const pending = await this.repository.findPendingDetails();
-    const festival = pending.find((row) => row.externalId === contentId);
-    if (festival) await this.enrichDetail(festival);
+  async enrichContentId(
+    contentId: string,
+    expectedVersion?: string,
+  ): Promise<void> {
+    const festival = await this.repository.findDetailTarget(contentId);
+    if (!festival) {
+      if (expectedVersion !== undefined)
+        throw new TourApiRecoverySelectionChangedError();
+      return;
+    }
+    const identity = {
+      job: "festival" as const,
+      contentId,
+      sourceVersion: festival.providerModifiedAt.toISOString(),
+    };
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== identity.sourceVersion
+    )
+      throw new TourApiRecoverySelectionChangedError();
+    if (
+      festival.detailSourceModifiedAt?.getTime() ===
+      festival.providerModifiedAt.getTime()
+    ) {
+      await this.recovery.reconcile(identity);
+      return;
+    }
+    if (!festival.isVisible) {
+      if (expectedVersion !== undefined)
+        throw new TourApiRecoverySelectionChangedError();
+      return;
+    }
+    if (expectedVersion !== undefined)
+      await this.recovery.assertSelected(identity);
+    await this.enrichDetail(festival);
   }
 
   async enrichDetail(festival: {
