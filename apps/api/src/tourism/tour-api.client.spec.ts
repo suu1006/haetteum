@@ -1,11 +1,14 @@
 import { TourApiRecovery } from "./tour-api-recovery.js";
-import { testRecovery } from "../../test/tour-api-recovery-fixture.js";
+import {
+  testRecovery,
+  recoveryPolicy,
+} from "../../test/tour-api-recovery-fixture.js";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { jest } from "@jest/globals";
 
 import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
-import { TourApiClient, TourApiError } from "./tour-api.client.js";
+import { TourApiClient } from "./tour-api.client.js";
 import {
   FESTIVAL_API_PORT,
   TOUR_API_FETCH,
@@ -139,6 +142,7 @@ function createClient(
   };
 
   const policy = {
+    ...recoveryPolicy(),
     request: jest.fn(async <T>(work: () => Promise<T>) => work()),
   };
   return {
@@ -486,10 +490,9 @@ describe("TourApiClient", () => {
         { status: 429 },
       ),
     );
-    await expect(client.getPlaceCommonDetail("123")).rejects.toMatchObject({
-      providerCode: "22",
-      httpStatus: 429,
-    });
+    await expect(client.getPlaceCommonDetail("123")).rejects.toThrow(
+      "TOUR_API_PROVIDER_COOLDOWN",
+    );
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -512,13 +515,8 @@ describe("TourApiClient", () => {
       client.getPlacePage({ regionCode: "50", pageNo: 1 }),
     );
 
-    expect(error).toBeInstanceOf(TourApiError);
-    expect(error).toMatchObject({
-      operation: "areaBasedList2",
-      providerCode: "22",
-      httpStatus: 200,
-    });
-    expect(error.message).toBe("TourAPI areaBasedList2 failed (22)");
+    expect(error).toBeInstanceOf(TourApiPolicyError);
+    expect(error.message).toBe("TOUR_API_PROVIDER_COOLDOWN");
     expect(JSON.stringify(error)).not.toContain(serviceKey);
     expect(error.message).not.toContain(serviceKey);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -539,12 +537,8 @@ describe("TourApiClient", () => {
       client.getPlacePage({ regionCode: "50", pageNo: 1 }),
     );
 
-    expect(error).toBeInstanceOf(TourApiError);
-    expect(error).toMatchObject({
-      operation: "areaBasedList2",
-      providerCode: "SERVICE_KEY_IS_NOT_REGISTERED_ERROR",
-      httpStatus: 200,
-    });
+    expect(error).toBeInstanceOf(TourApiPolicyError);
+    expect(error.message).toBe("TOUR_API_PROVIDER_AUTH");
     expect(JSON.stringify(error)).not.toContain(serviceKey);
     expect(error.message).not.toContain(serviceKey);
   });
@@ -581,8 +575,10 @@ describe("TourApiClient", () => {
       ).resolves.toMatchObject({ items: [placeItem] });
 
       expect(fetch).toHaveBeenCalledTimes(3);
-      expect(sleep).toHaveBeenNthCalledWith(1, 250);
-      expect(sleep).toHaveBeenNthCalledWith(2, 750);
+      expect(sleep.mock.calls[0][0]).toBeGreaterThanOrEqual(2000);
+      expect(sleep.mock.calls[0][0]).toBeLessThanOrEqual(2500);
+      expect(sleep.mock.calls[1][0]).toBeGreaterThanOrEqual(10000);
+      expect(sleep.mock.calls[1][0]).toBeLessThanOrEqual(10500);
     }
 
     const { client, fetch, sleep } = createClient();

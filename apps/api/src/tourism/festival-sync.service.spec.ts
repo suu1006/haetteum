@@ -249,6 +249,36 @@ function setup(
 }
 
 describe("FestivalSyncService", () => {
+  it("continues fresh festivals after recovery quota deferral", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("a")]));
+    for (const id of ["a", "b", "c"])
+      repository.pendingDetails.push({
+        id,
+        externalId: id,
+        providerModifiedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+    details.error = new TourApiBudgetDeferredError(
+      "TOUR_API_RETRY_DAILY_LIMIT",
+    );
+    details.errorContentId = "b";
+    details.getPlaceCommonDetail = async (id: string) => {
+      if (id === "b")
+        throw new TourApiBudgetDeferredError("TOUR_API_RETRY_DAILY_LIMIT");
+      return { contentid: id };
+    };
+    details.getFestivalIntro = async (id: string) => ({ contentid: id });
+    details.getPlaceImages = async () => [];
+    expect(await service.fullSync(RANGE)).toMatchObject({
+      status: "DEFERRED",
+      details: {
+        succeededCount: 2,
+        remainingCount: 1,
+        failedCount: 0,
+        deferredReason: "TOUR_API_RETRY_DAILY_LIMIT",
+      },
+    });
+  });
   it("defers an incomplete list without deactivating missing festivals", async () => {
     const { provider, repository, service } = setup();
     provider.pages.set(1, page([festival("festival-1")], 1, 1, 2));

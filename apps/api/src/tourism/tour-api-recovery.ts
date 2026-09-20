@@ -110,7 +110,7 @@ export class TourApiRecovery {
           // Local-only recovery reparses retained validation evidence without reserving HTTP.
           // A genuinely missing operation is rejected by beforeRequest before policy reservation.
           if (!replay || replay.fetchMissing)
-            await this.policy.ensureCapacity(missing);
+            await this.policy.ensureCapacity(missing, { retry: state.isRetry });
         }
         const result = await work();
         await this.storage(() =>
@@ -136,7 +136,7 @@ export class TourApiRecovery {
             : undefined;
         const code =
           providerCode &&
-          /^(?:\d{2,4}|HTTP_\d{3}|INVALID_RESPONSE|EMPTY_RESPONSE|TIMEOUT|NETWORK_ERROR)$/.test(
+          /^(?:\d{2,4}|HTTP_\d{3}|INVALID_RESPONSE|EMPTY_RESPONSE|RESPONSE_TOO_LARGE|TIMEOUT|NETWORK_ERROR)$/.test(
             providerCode,
           )
             ? providerCode
@@ -185,7 +185,12 @@ export class TourApiRecovery {
       )
         due.push(row);
     }
-    return [...fresh, ...due];
+    const ordered: T[] = [];
+    for (let i = 0; i < Math.max(fresh.length, due.length); i++) {
+      if (fresh[i]) ordered.push(fresh[i]);
+      if (due[i]) ordered.push(due[i]);
+    }
+    return ordered;
   }
   /** Scope includes KST day plus exact run/filter identity. A replayed run cannot advance checkpoint. */
   async list<T>(
@@ -240,8 +245,11 @@ export class TourApiRecovery {
     if (local) {
       if (!local.fetchMissing || local.requests >= local.maxRequests)
         throw new TourApiLocalMissingError();
-      local.requests++;
     }
+  }
+  requestReserved(): void {
+    const local = this.replayContext.getStore();
+    if (local) local.requests++;
   }
   async capture(
     operation: string,

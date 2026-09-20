@@ -905,6 +905,7 @@ model UploadedImage {
 
 /// Named budgets share the global daily ledger and survive manual reruns/restarts.
 model TourApiJobDailyUsage {
+  retryCalls Int @default(0) @map("retry_calls")
   day DateTime @db.Date
   job String @db.VarChar(32)
   calls Int
@@ -946,4 +947,12 @@ model TourApiItemRecovery {
   @@id([job, contentId, sourceVersion])
   @@index([job, state, nextAttemptAt])
   @@map("tour_api_item_recovery")
+}
+
+model TourApiProviderCooldown {
+  id      Int      @id
+  untilAt DateTime @map("until_at") @db.Timestamptz(6)
+  reason  String
+
+  @@map("tour_api_provider_cooldown")
 }

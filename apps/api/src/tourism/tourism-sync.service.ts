@@ -398,6 +398,7 @@ export class TourismSyncService {
         if (error instanceof TourApiBudgetDeferredError) {
           summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
           summary.deferredReason = error.reason;
+          if (error.reason === "TOUR_API_RETRY_DAILY_LIMIT") continue;
           return summary;
         }
         summary.failedCount++;

@@ -149,7 +149,11 @@ export class FestivalSyncService {
           details.succeededCount++;
           details.remainingCount--;
         } catch (error) {
-          if (error instanceof TourApiBudgetDeferredError) throw error;
+          if (error instanceof TourApiBudgetDeferredError) {
+            if (error.reason !== "TOUR_API_RETRY_DAILY_LIMIT") throw error;
+            details.deferredReason = error.reason;
+            continue;
+          }
           if (isFatalTourApiError(error)) {
             details.failedCount++;
             details.status = "FAILED";
@@ -166,12 +170,12 @@ export class FestivalSyncService {
 
       if (details.status === "SUCCEEDED" && details.remainingCount > 0) {
         details.status = "DEFERRED";
-        details.deferredReason = "TOUR_API_RECOVERY_WAIT";
+        details.deferredReason ??= "TOUR_API_RECOVERY_WAIT";
         return {
           ...(await this.repository.deferSyncRun(
             run.id,
             counters,
-            "TOUR_API_RECOVERY_WAIT",
+            details.deferredReason,
           )),
           details,
         };

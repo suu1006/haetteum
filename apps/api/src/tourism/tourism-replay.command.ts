@@ -1,7 +1,11 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NestFactory } from "@nestjs/core";
-import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
+import {
+  TourApiPolicy,
+  TourApiPolicyError,
+  TourApiBudgetDeferredError,
+} from "./tour-api-policy.js";
 import {
   TourApiLocalMissingError,
   TourApiRecoverySelectionChangedError,
@@ -104,6 +108,8 @@ async function run(): Promise<void> {
               summary.succeededCount++;
             } catch (error) {
               if (
+                (error instanceof TourApiBudgetDeferredError &&
+                  error.reason !== "TOUR_API_BATCH_DEADLINE") ||
                 error instanceof TourApiLocalMissingError ||
                 error instanceof TourApiRecoverySelectionChangedError
               )

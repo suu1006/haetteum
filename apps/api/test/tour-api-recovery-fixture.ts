@@ -9,7 +9,11 @@ import type {
   CaptureInput,
   ItemIdentity,
 } from "../src/tourism/tour-api-recovery.repository.js";
-import type { TourApiPolicy } from "../src/tourism/tour-api-policy.js";
+import {
+  TourApiPolicyError,
+  TourApiBudgetDeferredError,
+  type TourApiPolicy,
+} from "../src/tourism/tour-api-policy.js";
 export class MemoryRecoveryRepository {
   async selectCurrent(): Promise<ItemIdentity[]> {
     return [];
@@ -86,6 +90,15 @@ export class MemoryRecoveryRepository {
 export function recoveryPolicy(): TourApiPolicy {
   return {
     assertBatch: () => {},
+    remainingMs: () => 2_400_000,
+    deadlineExceeded: () => {
+      throw new TourApiBudgetDeferredError("TOUR_API_BATCH_DEADLINE");
+    },
+    stopProvider: async (reason: string) => {
+      throw reason === "AUTH"
+        ? new TourApiPolicyError("TOUR_API_PROVIDER_AUTH")
+        : new TourApiBudgetDeferredError("TOUR_API_PROVIDER_COOLDOWN");
+    },
     currentJob: () => "tourism",
     ensureCapacity: async () => {},
     request: async <T>(work: () => Promise<T>) => work(),

@@ -27,6 +27,7 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
       throw new Error("Use a dedicated tourapi_test database");
   });
   beforeEach(async () => {
+    await pool.query("DELETE FROM tour_api_provider_cooldown");
     await pool.query("DELETE FROM tour_api_daily_usage");
     await pool.query("DELETE FROM tour_api_job_daily_usage");
   });
@@ -231,7 +232,7 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
     const policy = new TourApiPolicy(settings as never, pool);
     await pool.query(`INSERT INTO tour_api_daily_usage VALUES
       ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date, 697, clock_timestamp() - interval '1 second')`);
-    await pool.query(`INSERT INTO tour_api_job_daily_usage VALUES
+    await pool.query(`INSERT INTO tour_api_job_daily_usage (day, job, calls) VALUES
       ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date, 'tourism', 697),
       ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date - 1, 'festival', 300)`);
     await policy.batch(async () => {

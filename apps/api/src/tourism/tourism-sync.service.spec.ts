@@ -1145,6 +1145,24 @@ describe("TourismSyncService", () => {
     expect(provider.detailCalls).toEqual([]);
   });
 
+  it("continues fresh details when the recovery HTTP quota is exhausted", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    for (const id of ["a", "b", "c"]) prisma.seedPlace("50", id);
+    provider.getPlaceCommonDetail = async (id: string) => {
+      if (id === "b")
+        throw new TourApiBudgetDeferredError("TOUR_API_RETRY_DAILY_LIMIT");
+      return { contentid: id };
+    };
+    provider.getPlaceIntro = async (id: string) => ({ contentid: id });
+    expect(await service.enrichPendingPlaceDetails()).toMatchObject({
+      status: "DEFERRED",
+      succeededCount: 2,
+      remainingCount: 1,
+      failedCount: 0,
+      deferredReason: "TOUR_API_RETRY_DAILY_LIMIT",
+    });
+  });
   it("returns completed, failed and remaining detail counts on budget deferral", async () => {
     const { prisma, provider, service } = setup();
     prisma.seedDistricts();

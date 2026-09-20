@@ -42,6 +42,25 @@ describe("durable recovery execution", () => {
     await expect(fail()).rejects.toThrow();
     expect((await repo.failure(item))?.state).toBe("QUARANTINED");
   });
+  it("gives due recovery a slot between fresh versions without starving either queue", async () => {
+    const repo = new MemoryRecoveryRepository();
+    const recovery = new TourApiRecovery(repo as never, recoveryPolicy());
+    await recovery
+      .item(item, [], async () => {
+        throw new Error("failed");
+      })
+      .catch(() => {});
+    const rows = ["1", "2", "123", "3"].map((externalId) => ({
+      externalId,
+      providerModifiedAt: new Date(item.sourceVersion),
+    }));
+    const result = await recovery.eligible(
+      "tourism",
+      rows,
+      new Date(Date.now() + 2 * 86400000),
+    );
+    expect(result.map((row) => row.externalId)).toEqual(["1", "123", "2", "3"]);
+  });
   it("does not count budget deferral as an item execution failure", async () => {
     const repo = new MemoryRecoveryRepository();
     const recovery = new TourApiRecovery(repo as never, recoveryPolicy());
@@ -165,7 +184,7 @@ describe("client response staging", () => {
     const repo = new MemoryRecoveryRepository();
     const { client, recovery, calls } = stagedClient(repo, [
       JSON.stringify({
-        response: { header: { resultCode: "01", resultMsg: "error" } },
+        response: { header: { resultCode: "99", resultMsg: "error" } },
       }),
       districtBody,
     ]);
