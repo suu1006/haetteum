@@ -105,3 +105,31 @@ Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `LIST_FAILED`, 
 | 오류 요약               | 텍스트      | 예산 보류 또는 실패 단계/건수의 안전한 요약. 성공이면 비움 |
 
 본문의 상세 대상·완료·실패·잔여 수는 집계됐을 때만 숫자로 표시한다. 부분 진행은 성공으로 표시하지 않는다. 예산 보류는 다음 KST 날짜에 같은 미완료 원본 버전부터 이어지며, 상세 실패가 하나라도 있으면 상태는 실패다.
+
+## 응답 원문 보관 및 로컬 복구 (2026-09-20)
+
+`TourApiClient`는 응답을 JSON/schema로 검사하기 **전에** `tour_api_captures`에 저장한다. job, 항목 ID/원본 버전 또는 KST 날짜+목록 실행 필터 범위, operation, 인증정보를 제외한 요청 파라미터 해시, HTTP 상태, 캡처 시각과 상태를 기록한다. URL/헤더는 저장하지 않는다. 설정된 키와 인코딩/디코딩한 키를 원문에서 가리고 UTF-8 최대 2 MiB만 저장한다. 잘린 응답은 재사용하지 않는다. 저장 실패는 즉시 배치를 중단하며 HTTP 네트워크 재시도로 바뀌지 않는다.
+
+상태는 `CAPTURED`, `VALIDATED`, `INVALID_SCHEMA`, `REJECTED`, `COMPLETE`다. 항목별 각 operation의 검증된 원문은 같은 원본 버전의 실패를 재처리할 때 현재 schema로 다시 검사한다. 제공자 오류/실패 HTTP 응답(`REJECTED`)은 성공 원문으로 재사용하지 않는다. 목적지 트랜잭션이 커밋된 뒤에만 `COMPLETE`로 전환하므로 커밋 직후 프로세스가 종료되어도 같은 내부 ID에 멱등적으로 다시 반영한다. 미완료 항목은 기존에 정상 저장된 상세를 유지한다.
+
+`tour_api_item_recovery`는 `(job, content_id, source_version)` 기본키로 실패 stage(operation/MAPPING/PERSISTENCE), 허용된 오류 코드, 실행 실패 횟수, 다음 실행 시각, `FAILED`/`QUARANTINED`/`COMPLETE` 상태를 저장한다. 첫 실패는 1일, 두 번째는 3일 후 재시도하며 세 번째 실패부터 격리한다. 예산 보류와 시스템 DB 오류는 항목 실패 횟수를 올리지 않는다. 새 버전은 별개 대상으로 즉시 수집할 수 있다. 자동 상세 수집은 미시도 버전을 먼저, 실행 시각이 도래한 실패 버전을 그 다음에 처리한다.
+
+목록 원문은 같은 KST 날짜/실행 종류/요청 파라미터의 **미완료 페이지**만 재사용한다. 페이지 DB 처리가 끝나면 완료 처리하고, 성공한 이전 목록이나 전날 목록은 새 수집을 대체하지 않는다. 이전 실행에서 저장한 페이지를 재사용한 목록 실행은 체크포인트를 전진시키거나 누락 삭제를 하지 않는다. 해당 실행을 안전하게 실패 기록한 뒤 전체 목록을 새로 요청하여 성공한 새 실행만 체크포인트/누락 상태를 반영한다. 새 목록 호출 예산이 없으면 체크포인트를 유지하고 보류한다. 페이지 재처리 자체는 HTTP 비용이 없지만 체크포인트를 안전하게 확정하려면 새 목록 요청이 필요하다.
+
+복구 CLI는 정기 배치와 동일한 advisory lock/정책 경계에서 실행되며 다른 스케줄러를 끈다. 기존 `tourism:sync`, `festival:sync` 사용법은 유지된다.
+
+```sh
+# 기본: 최대 20개 FAILED 항목의 저장된 응답만 재처리. HTTP 0회.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism
+pnpm --filter @haetteum/api tourism:replay -- --job=festival --ids=141268 --limit=1
+
+# 누락 operation만 명시적으로 추가 요청. 재시도도 max-requests에 포함.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism --ids=2704412 --limit=1 --fetch-missing --max-requests=4
+
+# 격리 항목은 지정한 ID에 한해 명시적으로 재등록.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism --ids=2704412 --limit=1 --requeue
+```
+
+`--limit`은 1~100, `--max-requests`는 0~100이며 HTTP 허용 시 1 이상을 명시해야 한다. ID는 최대 20자리 숫자, 최대 100개, 중복 없이 지정한다. 로컬 복구는 원문으로 새 schema를 재검사하므로 parser 수정 후에도 API 호출 없이 복구할 수 있다. 없는 원문은 보류하며 자동으로 HTTP를 허용하지 않는다. 출력은 성공/실패/보류 개수와 실제 HTTP 수만 담고 원문은 포함하지 않는다.
+
+보존: `TourApiRecoveryRepository.cleanup(before, limit)`은 지정 시각보다 오래된 **COMPLETE** 원문을 호출당 최대 1,000개만 삭제한다. 운영자는 예를 들어 완료 30일 후, 최대 100개씩 실행할 수 있다. 자동 정리 스케줄은 없다. 미완료/검증 실패/제공자 오류와 격리 항목은 자동 삭제하지 않으며 원인 분석과 명시적 운영 판단 전까지 보존한다. 원문은 응답 개인정보를 포함할 수 있으므로 DB 접근을 수집 운영자로 제한한다.

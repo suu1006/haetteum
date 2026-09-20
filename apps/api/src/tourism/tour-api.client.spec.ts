@@ -1,3 +1,5 @@
+import { TourApiRecovery } from "./tour-api-recovery.js";
+import { testRecovery } from "../../test/tour-api-recovery-fixture.js";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { jest } from "@jest/globals";
@@ -140,7 +142,13 @@ function createClient(
     request: jest.fn(async <T>(work: () => Promise<T>) => work()),
   };
   return {
-    client: new TourApiClient(config as never, fetch, sleep, policy as never),
+    client: new TourApiClient(
+      config as never,
+      fetch,
+      sleep,
+      policy as never,
+      testRecovery(policy as never),
+    ),
     policy,
     config,
     fetch,
@@ -192,6 +200,7 @@ describe("TourApiClient", () => {
     const module = await Test.createTestingModule({
       providers: [
         TourApiClient,
+        { provide: TourApiRecovery, useValue: testRecovery(policy as never) },
         { provide: ConfigService, useValue: config },
         { provide: TourApiPolicy, useValue: policy },
         { provide: TOUR_API_FETCH, useValue: fetch },

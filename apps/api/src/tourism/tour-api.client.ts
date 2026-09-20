@@ -1,3 +1,4 @@
+import { TourApiRecovery } from "./tour-api-recovery.js";
 import { Inject, Injectable } from "@nestjs/common";
 import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 import { ConfigService } from "@nestjs/config";
@@ -71,6 +72,7 @@ export class TourApiClient
     @Inject(TOUR_API_FETCH) private readonly fetch: TourApiFetch,
     @Inject(TOUR_API_SLEEP) private readonly sleep: TourApiSleep,
     private readonly policy: TourApiPolicy,
+    private readonly recovery: TourApiRecovery,
   ) {}
 
   getDistrictPage(input: {
@@ -341,10 +343,26 @@ export class TourApiClient
   private async request<T extends z.ZodTypeAny>(
     options: RequestOptions<T>,
   ): Promise<TourApiPage<z.output<T>>> {
+    return this.recovery.requestScope(() => this.requestInScope(options));
+  }
+
+  private async requestInScope<T extends z.ZodTypeAny>(
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    this.recovery.stage(options.operation);
+    const parameters = {
+      ...options.parameters,
+      pageNo: String(options.pageNo),
+      numOfRows: String(options.numOfRows ?? 100),
+    };
+    const captured = await this.recovery.replay(options.operation, parameters);
+    if (captured)
+      return this.parseCaptured(captured.body, captured.httpStatus, options);
     const url = this.buildUrl(options);
 
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       try {
+        this.recovery.beforeRequest();
         return await this.policy.request(() => this.requestOnce(url, options));
       } catch (error) {
         if (error instanceof TourApiPolicyError) throw error;
@@ -402,52 +420,74 @@ export class TourApiClient
   ): Promise<TourApiPage<z.output<T>>> {
     const response = await this.fetchWithTimeout(url);
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        const errorBody = await response.text();
-        if (
-          errorBody.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR")
-        ) {
-          throw new TourApiError(options.operation, "22", response.status);
-        }
-      }
-      throw new TourApiError(
-        options.operation,
-        `HTTP_${response.status}`,
-        response.status,
-      );
-    }
-
     const body = await response.text();
-    const payload = parseJson(body, options.operation, response.status);
+    await this.recovery.capture(
+      options.operation,
+      {
+        ...options.parameters,
+        pageNo: String(options.pageNo),
+        numOfRows: String(options.numOfRows ?? 100),
+      },
+      body,
+      response.status,
+      this.config.get("TOUR_API_SERVICE_KEY", { infer: true }) ?? "",
+    );
+    return this.parseCaptured(body, response.status, options);
+  }
+
+  private async parseCaptured<T extends z.ZodTypeAny>(
+    body: string,
+    status: number,
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    try {
+      return await this.parseResponse(body, status, options);
+    } catch (error) {
+      await this.recovery.mark(
+        error instanceof TourApiError &&
+          error.providerCode === "INVALID_RESPONSE"
+          ? "INVALID_SCHEMA"
+          : "REJECTED",
+      );
+      throw error;
+    }
+  }
+
+  private async parseResponse<T extends z.ZodTypeAny>(
+    body: string,
+    status: number,
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    if (status < 200 || status >= 300) {
+      if (
+        status === 429 &&
+        body.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR")
+      )
+        throw new TourApiError(options.operation, "22", status);
+      throw new TourApiError(options.operation, `HTTP_${status}`, status);
+    }
+    const payload = parseJson(body, options.operation, status);
     const header = tourApiHeaderSchema.safeParse(payload);
 
     if (!header.success) {
-      throw new TourApiError(
-        options.operation,
-        "INVALID_RESPONSE",
-        response.status,
-      );
+      throw new TourApiError(options.operation, "INVALID_RESPONSE", status);
     }
 
     if (header.data.response.header.resultCode !== "0000") {
       throw new TourApiError(
         options.operation,
         header.data.response.header.resultCode,
-        response.status,
+        status,
       );
     }
 
     const page = tourApiPageSchema(options.itemSchema).safeParse(payload);
 
     if (!page.success) {
-      throw new TourApiError(
-        options.operation,
-        "INVALID_RESPONSE",
-        response.status,
-      );
+      throw new TourApiError(options.operation, "INVALID_RESPONSE", status);
     }
 
+    await this.recovery.mark("VALIDATED");
     const items = page.data.response.body.items;
 
     return {

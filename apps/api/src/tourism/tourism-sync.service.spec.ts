@@ -1,3 +1,4 @@
+import { testRecovery } from "../../test/tour-api-recovery-fixture.js";
 /* eslint-disable @typescript-eslint/require-await */
 import {
   TourApiBudgetDeferredError,
@@ -519,6 +520,7 @@ class FakePrisma {
       regionId: region.id,
       districtId: district?.id ?? null,
       title: `관광지 ${externalId}`,
+      providerModifiedAt: new Date("2026-09-01T00:00:00Z"),
       isVisible: true,
       ...overrides,
     });
@@ -573,6 +575,7 @@ function setup(
     provider,
     prisma as unknown as PrismaService,
     { ensureCapacity } as never,
+    testRecovery({ ensureCapacity }),
   );
   return { provider, prisma, service };
 }
@@ -1181,6 +1184,7 @@ describe("TourismSyncService", () => {
       provider,
       prisma as unknown as PrismaService,
       { ensureCapacity: async () => undefined } as never,
+      testRecovery(),
     );
     await expect(restarted.enrichPendingPlaceDetails()).resolves.toMatchObject({
       status: "SUCCEEDED",
@@ -1235,6 +1239,7 @@ describe("TourismSyncService", () => {
       provider,
       prisma as unknown as PrismaService,
       { ensureCapacity: async () => undefined } as never,
+      testRecovery(),
     );
     expect(await restarted.enrichPendingPlaceDetails()).toMatchObject({
       requestedCount: 1,
@@ -1370,6 +1375,21 @@ describe("TourismSyncService", () => {
       fetchedCount: 1,
       updatedCount: 1,
       failedCount: 0,
+    });
+  });
+  it("reports waiting failed versions as pending instead of successful zero work", async () => {
+    const { prisma, provider, service } = setup();
+    prisma.seedDistricts();
+    prisma.seedPlace("50", "waiting");
+    provider.getPlaceCommonDetail = async () => {
+      throw new Error("mapping");
+    };
+    await service.enrichPendingPlaceDetails();
+    expect(await service.enrichPendingPlaceDetails()).toMatchObject({
+      status: "DEFERRED",
+      requestedCount: 1,
+      remainingCount: 1,
+      deferredReason: "TOUR_API_RECOVERY_WAIT",
     });
   });
 });

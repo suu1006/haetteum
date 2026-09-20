@@ -911,3 +911,39 @@ model TourApiJobDailyUsage {
   @@id([day, job])
   @@map("tour_api_job_daily_usage")
 }
+
+/// Bounded redacted response evidence; unresolved captures are never automatically deleted.
+model TourApiCapture {
+  id String @id @default(uuid()) @db.Uuid
+  job String @db.VarChar(32)
+  scope String @db.VarChar(200)
+  contentId String? @map("content_id") @db.VarChar(64)
+  sourceVersion String? @map("source_version") @db.VarChar(64)
+  operation String @db.VarChar(64)
+  parameters Json
+  requestKey String @map("request_key") @db.VarChar(64)
+  body String @db.Text
+  httpStatus Int @map("http_status")
+  truncated Boolean @default(false)
+  state String @default("CAPTURED") @db.VarChar(32)
+  capturedAt DateTime @default(now()) @map("captured_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  @@index([job, scope, operation, requestKey, capturedAt])
+  @@index([state, completedAt])
+  @@map("tour_api_captures")
+}
+
+model TourApiItemRecovery {
+  job String @db.VarChar(32)
+  contentId String @map("content_id") @db.VarChar(64)
+  sourceVersion String @map("source_version") @db.VarChar(64)
+  stage String @db.VarChar(32)
+  code String @db.VarChar(64)
+  attemptCount Int @default(0) @map("attempt_count")
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  state String @db.VarChar(32)
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(3)
+  @@id([job, contentId, sourceVersion])
+  @@index([job, state, nextAttemptAt])
+  @@map("tour_api_item_recovery")
+}

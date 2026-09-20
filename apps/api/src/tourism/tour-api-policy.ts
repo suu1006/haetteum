@@ -13,7 +13,9 @@ export class TourApiPolicyError extends Error {}
 
 export type TourApiJob = "tourism" | "festival";
 export type TourApiDeferredReason =
-  "TOUR_API_DAILY_LIMIT" | "TOUR_API_JOB_DAILY_LIMIT";
+  | "TOUR_API_DAILY_LIMIT"
+  | "TOUR_API_JOB_DAILY_LIMIT"
+  | "TOUR_API_RECOVERY_WAIT";
 export class TourApiBudgetDeferredError extends TourApiPolicyError {
   constructor(readonly reason: TourApiDeferredReason) {
     super(reason);
@@ -237,7 +239,12 @@ export class TourApiPolicy implements OnModuleDestroy {
     return limit;
   }
 
-  private assertBatch(): void {
+  currentJob(): TourApiJob {
+    this.assertBatch();
+    return this.context.getStore()!.job;
+  }
+
+  assertBatch(): void {
     if (!this.context.getStore()?.active)
       throw new TourApiPolicyError("TOUR_API_BATCH_REQUIRED");
   }

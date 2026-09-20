@@ -1,3 +1,4 @@
+import { testRecovery } from "../../test/tour-api-recovery-fixture.js";
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake boundaries preserve async interfaces */
 import type { FestivalRepository } from "./festival.repository.js";
 import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
@@ -242,6 +243,7 @@ function setup(
     details as unknown as TourApiPort,
     repository as unknown as FestivalRepository,
     policy as never,
+    testRecovery(policy),
   );
   return { details, provider, repository, service };
 }

@@ -1,3 +1,4 @@
+import { testRecovery } from "./tour-api-recovery-fixture.js";
 import { TourApiClient } from "../src/tourism/tour-api.client.js";
 /* eslint-disable @typescript-eslint/require-await */
 import { Pool } from "pg";
@@ -276,6 +277,7 @@ describeIsolated("TourAPI PostgreSQL execution policy", () => {
       },
       async () => undefined,
       policy,
+      testRecovery(policy),
     );
     await policy.batch(async () => {
       await expect(client.getPlaceCommonDetail("1")).rejects.toThrow(

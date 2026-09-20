@@ -1,4 +1,9 @@
 import {
+  TourApiRecovery,
+  TourApiListReplayRefreshError,
+  isDatabaseSystemError,
+} from "./tour-api-recovery.js";
+import {
   DetailEnrichmentError,
   type DetailEnrichmentSummary,
 } from "./detail-enrichment-summary.js";
@@ -36,9 +41,26 @@ export class FestivalSyncService {
     @Inject(TOUR_API_PORT) private readonly details: TourApiPort,
     private readonly repository: FestivalRepository,
     private readonly policy: TourApiPolicy,
+    private readonly recovery: TourApiRecovery,
   ) {}
 
   async fullSync(range: FestivalSyncRange): Promise<FestivalSyncSummary> {
+    const work = () =>
+      this.recovery.list("festival", JSON.stringify(range), () =>
+        this.fullSyncRun(range),
+      );
+    try {
+      return (await work()).value;
+    } catch (error) {
+      if (error instanceof TourApiListReplayRefreshError)
+        return (await work()).value;
+      throw error;
+    }
+  }
+
+  private async fullSyncRun(
+    range: FestivalSyncRange,
+  ): Promise<FestivalSyncSummary> {
     const rangeStart = parseRangeDate(range.eventStartDate);
     const rangeEnd = parseRangeDate(range.eventEndDate);
     if (rangeEnd < rangeStart) {
@@ -87,6 +109,7 @@ export class FestivalSyncService {
         counters.fetchedCount += page.items.length;
         counters.insertedCount += delta.insertedCount;
         counters.updatedCount += delta.updatedCount;
+        await this.recovery.completePage();
 
         if (counters.fetchedCount === expectedTotalCount) break;
         pageNo += 1;
@@ -96,6 +119,9 @@ export class FestivalSyncService {
         throw new SafeFestivalSyncError("TourAPI returned zero festivals");
       }
 
+      if (this.recovery.current()?.replayed)
+        throw new TourApiListReplayRefreshError();
+
       counters.deactivatedCount = await this.repository.deactivateMissing({
         rangeStart,
         rangeEnd,
@@ -103,13 +129,17 @@ export class FestivalSyncService {
         lastSyncedAt,
       });
 
-      const pendingDetails = await this.repository.findPendingDetails();
+      const allPending = await this.repository.findPendingDetails();
+      const pendingDetails = await this.recovery.eligible(
+        "festival",
+        allPending,
+      );
       details = {
         status: "SUCCEEDED",
-        requestedCount: pendingDetails.length,
+        requestedCount: allPending.length,
         succeededCount: 0,
         failedCount: 0,
-        remainingCount: pendingDetails.length,
+        remainingCount: allPending.length,
       };
       for (const festival of pendingDetails) {
         try {
@@ -132,6 +162,18 @@ export class FestivalSyncService {
         }
       }
 
+      if (details.status === "SUCCEEDED" && details.remainingCount > 0) {
+        details.status = "DEFERRED";
+        details.deferredReason = "TOUR_API_RECOVERY_WAIT";
+        return {
+          ...(await this.repository.deferSyncRun(
+            run.id,
+            counters,
+            "TOUR_API_RECOVERY_WAIT",
+          )),
+          details,
+        };
+      }
       return {
         ...(await this.repository.completeSyncRun(run.id, counters)),
         details,
@@ -205,33 +247,53 @@ export class FestivalSyncService {
     return error;
   }
 
-  private async enrichDetail(festival: {
+  async enrichContentId(contentId: string): Promise<void> {
+    const pending = await this.repository.findPendingDetails();
+    const festival = pending.find((row) => row.externalId === contentId);
+    if (festival) await this.enrichDetail(festival);
+  }
+
+  async enrichDetail(festival: {
     id: string;
     externalId: string;
     providerModifiedAt: Date;
   }): Promise<void> {
-    await this.policy.ensureCapacity(3);
-    const common = await this.details.getPlaceCommonDetail(festival.externalId);
-    const intro = await this.details.getFestivalIntro(festival.externalId);
-    const images = await this.details.getPlaceImages(festival.externalId);
-    const snapshot = createFestivalDetailSnapshot({
-      contentId: festival.externalId,
-      common,
-      intro,
-      images,
-    });
-    await this.repository.saveDetailSnapshot({
-      id: festival.id,
-      providerModifiedAt: festival.providerModifiedAt,
-      snapshot,
-      detailSyncedAt: new Date(),
-    });
+    await this.recovery.item(
+      {
+        job: "festival",
+        contentId: festival.externalId,
+        sourceVersion: festival.providerModifiedAt.toISOString(),
+      },
+      ["detailCommon2", "detailIntro2", "detailImage2"],
+      async () => {
+        const common = await this.details.getPlaceCommonDetail(
+          festival.externalId,
+        );
+        const intro = await this.details.getFestivalIntro(festival.externalId);
+        const images = await this.details.getPlaceImages(festival.externalId);
+        this.recovery.stage("MAPPING");
+        const snapshot = createFestivalDetailSnapshot({
+          contentId: festival.externalId,
+          common,
+          intro,
+          images,
+        });
+        this.recovery.stage("PERSISTENCE");
+        await this.repository.saveDetailSnapshot({
+          id: festival.id,
+          providerModifiedAt: festival.providerModifiedAt,
+          snapshot,
+          detailSyncedAt: new Date(),
+        });
+      },
+    );
   }
 }
 
 function isFatalTourApiError(error: unknown): boolean {
   return (
     error instanceof TourApiPolicyError ||
+    isDatabaseSystemError(error) ||
     (error instanceof TourApiError && error.providerCode === "22")
   );
 }

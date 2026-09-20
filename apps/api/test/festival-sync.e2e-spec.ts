@@ -1,3 +1,4 @@
+import { recoveryPolicy } from "./tour-api-recovery-fixture.js";
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake provider preserves the async interface */
 import { randomUUID } from "node:crypto";
 
@@ -187,7 +188,7 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
       // This suite verifies PostgreSQL festival persistence with an in-memory
       // provider. Policy accounting is covered by tour-api-policy.e2e-spec.ts.
       .overrideProvider(TourApiPolicy)
-      .useValue({ ensureCapacity: async () => undefined })
+      .useValue(recoveryPolicy())
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
@@ -304,7 +305,7 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
     expect(await prisma.place.count()).toBe(0);
   });
 
-  it("retries a failed changed detail version on the next batch and serves the last complete snapshot meanwhile", async () => {
+  it("retries a failed changed detail version when due and serves the last complete snapshot meanwhile", async () => {
     if (!prisma) throw new Error("Prisma test client is missing");
 
     await service.fullSync(RANGE);
@@ -334,6 +335,20 @@ describe("FestivalSyncService PostgreSQL integration (e2e)", () => {
     provider.detailFailureIds.clear();
     provider.detailCalls.length = 0;
     await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      status: "DEFERRED",
+      details: {
+        requestedCount: 1,
+        remainingCount: 1,
+        deferredReason: "TOUR_API_RECOVERY_WAIT",
+      },
+    });
+    expect(provider.detailCalls).toEqual([]);
+    await prisma.tourApiItemRecovery.updateMany({
+      where: { contentId: "festival-1" },
+      data: { nextAttemptAt: new Date(0) },
+    });
+    await expect(service.fullSync(RANGE)).resolves.toMatchObject({
+      status: "SUCCEEDED",
       failedCount: 0,
     });
     expect(provider.detailCalls).toEqual([

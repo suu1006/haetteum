@@ -1,3 +1,5 @@
+import { recoveryPolicy } from "./tour-api-recovery-fixture.js";
+import { TourApiPolicy } from "../src/tourism/tour-api-policy.js";
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake port methods preserve the async provider interface */
 import { randomUUID } from "node:crypto";
 
@@ -226,6 +228,8 @@ describe("TourismSyncService PostgreSQL integration (e2e)", () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(TourApiPolicy)
+      .useValue(recoveryPolicy())
       .overrideProvider(TOUR_API_PORT)
       .useValue(provider)
       .compile();
