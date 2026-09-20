@@ -21,7 +21,8 @@ import type {
 import type { HotPlaceRankingLoadState } from "@/features/discovery/hot-place-ranking-api";
 import type { PlaceRankingLoadState } from "@/features/discovery/place-ranking-api";
 import type { WeeklyPlacesLoadState } from "@/features/places/weekly-places";
-import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
+import type { DiscoveryPlaceSearchLoadState } from "@/features/places/discovery-place-search-api";
+import { PlaceSearchForm } from "@/features/places/components/place-search-form";
 
 export type MainDiscoveryProps = {
   data: Pick<MainDiscoveryData, "aiCourse" | "festivalDiscovery">;
@@ -30,7 +31,7 @@ export type MainDiscoveryProps = {
   ranking?: PlaceRankingLoadState | null;
   hotRanking?: HotPlaceRankingLoadState | null;
   weeklyPlaces?: WeeklyPlacesLoadState | null;
-  searchResults?: PlaceSearchLoadState | null;
+  searchResults?: DiscoveryPlaceSearchLoadState | null;
 };
 
 const mainDiscoveryStyle = {
@@ -67,7 +68,10 @@ function MainDiscovery({
       ) : null}
       <div data-testid="main-region" data-region="list">
         {view.showSearchResults ? (
-          <SearchResultsSection results={searchResults} query={query} />
+          <>
+            <div className="px-4 pt-6"><PlaceSearchForm query={query} action="/" /></div>
+            <SearchResultsSection results={searchResults} query={query} />
+          </>
         ) : null}
         {view.showFestivals ? (
           <FestivalRankingSection data={data.festivalDiscovery} />
@@ -114,18 +118,7 @@ function MainDiscovery({
         data-region="navigation"
         className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card"
       >
-        <BottomNavigation
-          items={
-            view.showFestivalDiscovery
-              ? createMainNavigationItems("home", "compact")
-              : createMainNavigationItems("home")
-          }
-          variant={
-            view.showFestivalDiscovery
-              ? "festival"
-              : "default"
-          }
-        />
+        <BottomNavigation items={createMainNavigationItems("home")} />
       </div>
     </div>
   );

@@ -1,13 +1,12 @@
 import { MainDiscovery } from "@/features/discovery/components/main-discovery";
 import type { DiscoverySearchParams } from "@/features/discovery/discovery-model";
 import {
-  isPlaceSearchRegion,
   parseDiscoveryQuery,
   selectDiscoveryView,
 } from "@/features/discovery/discovery-model";
 import { loadHotPlaceRankings } from "@/features/discovery/hot-place-ranking-api";
 import { loadPlaceRankings } from "@/features/discovery/place-ranking-api";
-import { searchPlaces } from "@/features/places/place-search-api";
+import { searchDiscoveryPlaces } from "@/features/places/discovery-place-search-api";
 import {
   emptyFestivalDiscovery,
   festivalBrowseRegion,
@@ -33,8 +32,8 @@ async function DiscoveryContent({ searchParams }: DiscoveryContentProps) {
       view.showFestivals
         ? loadWeeklyPlaces()
         : null,
-      view.showSearchResults && isPlaceSearchRegion(query.region)
-        ? searchPlaces(query.region, query.q)
+      view.showSearchResults
+        ? searchDiscoveryPlaces(undefined, query.q, query.externalSearch)
         : null,
     ]);
 

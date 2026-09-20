@@ -19,7 +19,6 @@ type BottomNavigationItem = {
 
 type BottomNavigationProps = {
   items: readonly BottomNavigationItem[];
-  variant?: "default" | "festival";
 };
 
 const navigationIcons: Record<BottomNavigationItem["id"], IconType> = {
@@ -33,18 +32,10 @@ const navigationIcons: Record<BottomNavigationItem["id"], IconType> = {
 const itemClassName =
   "type-caption flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-muted-foreground transition-colors aria-[current=page]:text-primary";
 
-function BottomNavigation({
-  items,
-  variant = "default",
-}: BottomNavigationProps) {
+function BottomNavigation({ items }: BottomNavigationProps) {
   return (
     <nav aria-label="주요 메뉴" className="border-t border-border bg-card">
-      <ul
-        className={cn(
-          "mx-auto grid max-w-screen-sm grid-cols-5 gap-1 px-3 py-1.5",
-          variant === "festival" && "py-2",
-        )}
-      >
+      <ul className="mx-auto grid max-w-screen-sm grid-cols-5 gap-1 px-3 py-1.5">
         {items.map((item) => {
           const Icon = navigationIcons[item.id];
           const content = (
@@ -63,8 +54,6 @@ function BottomNavigation({
                   aria-current={item.current ? "page" : undefined}
                   className={cn(
                     itemClassName,
-                    variant === "festival" &&
-                      "text-[0.68rem] [&_svg]:size-6 aria-[current=page]:after:mt-0.5 aria-[current=page]:after:size-1 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-primary",
                     "hover:bg-primary-subtle hover:text-primary",
                   )}
                 >
@@ -75,7 +64,6 @@ function BottomNavigation({
                   aria-disabled="true"
                   className={cn(
                     itemClassName,
-                    variant === "festival" && "text-[0.68rem] [&_svg]:size-6",
                     "opacity-70",
                   )}
                 >

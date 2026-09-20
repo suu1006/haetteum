@@ -71,6 +71,7 @@ export type DiscoverySearchParams = Record<string, SearchParamValue>;
 
 export type DiscoveryQuery = {
   q: string;
+  externalSearch?: boolean;
   region: FestivalBrowseRegionId;
   tab: DiscoveryTabId;
   audience: DiscoveryAudience;
@@ -208,6 +209,7 @@ export function parseDiscoveryQuery(
 
   return {
     q: (firstValue(searchParams.q) ?? "").trim(),
+    ...(firstValue(searchParams.external) === "1" ? { externalSearch: true } : {}),
     region: parsedRegion,
     tab: parsedTab,
     audience: placeRankingAudienceIds.includes(
@@ -242,6 +244,7 @@ export function buildDiscoveryHref(
   const next = { ...current, ...changes };
   const params = new URLSearchParams();
   if (next.q) params.set("q", next.q);
+  if (next.q && next.externalSearch) params.set("external", "1");
   params.set("region", next.region);
   params.set("tab", next.tab);
   if (next.audience !== defaultDiscoveryQuery.audience) {

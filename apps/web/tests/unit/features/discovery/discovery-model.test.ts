@@ -256,3 +256,16 @@ it("toggles one festival filter without dropping the discovery query", () => {
     "/?q=%EA%BD%83&region=jeju&tab=festivals&audience=30s#festivals",
   );
 });
+
+describe("independent search scope", () => {
+  it("ignores legacy search scope while preserving external search", () => {
+    const query = parseDiscoveryQuery({ region: "gyeonggi", reelRegion: "jeju", searchRegion: "seoul", external: "1", q: "경복궁" });
+    expect(query).toMatchObject({ region: "gyeonggi", reelRegion: "jeju", externalSearch: true });
+    const url = new URL(buildDiscoveryHref(query, {}), "https://test.local");
+    expect(url.searchParams.has("searchRegion")).toBe(false);
+    expect(url.searchParams.get("external")).toBe("1");
+  });
+  it("does not inherit a browse region as the search scope", () => {
+    expect(parseDiscoveryQuery({ region: "gyeonggi", searchRegion: "seoul" })).not.toHaveProperty("searchRegion");
+  });
+});

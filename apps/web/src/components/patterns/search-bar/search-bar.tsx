@@ -13,6 +13,7 @@ export function SearchBar({
 }: SearchBarProps) {
   return (
     <form
+      id={`${id}-form`}
       action={action}
       method="get"
       role="search"

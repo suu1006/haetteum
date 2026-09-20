@@ -5,7 +5,7 @@ import {
 } from "@haetteum/contracts";
 
 import { Prisma } from "../generated/prisma/client.js";
-import type { KakaoLocalPlace } from "./kakao-local.client.js";
+import type { KakaoLocalPlace, KakaoLocalPort } from "./kakao-local.client.js";
 import { PlacesService } from "./places.service.js";
 
 type PlaceListRow = {
@@ -20,6 +20,18 @@ type PlaceListRow = {
   district: { name: string } | null;
   region: { slug: string };
 };
+
+function kakaoLocalStub(
+  overrides: Partial<KakaoLocalPort> = {},
+): KakaoLocalPort {
+  return {
+    isConfigured: () => false,
+    searchKeyword: () => Promise.resolve([]),
+    searchCategory: () => Promise.resolve([]),
+    searchImage: () => Promise.resolve(null),
+    ...overrides,
+  };
+}
 
 describe("PlacesService", () => {
   it("lists visible places in an active region with the requested search and stable ordering", async () => {
@@ -60,7 +72,7 @@ describe("PlacesService", () => {
       $transaction: transaction,
       place: { findMany, count },
     };
-    const service = new PlacesService(prisma as never, {} as never);
+    const service = new PlacesService(prisma as never, kakaoLocalStub());
 
     await expect(
       service.list({ region: "jeju", page: 2, pageSize: 10, q: "성산" }),
@@ -140,7 +152,7 @@ describe("PlacesService", () => {
           count: jest.fn<() => Promise<number>>().mockResolvedValue(2),
         },
       } as never,
-      {} as never,
+      kakaoLocalStub(),
     );
     const result = await service.list(
       ListPlacesQuerySchema.parse({ q: "중앙공원" }),
@@ -173,7 +185,7 @@ describe("PlacesService", () => {
         $transaction: transaction,
         place: { findMany, count },
       } as never,
-      {} as never,
+      kakaoLocalStub(),
     );
 
     await expect(
@@ -251,7 +263,7 @@ describe("PlacesService", () => {
       });
       const service = new PlacesService(
         { place: { findFirst } } as never,
-        { isConfigured: () => false } as never,
+        kakaoLocalStub(),
       );
 
       const result = await service.detail(id);
@@ -276,7 +288,7 @@ describe("PlacesService", () => {
     });
     const service = new PlacesService(
       { place: { findFirst } } as never,
-      { isConfigured: () => false } as never,
+      kakaoLocalStub(),
     );
 
     await expect(
@@ -312,10 +324,10 @@ describe("PlacesService", () => {
           distanceMeters: 120,
         },
       ]);
-    const service = new PlacesService({ place: { findFirst } } as never, {
-      isConfigured: () => true,
-      searchCategory,
-    });
+    const service = new PlacesService(
+      { place: { findFirst } } as never,
+      kakaoLocalStub({ isConfigured: () => true, searchCategory }),
+    );
 
     const input = { category: "restaurant" as const, limit: 10 };
     const first = await service.nearby(

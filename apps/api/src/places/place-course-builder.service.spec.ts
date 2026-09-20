@@ -2,7 +2,7 @@ import { NotFoundException } from "@nestjs/common";
 import { jest } from "@jest/globals";
 
 import { Prisma } from "../generated/prisma/client.js";
-import type { KakaoLocalPlace } from "./kakao-local.client.js";
+import type { KakaoLocalPlace, KakaoLocalPort } from "./kakao-local.client.js";
 import { PlaceCourseBuilderService } from "./place-course-builder.service.js";
 
 const anchorRow = {
@@ -13,6 +13,18 @@ const anchorRow = {
   longitude: new Prisma.Decimal("127.2025"),
   latitude: new Prisma.Decimal("37.2939"),
 };
+
+function kakaoLocalStub(
+  overrides: Partial<KakaoLocalPort> = {},
+): KakaoLocalPort {
+  return {
+    isConfigured: () => false,
+    searchKeyword: () => Promise.resolve([]),
+    searchCategory: () => Promise.resolve([]),
+    searchImage: () => Promise.resolve(null),
+    ...overrides,
+  };
+}
 
 function placeAt(
   id: string,
@@ -39,7 +51,7 @@ describe("PlaceCourseBuilderService", () => {
     const findFirst = jest.fn<() => Promise<any>>().mockResolvedValue(null);
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      {} as never,
+      kakaoLocalStub(),
     );
 
     await expect(service.buildForPlace("missing-id")).rejects.toThrow(
@@ -53,7 +65,7 @@ describe("PlaceCourseBuilderService", () => {
       .mockResolvedValue({ ...anchorRow, longitude: null, latitude: null });
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => true } as never,
+      kakaoLocalStub({ isConfigured: () => true }),
     );
 
     await expect(service.buildForPlace(anchorRow.id)).resolves.toEqual({
@@ -68,7 +80,7 @@ describe("PlaceCourseBuilderService", () => {
       .mockResolvedValue(anchorRow);
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => false } as never,
+      kakaoLocalStub(),
     );
 
     await expect(service.buildForPlace(anchorRow.id)).resolves.toEqual({
@@ -105,7 +117,7 @@ describe("PlaceCourseBuilderService", () => {
     );
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => true, searchCategory },
+      kakaoLocalStub({ isConfigured: () => true, searchCategory }),
     );
 
     const result = await service.buildForPlace(anchorRow.id);
@@ -148,7 +160,7 @@ describe("PlaceCourseBuilderService", () => {
     );
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => true, searchCategory },
+      kakaoLocalStub({ isConfigured: () => true, searchCategory }),
     );
 
     const result = await service.buildForPlace(anchorRow.id);
@@ -170,7 +182,10 @@ describe("PlaceCourseBuilderService", () => {
       .mockResolvedValue([]);
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => true, searchCategory: emptySearch },
+      kakaoLocalStub({
+        isConfigured: () => true,
+        searchCategory: emptySearch,
+      }),
     );
 
     await expect(service.buildForPlace(anchorRow.id)).resolves.toEqual({
@@ -190,7 +205,7 @@ describe("PlaceCourseBuilderService", () => {
       ]);
     const service = new PlaceCourseBuilderService(
       { place: { findFirst } } as never,
-      { isConfigured: () => true, searchCategory },
+      kakaoLocalStub({ isConfigured: () => true, searchCategory }),
     );
 
     const first = await service.buildForPlace(anchorRow.id);
