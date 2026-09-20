@@ -1,3 +1,7 @@
+import {
+  DetailEnrichmentError,
+  type DetailEnrichmentSummary,
+} from "./detail-enrichment-summary.js";
 import { tourApiHeaderSchema } from "./tour-api.schemas.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
@@ -36,12 +40,16 @@ type RecoveryContext = {
   captureId?: string;
   replayed: boolean;
   stage?: string;
+  httpAttempted?: boolean;
 };
 export type ReplayOptions = { fetchMissing: boolean; maxRequests: number };
 const BODY_LIMIT = 2 * 1024 * 1024;
 @Injectable()
 export class TourApiRecovery {
   private readonly context = new AsyncLocalStorage<RecoveryContext>();
+  private readonly replayObserver = new AsyncLocalStorage<{
+    locallyReplayedCount: number;
+  }>();
   private readonly replayContext = new AsyncLocalStorage<
     ReplayOptions & { requests: number }
   >();
@@ -49,6 +57,56 @@ export class TourApiRecovery {
     private readonly repository: TourApiRecoveryRepository,
     private readonly policy: TourApiPolicy,
   ) {}
+  observeReplay<T>(
+    summary: { locallyReplayedCount: number },
+    work: () => Promise<T>,
+  ): Promise<T> {
+    return this.replayObserver.run(summary, work);
+  }
+  async pendingCounts(
+    job: string,
+    rows: readonly { externalId: string; providerModifiedAt: Date }[],
+    now = new Date(),
+  ): Promise<{ waitingCount: number; quarantinedCount: number }> {
+    const identities = new Set(
+      rows.map(
+        (row) => `${row.externalId}:${row.providerModifiedAt.toISOString()}`,
+      ),
+    );
+    const failures = await this.storage(() => this.repository.failures(job));
+    let waitingCount = 0,
+      quarantinedCount = 0;
+    for (const failure of failures) {
+      if (!identities.has(`${failure.contentId}:${failure.sourceVersion}`))
+        continue;
+      if (failure.state === "QUARANTINED") quarantinedCount++;
+      else if (
+        failure.state === "FAILED" &&
+        (!failure.nextAttemptAt || failure.nextAttemptAt > now)
+      )
+        waitingCount++;
+    }
+    return { waitingCount, quarantinedCount };
+  }
+  async reportPendingCounts(
+    summary: DetailEnrichmentSummary,
+    job: string,
+    rows: readonly { externalId: string; providerModifiedAt: Date }[],
+    primaryError?: unknown,
+  ): Promise<void> {
+    try {
+      Object.assign(summary, await this.pendingCounts(job, rows));
+    } catch (error) {
+      if (primaryError instanceof DetailEnrichmentError) {
+        primaryError.retainPersistenceFailure(error);
+        return;
+      }
+      // Reporting is best effort. An unavailable measurement is not zero and must
+      // not change the already determined collection result.
+      delete summary.waitingCount;
+      delete summary.quarantinedCount;
+    }
+  }
   current(): Readonly<RecoveryContext> | undefined {
     return this.context.getStore();
   }
@@ -117,6 +175,9 @@ export class TourApiRecovery {
           this.repository.complete(identity.job, state.scope),
         );
         await this.storage(() => this.repository.resolve(identity));
+        const observer = this.replayObserver.getStore();
+        if (observer && state.replayed && !state.httpAttempted)
+          observer.locallyReplayedCount++;
         return result;
       } catch (error: unknown) {
         if (error instanceof TourApiPolicyError) throw error;
@@ -248,6 +309,8 @@ export class TourApiRecovery {
     }
   }
   requestReserved(): void {
+    const state = this.context.getStore();
+    if (state) state.httpAttempted = true;
     const local = this.replayContext.getStore();
     if (local) local.requests++;
   }

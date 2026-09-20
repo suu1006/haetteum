@@ -56,6 +56,26 @@ function boundedInteger(value: string, min: number, max: number): number {
     throw new Error("Invalid replay arguments");
   return number;
 }
+export function safeReplayStopReason(error: unknown): string {
+  if (
+    error instanceof TourApiBudgetDeferredError &&
+    [
+      "TOUR_API_DAILY_LIMIT",
+      "TOUR_API_JOB_DAILY_LIMIT",
+      "TOUR_API_RECOVERY_WAIT",
+      "TOUR_API_RETRY_DAILY_LIMIT",
+      "TOUR_API_PROVIDER_COOLDOWN",
+      "TOUR_API_BATCH_DEADLINE",
+    ].includes(error.reason)
+  )
+    return error.reason;
+  if (error instanceof TourApiLocalMissingError)
+    return "TOUR_API_LOCAL_RESPONSE_MISSING";
+  if (error instanceof TourApiRecoverySelectionChangedError)
+    return "TOUR_API_RECOVERY_SELECTION_CHANGED";
+  if (error instanceof TourApiPolicyError) return "BATCH_FAILED";
+  return "PROCESSING_FAILED";
+}
 async function run(): Promise<void> {
   process.env.SCHEDULERS_ENABLED = "false";
   let app:
@@ -92,34 +112,57 @@ async function run(): Promise<void> {
             failedCount: 0,
             deferredCount: 0,
             requests: 0,
+            locallyReplayedCount: 0,
+            stopReason: null as string | null,
           };
-          for (const item of items) {
-            try {
-              if (command.job === "tourism")
-                await tourism.enrichPlaceDetails(
-                  item.contentId,
-                  item.sourceVersion,
-                );
-              else
-                await festival.enrichContentId(
-                  item.contentId,
-                  item.sourceVersion,
-                );
-              summary.succeededCount++;
-            } catch (error) {
-              if (
-                (error instanceof TourApiBudgetDeferredError &&
-                  error.reason !== "TOUR_API_BATCH_DEADLINE") ||
-                error instanceof TourApiLocalMissingError ||
-                error instanceof TourApiRecoverySelectionChangedError
-              )
-                summary.deferredCount++;
-              else if (error instanceof TourApiPolicyError) throw error;
-              else summary.failedCount++;
+          try {
+            for (const item of items) {
+              try {
+                if (command.job === "tourism")
+                  await recovery.observeReplay(summary, () =>
+                    tourism.enrichPlaceDetails(
+                      item.contentId,
+                      item.sourceVersion,
+                    ),
+                  );
+                else
+                  await recovery.observeReplay(summary, () =>
+                    festival.enrichContentId(
+                      item.contentId,
+                      item.sourceVersion,
+                    ),
+                  );
+                summary.succeededCount++;
+              } catch (error) {
+                summary.stopReason = safeReplayStopReason(error);
+                if (
+                  error instanceof TourApiBudgetDeferredError &&
+                  error.reason === "TOUR_API_BATCH_DEADLINE"
+                ) {
+                  summary.deferredCount =
+                    items.length - summary.succeededCount - summary.failedCount;
+                  break;
+                }
+                if (
+                  (error instanceof TourApiBudgetDeferredError &&
+                    error.reason !== "TOUR_API_BATCH_DEADLINE") ||
+                  error instanceof TourApiLocalMissingError ||
+                  error instanceof TourApiRecoverySelectionChangedError
+                )
+                  summary.deferredCount++;
+                else if (error instanceof TourApiPolicyError) throw error;
+                else summary.failedCount++;
+              }
             }
+          } finally {
+            summary.requests = policy.currentBatchRequestCount();
+            console.log(
+              JSON.stringify({
+                ...summary,
+                remainingCount: summary.requestedCount - summary.succeededCount,
+              }),
+            );
           }
-          summary.requests = policy.currentBatchRequestCount();
-          console.log(JSON.stringify(summary));
           process.exitCode = summary.failedCount
             ? 1
             : summary.deferredCount

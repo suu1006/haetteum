@@ -7,6 +7,11 @@ export type DetailEnrichmentSummary = {
   failedCount: number;
   /** All details still pending, including failed attempts. */
   remainingCount: number;
+  /** Current pending versions waiting for their retry time (not today's failures). */
+  waitingCount?: number;
+  quarantinedCount?: number;
+  /** Successful items entirely replayed from stored responses in this execution; mixed HTTP items excluded. */
+  locallyReplayedCount?: number;
   deferredReason?: TourApiDeferredReason;
 };
 

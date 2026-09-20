@@ -55,6 +55,64 @@ describe("PostgreSQL durable capture and recovery", () => {
     await prisma.place.deleteMany({ where: { externalId: { in: ids } } });
     await prisma.festival.deleteMany({ where: { externalId: { in: ids } } });
   });
+  it.each(["tourism", "festival"] as const)(
+    "inspects only current pending %s failures with a hard limit",
+    async (job) => {
+      const region = await prisma.tourismRegion.findFirstOrThrow();
+      const common = {
+        externalId: ids[0],
+        source: "TOUR_API",
+        title: "Inspect",
+        contentTypeId: job === "tourism" ? 12 : 15,
+        providerModifiedAt: modified,
+        lastSyncedAt: modified,
+      };
+      if (job === "tourism")
+        await prisma.place.create({ data: { ...common, regionId: region.id } });
+      else
+        await prisma.festival.create({
+          data: { ...common, eventStartDate: modified, eventEndDate: modified },
+        });
+      const repository = new TourApiRecoveryRepository(prisma);
+      for (const sourceVersion of [
+        "2026-08-01T00:00:00.000Z",
+        modified.toISOString(),
+      ])
+        await repository.saveFailure({
+          job,
+          contentId: ids[0],
+          sourceVersion,
+          state: "QUARANTINED",
+          stage: "PERSISTENCE",
+          code: "P2000",
+          attemptCount: 3,
+          nextAttemptAt: null,
+          updatedAt: new Date(),
+        });
+      const selected = await repository.inspectCurrent(job, [], 1);
+      expect(selected).toHaveLength(1);
+      expect(selected[0]).toMatchObject({
+        job,
+        contentId: ids[0],
+        sourceVersion: modified.toISOString(),
+        state: "QUARANTINED",
+        stage: "PERSISTENCE",
+        code: "P2000",
+      });
+      expect(await repository.inspectCurrent(job, [ids[1]], 1)).toEqual([]);
+      if (job === "tourism")
+        await prisma.place.updateMany({
+          where: { externalId: ids[0] },
+          data: { detailSourceModifiedAt: modified },
+        });
+      else
+        await prisma.festival.updateMany({
+          where: { externalId: ids[0] },
+          data: { detailSourceModifiedAt: modified },
+        });
+      expect(await repository.inspectCurrent(job, [], 1)).toEqual([]);
+    },
+  );
   function runtime(job: "tourism" | "festival") {
     const policy = recoveryPolicy();
     policy.currentJob = () => job;

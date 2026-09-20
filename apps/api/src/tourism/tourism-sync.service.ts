@@ -375,12 +375,14 @@ export class TourismSyncService {
     return this.enrichDetails(
       eligible.map((place) => place.externalId),
       pending.length,
+      pending,
     );
   }
 
   private async enrichDetails(
     contentIds: readonly string[],
     totalPending = contentIds.length,
+    pendingRows?: readonly { externalId: string; providerModifiedAt: Date }[],
   ): Promise<DetailEnrichmentSummary> {
     const summary: DetailEnrichmentSummary = {
       status: "SUCCEEDED",
@@ -388,33 +390,53 @@ export class TourismSyncService {
       succeededCount: 0,
       failedCount: 0,
       remainingCount: totalPending,
+      locallyReplayedCount: 0,
     };
-    for (const contentId of contentIds) {
-      try {
-        await this.enrichPlaceDetails(contentId);
-        summary.succeededCount++;
-        summary.remainingCount--;
-      } catch (error) {
-        if (error instanceof TourApiBudgetDeferredError) {
-          summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
-          summary.deferredReason = error.reason;
-          if (error.reason === "TOUR_API_RETRY_DAILY_LIMIT") continue;
-          return summary;
+    let primaryError: unknown;
+    try {
+      for (const contentId of contentIds) {
+        try {
+          await this.recovery.observeReplay(
+            summary as DetailEnrichmentSummary & {
+              locallyReplayedCount: number;
+            },
+            () => this.enrichPlaceDetails(contentId),
+          );
+          summary.succeededCount++;
+          summary.remainingCount--;
+        } catch (error) {
+          if (error instanceof TourApiBudgetDeferredError) {
+            summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
+            summary.deferredReason = error.reason;
+            if (error.reason === "TOUR_API_RETRY_DAILY_LIMIT") continue;
+            return summary;
+          }
+          summary.failedCount++;
+          summary.status = "FAILED";
+          if (
+            error instanceof TourApiPolicyError ||
+            (error instanceof TourApiError && error.providerCode === "22")
+          )
+            throw new DetailEnrichmentError(summary, error);
         }
-        summary.failedCount++;
-        summary.status = "FAILED";
-        if (
-          error instanceof TourApiPolicyError ||
-          (error instanceof TourApiError && error.providerCode === "22")
-        )
-          throw new DetailEnrichmentError(summary, error);
       }
+      if (summary.status === "SUCCEEDED" && summary.remainingCount > 0) {
+        summary.status = "DEFERRED";
+        summary.deferredReason = "TOUR_API_RECOVERY_WAIT";
+      }
+      return summary;
+    } catch (error) {
+      primaryError = error;
+      throw error;
+    } finally {
+      if (pendingRows)
+        await this.recovery.reportPendingCounts(
+          summary,
+          "tourism",
+          pendingRows,
+          primaryError,
+        );
     }
-    if (summary.status === "SUCCEEDED" && summary.remainingCount > 0) {
-      summary.status = "DEFERRED";
-      summary.deferredReason = "TOUR_API_RECOVERY_WAIT";
-    }
-    return summary;
   }
 
   async enrichPlace(contentId: string): Promise<void> {
@@ -434,7 +456,16 @@ export class TourismSyncService {
         placeId: { not: null },
         place: { is: { source: TOUR_API_SOURCE, isVisible: true } },
       },
-      select: { place: { select: { id: true, externalId: true } } },
+      select: {
+        place: {
+          select: {
+            id: true,
+            externalId: true,
+            providerModifiedAt: true,
+            detailSourceModifiedAt: true,
+          },
+        },
+      },
       distinct: ["placeId"],
       orderBy: { placeId: "asc" },
     });
@@ -442,6 +473,15 @@ export class TourismSyncService {
     try {
       summary = await this.enrichDetails(
         rows.flatMap((row) => (row.place ? [row.place.externalId] : [])),
+        undefined,
+        rows.flatMap(({ place }) =>
+          place &&
+          place.providerModifiedAt &&
+          place.detailSourceModifiedAt?.getTime() !==
+            place.providerModifiedAt.getTime()
+            ? [place]
+            : [],
+        ),
       );
     } catch (error) {
       if (error instanceof DetailEnrichmentError) {

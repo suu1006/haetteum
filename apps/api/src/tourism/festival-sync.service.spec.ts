@@ -391,7 +391,7 @@ describe("FestivalSyncService", () => {
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected fatal detail progress");
     expect(error.cause).toBe(details.error);
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 0,
@@ -428,7 +428,7 @@ describe("FestivalSyncService", () => {
     expect(error.message).toBe(
       "Tourism detail synchronization stopped after a fatal error",
     );
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 0,
@@ -467,7 +467,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected fatal detail progress");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 1,
@@ -499,7 +499,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected measured terminal failure");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 1,
       succeededCount: 1,
@@ -544,7 +544,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected measured terminal failure");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 1,

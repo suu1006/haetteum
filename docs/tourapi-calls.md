@@ -86,7 +86,7 @@ API 빌드, 전체 단위 테스트 619개, 별도 PostgreSQL DB 통합 테스�
 
 매일 03:30 KST의 `tourism-daily-sync`와 04:30 KST의 `festival-daily-sync`는 종료 시 각각 Notion 페이지를 한 번 생성한다. 성공·실패·보류, 목록/상세 단계, 허용된 사유 코드, 이번 실행의 실제 요청 수, 상세 대상·완료·실패·잔여 수, 시작·종료 시각(UTC), 소요 시간을 기록한다. 목록 또는 배치 준비 단계에서 상세 수를 측정하지 못했으면 0으로 만들지 않고 `집계 불가`와 숫자 `null`로 남긴다.
 
-Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `LIST_FAILED`, `DETAILS_FAILED`만 사유 코드로 보낸다. 그 밖의 값은 `BATCH_FAILED`로 바꾼다. 토큰, URL 쿼리, 제공자 응답, 예외 원문은 보내지 않으며 상세 원인은 서버의 배치 로그에서 확인한다. Notion 요청 실패나 예기치 않은 기록기 예외는 원래 배치의 성공·보류·실패 결과와 예외를 바꾸지 않는다. CLI 수동 수집과 코스 배치는 기록 대상이 아니다.
+Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `TOUR_API_RECOVERY_WAIT`, `TOUR_API_RETRY_DAILY_LIMIT`, `TOUR_API_PROVIDER_COOLDOWN`, `TOUR_API_BATCH_DEADLINE`, `LIST_FAILED`, `DETAILS_FAILED`만 사유 코드로 보낸다. 그 밖의 값은 `BATCH_FAILED`로 바꾼다. 토큰, URL 쿼리, 제공자 응답, 예외 원문은 보내지 않으며 실패 ID·단계·코드는 아래 안전한 복구 조회 명령으로 확인한다. 서버 로그는 원문·예외 스택 대신 상태와 집계만 기록한다. Notion 요청 실패나 예기치 않은 기록기 예외는 원래 배치의 성공·보류·실패 결과와 예외를 바꾸지 않는다. CLI 수동 수집과 코스 배치는 기록 대상이 아니다.
 
 활성화하려면 배포 환경에 `NOTION_TOKEN`과 `NOTION_DATA_SOURCE_ID`를 모두 설정하고 API를 재시작한다. Notion 연결에 콘텐츠 삽입 권한을 부여하고 대상 데이터베이스에 연결을 추가해야 한다. 제목 속성 ID `title`을 사용하므로 제목 열 이름은 변경할 필요가 없다. `NOTION_DATA_SOURCE_ID`에는 데이터베이스 ID가 아닌 데이터 소스 ID를 넣는다.
 
@@ -148,3 +148,18 @@ pnpm --filter @haetteum/api tourism:replay -- --job=tourism --ids=2704412 --limi
 새 보류 코드는 `TOUR_API_PROVIDER_COOLDOWN`, `TOUR_API_RETRY_DAILY_LIMIT`, `TOUR_API_BATCH_DEADLINE`이다. 배치는 40분 동안만 새 작업/HTTP를 허용한다. 요청·사전 확인 잠금은 남은 배치 시간과 20초 중 짧은 PostgreSQL lock/statement timeout을 사용하며, HTTP 본문과 재시도 지연도 남은 시간에 맞춘다. 연결 풀은 연결 5초, statement 20초, 클라이언트 query 21초 상한을 둔다. 로컬 원문 복구에도 배치 시간 검사를 적용한다. 진행 중인 DB 정리·잠금 해제는 별도의 유한한 DB 타임아웃 안에서 마친다.
 
 배포 전 `20260920090000_tourapi_durable_recovery` 다음에 `20260920120000_tourapi_retry_policy` 마이그레이션을 적용해야 한다. 완료 간격 저장과 advisory lock은 유지한다. 실제 전송 중단은 Node 표준 fetch의 AbortSignal 계약을 사용하고, 본문 reader.cancel을 즉시 호출한다. 취소 완료 Promise가 끝나지 않더라도 기다리지 않는다. AbortSignal을 무시하는 사용자 정의 전송 구현은 지원하지 않는다.
+
+## 복구 조회 및 결과 해석
+
+운영 절차는 [TourAPI 실패 복구 운영 절차](tourapi-recovery-runbook.md)를 따른다. `tourism:inspect`는 HTTP나 DB 변경 없이 현재 노출된 미완료 원본 버전의 `FAILED`/`QUARANTINED` 상태만 출력한다. 기본 20개, 최대 100개로 제한하며 `--job`, `--ids`, `--limit`만 허용한다. 출력은 job, ID, sourceVersion, state, stage, code, attemptCount, nextAttemptAt의 허용된 값이며 응답 원문은 출력하지 않는다.
+
+```sh
+pnpm --filter @haetteum/api tourism:inspect -- --job=tourism --limit=20
+pnpm --filter @haetteum/api tourism:inspect -- --job=festival --ids=141268 --limit=1
+```
+
+`failedCount`는 이번 실행에서 발생한 실패 수다. `remainingCount`는 실패·대기·격리를 포함한 미완료 수이며 `waitingCount`와 `quarantinedCount`는 그중 현재 원본 버전에 대응하는 영속 상태의 부분집합이다. 과거 버전의 실패는 이 수에 포함하지 않는다. `locallyReplayedCount`는 **이번 실행에 저장 응답만으로 목적지 저장까지 성공한 항목 수**다. 저장 응답과 HTTP를 함께 사용한 성공은 succeededCount에는 포함되지만 locallyReplayedCount에는 포함되지 않는다. 이전 실행 성공이나 operation별 재사용 횟수도 로컬 복구 완료 항목 수로 세지 않는다. 집계가 불가능하면 값을 생략하고 Notion 본문에는 `집계 불가`로 표시한다.
+
+Notion의 기존 `성공`/`실패`/`보류`와 숫자형 실패 건수 속성은 유지한다. 목록 완료 뒤 상세 실패가 있으면 오류 요약에 목록 완료와 성공 상세 보존을 명시한다. 실패와 보류가 함께 있으면 `FAILED`가 우선하고 본문에 상세 중단 사유를 별도로 남긴다. 대기·격리·로컬 복구 수는 본문에 기록하므로 외부 스키마 변경이 필요 없다. 쿨다운은 제공자 대기, deadline은 실행 시간, recovery wait는 재시도 대기로 설명하며 일일 예산 부족과 구분한다. 최소 상세 호출 묶음을 감당할 잔여 예산이 없는 경우도 있으므로 예산 보류를 실제 한도 초과로 단정하지 않는다.
+
+과거 상세 실패 103건의 구체적인 원인은 아직 입증되지 않았다. 배포 이전 응답이 보관되지 않았다면 새 기능으로 당시 원문을 재구성하거나 바로 로컬 재처리할 수 없다. 이후 캡처된 stage/code/응답 근거로 원인을 판별한다.

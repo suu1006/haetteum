@@ -1,3 +1,5 @@
+import { safeReplayStopReason } from "./tourism-replay.command.js";
+import { TourApiBudgetDeferredError } from "./tour-api-policy.js";
 import { parseReplayArguments } from "./tourism-replay.command.js";
 describe("bounded replay arguments", () => {
   it("defaults to no HTTP and a bounded result set", () => {
@@ -43,4 +45,15 @@ describe("bounded replay arguments", () => {
       requeue: true,
     });
   });
+});
+
+it("reports an allowlisted replay stop reason without raw error data", () => {
+  expect(
+    safeReplayStopReason(
+      new TourApiBudgetDeferredError("TOUR_API_PROVIDER_COOLDOWN"),
+    ),
+  ).toBe("TOUR_API_PROVIDER_COOLDOWN");
+  expect(safeReplayStopReason(new Error("https://secret"))).toBe(
+    "PROCESSING_FAILED",
+  );
 });

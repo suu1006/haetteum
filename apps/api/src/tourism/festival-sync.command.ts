@@ -1,3 +1,4 @@
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
 import { TourApiPolicy } from "./tour-api-policy.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +24,10 @@ export async function executeFestivalSync(
       JSON.stringify({
         jobType: "FESTIVAL_FULL",
         status: summary.status,
+        listStatus:
+          summary.details || summary.status === "SUCCEEDED"
+            ? "COMPLETE"
+            : "INCOMPLETE",
         rangeStart: "2026-01-01",
         rangeEnd: "2027-12-31",
         fetchedCount: summary.fetchedCount,
@@ -40,7 +45,16 @@ export async function executeFestivalSync(
       : summary.status === "DEFERRED"
         ? 2
         : 0;
-  } catch {
+  } catch (error) {
+    if (error instanceof DetailEnrichmentError)
+      output(
+        JSON.stringify({
+          jobType: "FESTIVAL_FULL",
+          listStatus: "COMPLETE",
+          status: "FAILED",
+          details: error.summary,
+        }),
+      );
     errorOutput("Festival sync command failed.");
     return 1;
   }

@@ -142,32 +142,50 @@ export class FestivalSyncService {
         succeededCount: 0,
         failedCount: 0,
         remainingCount: allPending.length,
+        locallyReplayedCount: 0,
       };
-      for (const festival of pendingDetails) {
-        try {
-          await this.enrichDetail(festival);
-          details.succeededCount++;
-          details.remainingCount--;
-        } catch (error) {
-          if (error instanceof TourApiBudgetDeferredError) {
-            if (error.reason !== "TOUR_API_RETRY_DAILY_LIMIT") throw error;
-            details.deferredReason = error.reason;
-            continue;
-          }
-          if (isFatalTourApiError(error)) {
+      let primaryError: unknown;
+      try {
+        for (const festival of pendingDetails) {
+          try {
+            await this.recovery.observeReplay(
+              details as DetailEnrichmentSummary & {
+                locallyReplayedCount: number;
+              },
+              () => this.enrichDetail(festival),
+            );
+            details.succeededCount++;
+            details.remainingCount--;
+          } catch (error) {
+            if (error instanceof TourApiBudgetDeferredError) {
+              if (error.reason !== "TOUR_API_RETRY_DAILY_LIMIT") throw error;
+              details.deferredReason = error.reason;
+              continue;
+            }
+            if (isFatalTourApiError(error)) {
+              details.failedCount++;
+              details.status = "FAILED";
+              throw new DetailEnrichmentError(details, error);
+            }
+            counters.failedCount += 1;
             details.failedCount++;
             details.status = "FAILED";
-            throw new DetailEnrichmentError({ ...details }, error);
+            this.logger.warn(
+              `Festival detail synchronization failed for content ${festival.externalId}`,
+            );
           }
-          counters.failedCount += 1;
-          details.failedCount++;
-          details.status = "FAILED";
-          this.logger.warn(
-            `Festival detail synchronization failed for content ${festival.externalId}`,
-          );
         }
+      } catch (error) {
+        primaryError = error;
+        throw error;
+      } finally {
+        await this.recovery.reportPendingCounts(
+          details,
+          "festival",
+          allPending,
+          primaryError,
+        );
       }
-
       if (details.status === "SUCCEEDED" && details.remainingCount > 0) {
         details.status = "DEFERRED";
         details.deferredReason ??= "TOUR_API_RECOVERY_WAIT";

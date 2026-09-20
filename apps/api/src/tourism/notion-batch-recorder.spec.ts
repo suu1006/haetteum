@@ -78,11 +78,16 @@ describe("Notion batch recording", () => {
         "상태: SUCCEEDED",
         "단계: details",
         "사유 코드: 없음",
+        "상세 중단 사유: 없음",
         "이번 실행 요청 수: 11",
         "상세 대상 수: 3",
         "상세 완료 수: 3",
         "상세 실패 수: 0",
         "상세 잔여 수: 0",
+        "복구 대기 수: 집계 불가",
+        "격리 수: 집계 불가",
+        "이번 실행 저장 응답만으로 복구 완료 수: 집계 불가",
+        "목록 상태: 완료",
         "시작 (UTC): 2026-09-16T00:00:00.000Z",
         "종료 (UTC): 2026-09-16T00:01:00.000Z",
         "소요 시간: 60000 ms",
@@ -119,7 +124,7 @@ describe("Notion batch recording", () => {
             type: "text",
             text: {
               content:
-                "공용 일일 호출 한도에 도달해 보류했습니다. 다음 KST 날짜에 재개합니다.",
+                "공용 일일 잔여 호출 예산이 부족해 보류했습니다. 다음 KST 날짜에 재개합니다.",
             },
           },
         ],
@@ -158,7 +163,7 @@ describe("Notion batch recording", () => {
             type: "text",
             text: {
               content:
-                "필수 상세 갱신 2건이 실패했습니다. 서버 로그를 확인하세요.",
+                "목록 완료 / 상세 일부 실패: 완료 1건은 유지했고, 이번 실행 2건이 실패했습니다. 복구 조회 명령으로 확인하세요.",
             },
           },
         ],
@@ -245,3 +250,24 @@ function parseBody(body: RequestInit["body"]) {
 function paragraph(body: ReturnType<typeof parseBody>): string {
   return body.children[0]?.paragraph.rich_text[0]?.text.content ?? "";
 }
+
+describe("recovery reporting", () => {
+  it.each([
+    ["TOUR_API_RECOVERY_WAIT", "복구 대기"],
+    ["TOUR_API_RETRY_DAILY_LIMIT", "복구 일일 잔여"],
+    ["TOUR_API_PROVIDER_COOLDOWN", "제공자 대기"],
+    ["TOUR_API_BATCH_DEADLINE", "실행 시간"],
+  ] as const)(
+    "preserves %s without calling it daily quota",
+    async (reason, phrase) => {
+      const fetch = jest
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("{}"));
+      await recorder().record(result({ status: "DEFERRED", reason }));
+      const body = parseBody(fetch.mock.calls[0][1]?.body);
+      expect(paragraph(body)).toContain(reason);
+      expect(JSON.stringify(body.properties)).toContain(phrase);
+      expect(JSON.stringify(body.properties)).not.toContain("한도에 도달");
+    },
+  );
+});

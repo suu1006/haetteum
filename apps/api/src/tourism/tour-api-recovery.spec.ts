@@ -382,3 +382,77 @@ describe("capture-before-parse crash recovery", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("current recovery reporting", () => {
+  it("counts waiting and quarantined only for matching current pending versions", async () => {
+    const repo = new MemoryRecoveryRepository();
+    const recovery = new TourApiRecovery(repo as never, recoveryPolicy());
+    const fail = (contentId: string) =>
+      recovery
+        .item({ ...item, contentId }, [], async () => {
+          throw new Error("failure");
+        })
+        .catch(() => {});
+    await fail("123");
+    await fail("456");
+    await fail("456");
+    await fail("456");
+    await fail("789");
+    const rows = ["123", "456"].map((externalId) => ({
+      externalId,
+      providerModifiedAt: new Date(item.sourceVersion),
+    }));
+    rows.push({
+      externalId: "789",
+      providerModifiedAt: new Date("2026-09-02T00:00:00Z"),
+    });
+    expect(await recovery.pendingCounts("tourism", rows)).toEqual({
+      waitingCount: 1,
+      quarantinedCount: 1,
+    });
+  });
+  it("counts a successful wholly local replay only in its own observation", async () => {
+    const repo = new MemoryRecoveryRepository();
+    const recovery = new TourApiRecovery(repo as never, recoveryPolicy());
+    await recovery
+      .item(item, [], async () => {
+        await recovery.capture("detailCommon2", {}, "{}", 200, "");
+        await recovery.mark("VALIDATED");
+        throw new Error("mapping");
+      })
+      .catch(() => {});
+    const summary = { locallyReplayedCount: 0 };
+    await recovery.observeReplay(summary, () =>
+      recovery.item(item, [], async () => {
+        await recovery.replay("detailCommon2", {});
+      }),
+    );
+    expect(summary.locallyReplayedCount).toBe(1);
+    const next = { locallyReplayedCount: 0 };
+    await recovery.observeReplay(next, () => Promise.resolve());
+    expect(next.locallyReplayedCount).toBe(0);
+  });
+});
+
+it("leaves metrics unknown and preserves successful work when reporting storage is unavailable", async () => {
+  const repo = new MemoryRecoveryRepository();
+  repo.failures = () => Promise.reject(new Error("private DB error"));
+  const recovery = new TourApiRecovery(repo as never, recoveryPolicy());
+  const summary = {
+    status: "SUCCEEDED" as const,
+    requestedCount: 1,
+    succeededCount: 1,
+    failedCount: 0,
+    remainingCount: 0,
+  };
+  await expect(
+    recovery.reportPendingCounts(summary, "tourism", []),
+  ).resolves.toBeUndefined();
+  expect(summary).toEqual({
+    status: "SUCCEEDED",
+    requestedCount: 1,
+    succeededCount: 1,
+    failedCount: 0,
+    remainingCount: 0,
+  });
+});

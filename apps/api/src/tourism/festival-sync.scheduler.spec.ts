@@ -1,3 +1,5 @@
+import { jest } from "@jest/globals";
+import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import type { ApiEnvironment } from "../config/environment.js";
@@ -218,5 +220,42 @@ describe("FestivalSyncScheduler", () => {
       requestCount: 1,
       details: null,
     });
+  });
+});
+
+describe("sanitized scheduler reporting", () => {
+  it("logs measured counters and never raw fatal cause/stack", async () => {
+    const log = jest
+      .spyOn(Logger.prototype, "log")
+      .mockImplementation(() => {});
+    const errorLog = jest
+      .spyOn(Logger.prototype, "error")
+      .mockImplementation(() => {});
+    const fatal = new DetailEnrichmentError(
+      details({
+        status: "FAILED",
+        succeededCount: 1,
+        failedCount: 1,
+        remainingCount: 1,
+        waitingCount: 1,
+        quarantinedCount: 0,
+        locallyReplayedCount: 1,
+      }),
+      new Error("https://private?serviceKey=secret raw db value"),
+    );
+    const fixture = createScheduler({ fullSync: () => Promise.reject(fatal) });
+    try {
+      await expect(fixture.scheduler.runDailySync()).rejects.toBe(fatal);
+      const logs = JSON.stringify([...log.mock.calls, ...errorLog.mock.calls]);
+      expect(logs).toContain("locallyReplayedCount");
+      expect(logs).toContain("BATCH_RESULT");
+      expect(logs).not.toMatch(/private|serviceKey|raw db value/);
+      expect(fixture.records[0].details).toMatchObject({
+        locallyReplayedCount: 1,
+        waitingCount: 1,
+      });
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });

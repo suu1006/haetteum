@@ -137,6 +137,35 @@ export class TourApiRecoveryRepository {
       ORDER BY d.external_id ASC LIMIT ${limit}
     `);
   }
+  /** Read-only metadata projection; current pending versions only, including quarantined rows. */
+  inspectCurrent(
+    job: ItemIdentity["job"],
+    ids: readonly string[],
+    limit: number,
+  ): Promise<InspectionRow[]> {
+    if (
+      (job !== "tourism" && job !== "festival") ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      ids.length > 100 ||
+      ids.some((id) => !/^\d{1,20}$/.test(id))
+    )
+      throw new Error("Invalid inspection selection");
+    const table = Prisma.raw(job === "tourism" ? "places" : "festivals");
+    return this.prisma.$queryRaw<InspectionRow[]>(Prisma.sql`
+      SELECT r.job, r.content_id AS "contentId", r.source_version AS "sourceVersion",
+        r.state, r.stage, r.code, r.attempt_count AS "attemptCount", r.next_attempt_at AS "nextAttemptAt"
+      FROM tour_api_item_recovery r JOIN ${table} d
+        ON d.external_id=r.content_id AND r.job=${job}
+        AND r.source_version=to_char(d.provider_modified_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      WHERE d.source='TOUR_API' AND d.is_visible=true
+        AND d.detail_source_modified_at IS DISTINCT FROM d.provider_modified_at
+        AND r.state IN ('FAILED','QUARANTINED')
+        AND ${ids.length ? Prisma.sql`r.content_id IN (${Prisma.join(ids)})` : Prisma.sql`TRUE`}
+      ORDER BY r.content_id ASC LIMIT ${limit}
+    `);
+  }
   async requeue(identities: readonly ItemIdentity[]): Promise<void> {
     if (identities.length === 0) return;
     await this.prisma.tourApiItemRecovery.updateMany({
@@ -166,3 +195,15 @@ export class TourApiRecoveryRepository {
     ).count;
   }
 }
+
+export type InspectionRow = Pick<
+  TourApiItemRecovery,
+  | "job"
+  | "contentId"
+  | "sourceVersion"
+  | "state"
+  | "stage"
+  | "code"
+  | "attemptCount"
+  | "nextAttemptAt"
+>;

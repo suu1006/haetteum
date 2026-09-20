@@ -1,3 +1,4 @@
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake service preserves the async command interface */
 import {
   executeFestivalSync,
@@ -35,6 +36,7 @@ describe("festival sync command", () => {
     expect(JSON.parse(output[0] ?? "")).toEqual({
       jobType: "FESTIVAL_FULL",
       status: "SUCCEEDED",
+      listStatus: "COMPLETE",
       rangeStart: "2026-01-01",
       rangeEnd: "2027-12-31",
       fetchedCount: 38,
@@ -112,4 +114,31 @@ describe("festival sync command", () => {
     expect(errors).toEqual(["Festival sync command failed."]);
     expect(JSON.stringify(errors)).not.toContain(secret);
   });
+});
+
+it("prints measured progress when a fatal detail failure interrupts the command", async () => {
+  const output: string[] = [];
+  const error = new DetailEnrichmentError(
+    {
+      status: "FAILED",
+      requestedCount: 2,
+      succeededCount: 1,
+      failedCount: 1,
+      remainingCount: 1,
+      locallyReplayedCount: 1,
+    },
+    new Error("private"),
+  );
+  const code = await executeFestivalSync(
+    { fullSync: () => Promise.reject(error) },
+    (value) => output.push(value),
+    () => {},
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(output[0])).toMatchObject({
+    listStatus: "COMPLETE",
+    status: "FAILED",
+    details: { succeededCount: 1, failedCount: 1, locallyReplayedCount: 1 },
+  });
+  expect(output[0]).not.toContain("private");
 });
