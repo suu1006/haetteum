@@ -114,18 +114,7 @@ function MainDiscovery({
         data-region="navigation"
         className="safe-area-bottom fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[30rem] bg-card"
       >
-        <BottomNavigation
-          items={
-            view.showFestivalDiscovery
-              ? createMainNavigationItems("home", "compact")
-              : createMainNavigationItems("home")
-          }
-          variant={
-            view.showFestivalDiscovery
-              ? "festival"
-              : "default"
-          }
-        />
+        <BottomNavigation items={createMainNavigationItems("home")} />
       </div>
     </div>
   );
