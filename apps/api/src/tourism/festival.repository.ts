@@ -121,6 +121,21 @@ export class FestivalRepository {
     return result.count;
   }
 
+  findDetailTarget(contentId: string) {
+    return this.prisma.festival.findUnique({
+      where: {
+        source_externalId: { source: TOUR_API_SOURCE, externalId: contentId },
+      },
+      select: {
+        id: true,
+        externalId: true,
+        providerModifiedAt: true,
+        detailSourceModifiedAt: true,
+        isVisible: true,
+      },
+    });
+  }
+
   async findPendingDetails(): Promise<PendingFestivalDetail[]> {
     const rows = await this.prisma.festival.findMany({
       where: { source: TOUR_API_SOURCE, isVisible: true },

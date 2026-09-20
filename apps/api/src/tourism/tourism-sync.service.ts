@@ -1,4 +1,11 @@
 import {
+  TourApiRecovery,
+  TourApiListReplayRefreshError,
+  TourApiRecoveryError,
+  TourApiRecoverySelectionChangedError,
+  isDatabaseSystemError,
+} from "./tour-api-recovery.js";
+import {
   DetailEnrichmentError,
   type DetailEnrichmentSummary,
 } from "./detail-enrichment-summary.js";
@@ -119,9 +126,22 @@ export class TourismSyncService {
     @Inject(TOUR_API_PORT) private readonly provider: TourApiPort,
     private readonly prisma: PrismaService,
     private readonly policy: TourApiPolicy,
+    private readonly recovery: TourApiRecovery,
   ) {}
 
   async fullSync(): Promise<SyncSummary> {
+    const work = () =>
+      this.recovery.list("tourism", "full", () => this.fullSyncRun());
+    try {
+      return (await work()).value;
+    } catch (error) {
+      if (error instanceof TourApiListReplayRefreshError)
+        return (await work()).value;
+      throw error;
+    }
+  }
+
+  private async fullSyncRun(): Promise<SyncSummary> {
     const counters = emptyCounters();
     const run = await this.prisma.tourismSyncRun.create({
       data: {
@@ -145,6 +165,20 @@ export class TourismSyncService {
   }
 
   async incrementalSync(now = new Date()): Promise<SyncSummary> {
+    const work = () =>
+      this.recovery.list("tourism", "incremental", () =>
+        this.incrementalSyncRun(now),
+      );
+    try {
+      return (await work()).value;
+    } catch (error) {
+      if (error instanceof TourApiListReplayRefreshError)
+        return (await work()).value;
+      throw error;
+    }
+  }
+
+  private async incrementalSyncRun(now: Date): Promise<SyncSummary> {
     assertValidDate(now, "current timestamp");
     const lastSuccess = await this.prisma.tourismSyncRun.findFirst({
       where: {
@@ -196,7 +230,10 @@ export class TourismSyncService {
     }
   }
 
-  async enrichPlaceDetails(contentId: string): Promise<void> {
+  async enrichPlaceDetails(
+    contentId: string,
+    expectedVersion?: string,
+  ): Promise<void> {
     const normalizedContentId = contentId.trim();
     if (!normalizedContentId) {
       throw new SafeSyncError(
@@ -219,61 +256,95 @@ export class TourismSyncService {
           detailSourceModifiedAt: true,
         },
       });
-      if (
-        !place.isVisible ||
-        (place.detailSourceModifiedAt != null &&
-          place.detailSourceModifiedAt.getTime() ===
-            place.providerModifiedAt.getTime())
-      )
-        return;
-      await this.policy.ensureCapacity(4);
-      const common =
-        await this.provider.getPlaceCommonDetail(normalizedContentId);
-      const intro = await this.provider.getPlaceIntro(normalizedContentId);
-      const information =
-        await this.provider.getPlaceRepeatInfo(normalizedContentId);
-      const images = await this.provider.getPlaceImages(normalizedContentId);
-      const detail = mapPlaceDetailBundle({
+      const identity = {
+        job: "tourism" as const,
         contentId: normalizedContentId,
-        common,
-        intro,
-        information,
-        images,
-        syncedAt: new Date(),
-      });
+        sourceVersion: place.providerModifiedAt.toISOString(),
+      };
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== identity.sourceVersion
+      )
+        throw new TourApiRecoverySelectionChangedError();
+      if (
+        place.detailSourceModifiedAt?.getTime() ===
+        place.providerModifiedAt.getTime()
+      ) {
+        await this.recovery.reconcile(identity);
+        return;
+      }
+      if (!place.isVisible) {
+        if (expectedVersion !== undefined)
+          throw new TourApiRecoverySelectionChangedError();
+        return;
+      }
+      if (expectedVersion !== undefined)
+        await this.recovery.assertSelected(identity);
+      await this.recovery.item(
+        {
+          job: "tourism",
+          contentId: normalizedContentId,
+          sourceVersion: place.providerModifiedAt.toISOString(),
+        },
+        ["detailCommon2", "detailIntro2", "detailInfo2", "detailImage2"],
+        async () => {
+          const common =
+            await this.provider.getPlaceCommonDetail(normalizedContentId);
+          const intro = await this.provider.getPlaceIntro(normalizedContentId);
+          const information =
+            await this.provider.getPlaceRepeatInfo(normalizedContentId);
+          const images =
+            await this.provider.getPlaceImages(normalizedContentId);
+          this.recovery.stage("MAPPING");
+          const detail = mapPlaceDetailBundle({
+            contentId: normalizedContentId,
+            common,
+            intro,
+            information,
+            images,
+            syncedAt: new Date(),
+          });
 
-      await this.prisma.$transaction(async (transaction) => {
-        await transaction.place.update({
-          where: { id: place.id },
-          data: {
-            ...detail.place,
-            detailSourceModifiedAt: place.providerModifiedAt,
-          },
-        });
-        await transaction.placeImage.deleteMany({
-          where: { placeId: place.id, source: TOUR_API_SOURCE },
-        });
-        await transaction.placeDetailInfo.deleteMany({
-          where: { placeId: place.id, source: TOUR_API_SOURCE },
-        });
-        if (detail.images.length > 0) {
-          await transaction.placeImage.createMany({
-            data: detail.images.map((image) => ({
-              ...image,
-              placeId: place.id,
-            })),
+          this.recovery.stage("PERSISTENCE");
+          await this.prisma.$transaction(async (transaction) => {
+            await transaction.place.update({
+              where: {
+                id: place.id,
+                providerModifiedAt: place.providerModifiedAt,
+                isVisible: true,
+              },
+              data: {
+                ...detail.place,
+                detailSourceModifiedAt: place.providerModifiedAt,
+              },
+            });
+            await transaction.placeImage.deleteMany({
+              where: { placeId: place.id, source: TOUR_API_SOURCE },
+            });
+            await transaction.placeDetailInfo.deleteMany({
+              where: { placeId: place.id, source: TOUR_API_SOURCE },
+            });
+            if (detail.images.length > 0) {
+              await transaction.placeImage.createMany({
+                data: detail.images.map((image) => ({
+                  ...image,
+                  placeId: place.id,
+                })),
+              });
+            }
+            if (detail.information.length > 0) {
+              await transaction.placeDetailInfo.createMany({
+                data: detail.information.map((item) => ({
+                  ...item,
+                  placeId: place.id,
+                })),
+              });
+            }
           });
-        }
-        if (detail.information.length > 0) {
-          await transaction.placeDetailInfo.createMany({
-            data: detail.information.map((item) => ({
-              ...item,
-              placeId: place.id,
-            })),
-          });
-        }
-      });
+        },
+      );
     } catch (error) {
+      if (isDatabaseSystemError(error)) throw new TourApiRecoveryError();
       if (
         error instanceof TourApiPolicyError ||
         (error instanceof TourApiError && error.providerCode === "22")
@@ -284,6 +355,7 @@ export class TourismSyncService {
   }
 
   async enrichPendingPlaceDetails(): Promise<RankedPlaceDetailEnrichmentSummary> {
+    await this.recovery.reconcileCommitted("tourism");
     const places = await this.prisma.place.findMany({
       where: { source: TOUR_API_SOURCE, isVisible: true },
       select: {
@@ -299,40 +371,72 @@ export class TourismSyncService {
         place.detailSourceModifiedAt.getTime() !==
           place.providerModifiedAt.getTime(),
     );
-    return this.enrichDetails(pending.map((place) => place.externalId));
+    const eligible = await this.recovery.eligible("tourism", pending);
+    return this.enrichDetails(
+      eligible.map((place) => place.externalId),
+      pending.length,
+      pending,
+    );
   }
 
   private async enrichDetails(
     contentIds: readonly string[],
+    totalPending = contentIds.length,
+    pendingRows?: readonly { externalId: string; providerModifiedAt: Date }[],
   ): Promise<DetailEnrichmentSummary> {
     const summary: DetailEnrichmentSummary = {
       status: "SUCCEEDED",
-      requestedCount: contentIds.length,
+      requestedCount: totalPending,
       succeededCount: 0,
       failedCount: 0,
-      remainingCount: contentIds.length,
+      remainingCount: totalPending,
+      locallyReplayedCount: 0,
     };
-    for (const contentId of contentIds) {
-      try {
-        await this.enrichPlaceDetails(contentId);
-        summary.succeededCount++;
-        summary.remainingCount--;
-      } catch (error) {
-        if (error instanceof TourApiBudgetDeferredError) {
-          summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
-          summary.deferredReason = error.reason;
-          return summary;
+    let primaryError: unknown;
+    try {
+      for (const contentId of contentIds) {
+        try {
+          await this.recovery.observeReplay(
+            summary as DetailEnrichmentSummary & {
+              locallyReplayedCount: number;
+            },
+            () => this.enrichPlaceDetails(contentId),
+          );
+          summary.succeededCount++;
+          summary.remainingCount--;
+        } catch (error) {
+          if (error instanceof TourApiBudgetDeferredError) {
+            summary.status = summary.failedCount > 0 ? "FAILED" : "DEFERRED";
+            summary.deferredReason = error.reason;
+            if (error.reason === "TOUR_API_RETRY_DAILY_LIMIT") continue;
+            return summary;
+          }
+          summary.failedCount++;
+          summary.status = "FAILED";
+          if (
+            error instanceof TourApiPolicyError ||
+            (error instanceof TourApiError && error.providerCode === "22")
+          )
+            throw new DetailEnrichmentError(summary, error);
         }
-        summary.failedCount++;
-        summary.status = "FAILED";
-        if (
-          error instanceof TourApiPolicyError ||
-          (error instanceof TourApiError && error.providerCode === "22")
-        )
-          throw new DetailEnrichmentError(summary, error);
       }
+      if (summary.status === "SUCCEEDED" && summary.remainingCount > 0) {
+        summary.status = "DEFERRED";
+        summary.deferredReason = "TOUR_API_RECOVERY_WAIT";
+      }
+      return summary;
+    } catch (error) {
+      primaryError = error;
+      throw error;
+    } finally {
+      if (pendingRows)
+        await this.recovery.reportPendingCounts(
+          summary,
+          "tourism",
+          pendingRows,
+          primaryError,
+        );
     }
-    return summary;
   }
 
   async enrichPlace(contentId: string): Promise<void> {
@@ -352,7 +456,16 @@ export class TourismSyncService {
         placeId: { not: null },
         place: { is: { source: TOUR_API_SOURCE, isVisible: true } },
       },
-      select: { place: { select: { id: true, externalId: true } } },
+      select: {
+        place: {
+          select: {
+            id: true,
+            externalId: true,
+            providerModifiedAt: true,
+            detailSourceModifiedAt: true,
+          },
+        },
+      },
       distinct: ["placeId"],
       orderBy: { placeId: "asc" },
     });
@@ -360,6 +473,15 @@ export class TourismSyncService {
     try {
       summary = await this.enrichDetails(
         rows.flatMap((row) => (row.place ? [row.place.externalId] : [])),
+        undefined,
+        rows.flatMap(({ place }) =>
+          place &&
+          place.providerModifiedAt &&
+          place.detailSourceModifiedAt?.getTime() !==
+            place.providerModifiedAt.getTime()
+            ? [place]
+            : [],
+        ),
       );
     } catch (error) {
       if (error instanceof DetailEnrichmentError) {
@@ -414,6 +536,7 @@ export class TourismSyncService {
         }
         counters.fetchedCount += items.length;
         mergeDelta(counters, delta);
+        await this.recovery.completePage();
       },
     );
 
@@ -432,6 +555,7 @@ export class TourismSyncService {
         for (const item of places) seenPlaceIds.add(item.place.externalId);
         counters.fetchedCount += items.length;
         mergeDelta(counters, delta);
+        await this.recovery.completePage();
       },
     );
 
@@ -440,6 +564,8 @@ export class TourismSyncService {
         `TourAPI returned zero places for region ${region.providerCode}`,
       );
     }
+
+    if (this.recovery.current()?.replayed) return;
 
     const deactivatedDistricts = await this.prisma.$transaction((transaction) =>
       transaction.tourismDistrict.updateMany({
@@ -496,6 +622,7 @@ export class TourismSyncService {
         );
         counters.fetchedCount += items.length;
         mergeDelta(counters, delta);
+        await this.recovery.completePage();
       },
     );
   }
@@ -701,6 +828,8 @@ export class TourismSyncService {
     counters: SyncCounters,
     checkpointAt: Date,
   ): Promise<SyncSummary> {
+    if (this.recovery.current()?.replayed)
+      throw new TourApiListReplayRefreshError();
     await this.prisma.tourismSyncRun.update({
       where: { id: runId },
       data: {

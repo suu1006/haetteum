@@ -1,3 +1,4 @@
+import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
 import {
   TourApiBudgetDeferredError,
   TourApiPolicy,
@@ -177,7 +178,16 @@ async function run(): Promise<void> {
       );
     }, "tourism");
   } catch (error) {
-    if (error instanceof TourApiBudgetDeferredError) {
+    if (error instanceof DetailEnrichmentError) {
+      console.log(
+        JSON.stringify({
+          operation: command.mode,
+          status: "FAILED",
+          details: error.summary,
+        }),
+      );
+      process.exitCode = 1;
+    } else if (error instanceof TourApiBudgetDeferredError) {
       console.log(
         JSON.stringify({
           operation: command.mode,

@@ -1,3 +1,6 @@
+import { inspect } from "node:util";
+import { jest } from "@jest/globals";
+import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import type { ApiEnvironment } from "../config/environment.js";
@@ -160,7 +163,7 @@ describe("FestivalSyncScheduler", () => {
     });
 
     await expect(fixture.scheduler.runDailySync()).rejects.toThrow(
-      "1 festivals",
+      "DETAILS_FAILED",
     );
 
     expect(fixture.records[0]).toMatchObject({
@@ -187,7 +190,9 @@ describe("FestivalSyncScheduler", () => {
       requestCount: 6,
     });
 
-    await expect(fixture.scheduler.runDailySync()).rejects.toBe(failure);
+    await expect(fixture.scheduler.runDailySync()).rejects.toMatchObject({
+      originalError: failure,
+    });
 
     expect(failure.cause).toBe(rootCause);
     expect(failure.persistenceFailure).toBe(persistenceFailure);
@@ -209,7 +214,9 @@ describe("FestivalSyncScheduler", () => {
       record: () => Promise.reject(new Error("unexpected recorder rejection")),
     });
 
-    await expect(fixture.scheduler.runDailySync()).rejects.toBe(failure);
+    await expect(fixture.scheduler.runDailySync()).rejects.toMatchObject({
+      originalError: failure,
+    });
 
     expect(fixture.records[0]).toMatchObject({
       status: "FAILED",
@@ -219,4 +226,87 @@ describe("FestivalSyncScheduler", () => {
       details: null,
     });
   });
+});
+
+describe("sanitized scheduler reporting", () => {
+  it("logs measured counters and never raw fatal cause/stack", async () => {
+    const log = jest
+      .spyOn(Logger.prototype, "log")
+      .mockImplementation(() => {});
+    const errorLog = jest
+      .spyOn(Logger.prototype, "error")
+      .mockImplementation(() => {});
+    const fatal = new DetailEnrichmentError(
+      details({
+        status: "FAILED",
+        succeededCount: 1,
+        failedCount: 1,
+        remainingCount: 1,
+        waitingCount: 1,
+        quarantinedCount: 0,
+        locallyReplayedCount: 1,
+      }),
+      new Error("https://private?serviceKey=secret raw db value"),
+    );
+    const fixture = createScheduler({ fullSync: () => Promise.reject(fatal) });
+    try {
+      await expect(fixture.scheduler.runDailySync()).rejects.toMatchObject({
+        originalError: fatal,
+      });
+      const logs = JSON.stringify([...log.mock.calls, ...errorLog.mock.calls]);
+      expect(logs).toContain("locallyReplayedCount");
+      expect(logs).toContain("BATCH_RESULT");
+      expect(logs).not.toMatch(/private|serviceKey|raw db value/);
+      expect(fixture.records[0].details).toMatchObject({
+        locallyReplayedCount: 1,
+        waitingCount: 1,
+      });
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+});
+
+describe("Nest cron wrapper boundary", () => {
+  it.each(["list", "details"] as const)(
+    "keeps %s errors and nested causes out of the wrapper logger",
+    async (stage) => {
+      const cause = new Error(
+        "https://provider.test?serviceKey=secret-value raw-db-value",
+      );
+      const original =
+        stage === "details"
+          ? new DetailEnrichmentError(
+              details({ status: "FAILED", failedCount: 1 }),
+              cause,
+            )
+          : new Error("secret-value list-response", { cause });
+      const fixture = createScheduler({
+        fullSync: () => Promise.reject(original),
+      });
+      const errorLog = jest
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => {});
+      const wrapperLogger = new Logger("Scheduler");
+      try {
+        // Same catch/log contract as installed ScheduleExplorer.wrapFunctionInTryCatchBlocks.
+        try {
+          await fixture.scheduler.runDailySync();
+        } catch (error) {
+          wrapperLogger.error(error);
+        }
+        const logged: unknown = errorLog.mock.calls.at(-1)?.[0];
+        expect(logged).toBeInstanceOf(Error);
+        expect(logged).not.toBe(original);
+        expect(logged).toMatchObject({ originalError: original });
+        expect(inspect(logged, { depth: 10, showHidden: true })).not.toMatch(
+          /secret-value|raw-db-value|provider\.test|list-response/,
+        );
+        expect(JSON.stringify(logged)).not.toMatch(/secret-value|raw-db-value/);
+        expect(fixture.records[0]).toMatchObject({ status: "FAILED", stage });
+      } finally {
+        jest.restoreAllMocks();
+      }
+    },
+  );
 });

@@ -17,6 +17,8 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "pretest:e2e": "pnpm --filter @haetteum/contracts build && pnpm db:generate",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
+    "tourism:inspect": "pnpm build && node dist/tourism/tourism-inspect.command.js",
+    "tourism:replay": "pnpm build && node dist/tourism/tourism-replay.command.js",
     "tourism:sync": "pnpm build && node dist/tourism/tourism-sync.command.js",
     "tourism:enrich": "pnpm build && node dist/tourism/tourism-sync.command.js --mode=enrich",
     "tourism:enrich-ranked": "pnpm build && node dist/tourism/tourism-sync.command.js --mode=enrich-ranked",

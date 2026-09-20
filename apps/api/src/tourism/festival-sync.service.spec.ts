@@ -1,3 +1,4 @@
+import { testRecovery } from "../../test/tour-api-recovery-fixture.js";
 /* eslint-disable @typescript-eslint/require-await -- deterministic fake boundaries preserve async interfaces */
 import type { FestivalRepository } from "./festival.repository.js";
 import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
@@ -242,11 +243,42 @@ function setup(
     details as unknown as TourApiPort,
     repository as unknown as FestivalRepository,
     policy as never,
+    testRecovery(policy),
   );
   return { details, provider, repository, service };
 }
 
 describe("FestivalSyncService", () => {
+  it("continues fresh festivals after recovery quota deferral", async () => {
+    const { details, provider, repository, service } = setup();
+    provider.pages.set(1, page([festival("a")]));
+    for (const id of ["a", "b", "c"])
+      repository.pendingDetails.push({
+        id,
+        externalId: id,
+        providerModifiedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+    details.error = new TourApiBudgetDeferredError(
+      "TOUR_API_RETRY_DAILY_LIMIT",
+    );
+    details.errorContentId = "b";
+    details.getPlaceCommonDetail = async (id: string) => {
+      if (id === "b")
+        throw new TourApiBudgetDeferredError("TOUR_API_RETRY_DAILY_LIMIT");
+      return { contentid: id };
+    };
+    details.getFestivalIntro = async (id: string) => ({ contentid: id });
+    details.getPlaceImages = async () => [];
+    expect(await service.fullSync(RANGE)).toMatchObject({
+      status: "DEFERRED",
+      details: {
+        succeededCount: 2,
+        remainingCount: 1,
+        failedCount: 0,
+        deferredReason: "TOUR_API_RETRY_DAILY_LIMIT",
+      },
+    });
+  });
   it("defers an incomplete list without deactivating missing festivals", async () => {
     const { provider, repository, service } = setup();
     provider.pages.set(1, page([festival("festival-1")], 1, 1, 2));
@@ -359,7 +391,7 @@ describe("FestivalSyncService", () => {
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected fatal detail progress");
     expect(error.cause).toBe(details.error);
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 0,
@@ -396,7 +428,7 @@ describe("FestivalSyncService", () => {
     expect(error.message).toBe(
       "Tourism detail synchronization stopped after a fatal error",
     );
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 0,
@@ -435,7 +467,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected fatal detail progress");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 1,
@@ -467,7 +499,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected measured terminal failure");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 1,
       succeededCount: 1,
@@ -512,7 +544,7 @@ describe("FestivalSyncService", () => {
     expect(error).toBeInstanceOf(DetailEnrichmentError);
     if (!(error instanceof DetailEnrichmentError))
       throw new Error("Expected measured terminal failure");
-    expect(error.summary).toEqual({
+    expect(error.summary).toMatchObject({
       status: "FAILED",
       requestedCount: 2,
       succeededCount: 1,

@@ -86,7 +86,7 @@ API 빌드, 전체 단위 테스트 619개, 별도 PostgreSQL DB 통합 테스�
 
 매일 03:30 KST의 `tourism-daily-sync`와 04:30 KST의 `festival-daily-sync`는 종료 시 각각 Notion 페이지를 한 번 생성한다. 성공·실패·보류, 목록/상세 단계, 허용된 사유 코드, 이번 실행의 실제 요청 수, 상세 대상·완료·실패·잔여 수, 시작·종료 시각(UTC), 소요 시간을 기록한다. 목록 또는 배치 준비 단계에서 상세 수를 측정하지 못했으면 0으로 만들지 않고 `집계 불가`와 숫자 `null`로 남긴다.
 
-Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `LIST_FAILED`, `DETAILS_FAILED`만 사유 코드로 보낸다. 그 밖의 값은 `BATCH_FAILED`로 바꾼다. 토큰, URL 쿼리, 제공자 응답, 예외 원문은 보내지 않으며 상세 원인은 서버의 배치 로그에서 확인한다. Notion 요청 실패나 예기치 않은 기록기 예외는 원래 배치의 성공·보류·실패 결과와 예외를 바꾸지 않는다. CLI 수동 수집과 코스 배치는 기록 대상이 아니다.
+Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `TOUR_API_RECOVERY_WAIT`, `TOUR_API_RETRY_DAILY_LIMIT`, `TOUR_API_PROVIDER_COOLDOWN`, `TOUR_API_BATCH_DEADLINE`, `LIST_FAILED`, `DETAILS_FAILED`만 사유 코드로 보낸다. 그 밖의 값은 `BATCH_FAILED`로 바꾼다. 토큰, URL 쿼리, 제공자 응답, 예외 원문은 보내지 않으며 실패 ID·단계·코드는 아래 안전한 복구 조회 명령으로 확인한다. 서버 로그는 원문·예외 스택 대신 상태와 집계만 기록한다. Notion 요청 실패나 예기치 않은 기록기 예외는 원래 배치의 성공·보류·실패 결과와 예외를 바꾸지 않는다. CLI 수동 수집과 코스 배치는 기록 대상이 아니다.
 
 활성화하려면 배포 환경에 `NOTION_TOKEN`과 `NOTION_DATA_SOURCE_ID`를 모두 설정하고 API를 재시작한다. Notion 연결에 콘텐츠 삽입 권한을 부여하고 대상 데이터베이스에 연결을 추가해야 한다. 제목 속성 ID `title`을 사용하므로 제목 열 이름은 변경할 필요가 없다. `NOTION_DATA_SOURCE_ID`에는 데이터베이스 ID가 아닌 데이터 소스 ID를 넣는다.
 
@@ -105,3 +105,61 @@ Notion에는 `TOUR_API_DAILY_LIMIT`, `TOUR_API_JOB_DAILY_LIMIT`, `LIST_FAILED`, 
 | 오류 요약               | 텍스트      | 예산 보류 또는 실패 단계/건수의 안전한 요약. 성공이면 비움 |
 
 본문의 상세 대상·완료·실패·잔여 수는 집계됐을 때만 숫자로 표시한다. 부분 진행은 성공으로 표시하지 않는다. 예산 보류는 다음 KST 날짜에 같은 미완료 원본 버전부터 이어지며, 상세 실패가 하나라도 있으면 상태는 실패다.
+
+## 응답 원문 보관 및 로컬 복구 (2026-09-20)
+
+`TourApiClient`는 응답을 JSON/schema로 검사하기 **전에** `tour_api_captures`에 저장한다. job, 항목 ID/원본 버전 또는 KST 날짜+목록 실행 필터 범위, operation, 인증정보를 제외한 요청 파라미터 해시, HTTP 상태, 캡처 시각과 상태를 기록한다. URL/헤더는 저장하지 않는다. 설정된 키와 인코딩/디코딩한 키를 원문에서 가리고 UTF-8 최대 2 MiB만 저장한다. 잘린 응답은 재사용하지 않는다. 저장 실패는 즉시 배치를 중단하며 HTTP 네트워크 재시도로 바뀌지 않는다.
+
+상태는 `CAPTURED`, `VALIDATED`, `INVALID_SCHEMA`, `REJECTED`, `COMPLETE`다. 항목별 각 operation의 검증된 원문은 같은 원본 버전의 실패를 재처리할 때 현재 schema로 다시 검사한다. 제공자 오류/실패 HTTP 응답(`REJECTED`)은 성공 원문으로 재사용하지 않는다. 목적지 트랜잭션이 커밋된 뒤에만 `COMPLETE`로 전환하므로 커밋 직후 프로세스가 종료되어도 같은 내부 ID에 멱등적으로 다시 반영한다. 미완료 항목은 기존에 정상 저장된 상세를 유지한다.
+
+`tour_api_item_recovery`는 `(job, content_id, source_version)` 기본키로 실패 stage(operation/MAPPING/PERSISTENCE), 허용된 오류 코드, 실행 실패 횟수, 다음 실행 시각, `FAILED`/`QUARANTINED`/`COMPLETE` 상태를 저장한다. 첫 실패는 1일, 두 번째는 3일 후 재시도하며 세 번째 실패부터 격리한다. 예산 보류와 시스템 DB 오류는 항목 실패 횟수를 올리지 않는다. 새 버전은 별개 대상으로 즉시 수집할 수 있다. 자동 상세 수집은 미시도 버전으로 시작하여 실행 시각이 도래한 실패 버전과 한 항목씩 번갈아 처리한다.
+
+목록 원문은 같은 KST 날짜/실행 종류/요청 파라미터의 **미완료 페이지**만 재사용한다. 페이지 DB 처리가 끝나면 완료 처리하고, 성공한 이전 목록이나 전날 목록은 새 수집을 대체하지 않는다. 이전 실행에서 저장한 페이지를 재사용한 목록 실행은 체크포인트를 전진시키거나 누락 삭제를 하지 않는다. 해당 실행을 안전하게 실패 기록한 뒤 전체 목록을 새로 요청하여 성공한 새 실행만 체크포인트/누락 상태를 반영한다. 새 목록 호출 예산이 없으면 체크포인트를 유지하고 보류한다. 페이지 재처리 자체는 HTTP 비용이 없지만 체크포인트를 안전하게 확정하려면 새 목록 요청이 필요하다.
+
+복구 CLI는 정기 배치와 동일한 advisory lock/정책 경계에서 실행되며 다른 스케줄러를 끈다. 기존 `tourism:sync`, `festival:sync` 사용법은 유지된다.
+
+```sh
+# 기본: 최대 20개 FAILED 항목의 저장된 응답만 재처리. HTTP 0회.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism
+pnpm --filter @haetteum/api tourism:replay -- --job=festival --ids=141268 --limit=1
+
+# 누락 operation만 명시적으로 추가 요청. 재시도도 max-requests에 포함.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism --ids=2704412 --limit=1 --fetch-missing --max-requests=4
+
+# 격리 항목은 지정한 ID에 한해 명시적으로 재등록.
+pnpm --filter @haetteum/api tourism:replay -- --job=tourism --ids=2704412 --limit=1 --requeue
+```
+
+`--limit`은 1~100, `--max-requests`는 0~100이며 HTTP 허용 시 1 이상을 명시해야 한다. ID는 최대 20자리 숫자, 최대 100개, 중복 없이 지정한다. 로컬 복구는 원문으로 새 schema를 재검사하므로 parser 수정 후에도 API 호출 없이 복구할 수 있다. 없는 원문은 보류하며 자동으로 HTTP를 허용하지 않는다. 출력은 성공/실패/보류 개수와 실제 HTTP 수만 담고 원문은 포함하지 않는다.
+
+보존: `TourApiRecoveryRepository.cleanup(before, limit)`은 지정 시각보다 오래된 **COMPLETE** 원문을 호출당 최대 1,000개만 삭제한다. 운영자는 예를 들어 완료 30일 후, 최대 100개씩 실행할 수 있다. 자동 정리 스케줄은 없다. 미완료/검증 실패/제공자 오류와 격리 항목은 자동 삭제하지 않으며 원인 분석과 명시적 운영 판단 전까지 보존한다. 원문은 응답 개인정보를 포함할 수 있으므로 DB 접근을 수집 운영자로 제한한다.
+
+복구 선택은 현재 목적지 원본 버전과 실패 버전을 DB에서 조인한 뒤 정렬/제한한다. 이전 버전 실패 때문에 현재의 신규/완료/격리 버전을 실행하지 않으며, 선택된 버전과 실패 상태를 실행 직전에 다시 확인한다. `--requeue`도 실행 제한 안에 선택된 현재 버전만 변경한다. 오래된 버전의 증거는 보존하되 현재 복구 슬롯을 차지하지 않는다. 목적지는 이미 커밋되었지만 캡처/실패 상태 완료 전에 중단된 경우, 다음 상세 수집 또는 CLI가 현재 목적지의 완료 버전을 확인하여 HTTP 없이 저장 상태를 완료한다. 정기 상세 수집은 실행마다 최대 100개, CLI는 지정 limit만큼 이 완료 상태를 별도로 정합화한 뒤 실패 실행 항목을 선택한다.
+
+
+## 제한된 HTTP 재시도와 영속 복구 예산 (2026-09-20)
+
+각 operation은 최초 요청을 포함해 최대 3회 시도한다. 네트워크 오류·20초 응답 시간 초과·5xx·429·제공자 코드 `01`/`05`/`23`만 재시도한다. 대기는 2초, 10초에 각각 0~500ms 지터를 더하며 `Retry-After`(초/HTTP 날짜)가 더 길면 그 시간보다 일찍 재시도하지 않는다. 60초를 초과한 Retry-After는 현재 실행에서 기다리지 않고 제공자 cooldown으로 보류한다. 응답 본문을 끝까지 읽는 시간도 20초에 포함하며, 2 MiB를 초과하면 스트림을 중단하고 `RESPONSE_TOO_LARGE`로 실패한다. 원문은 기존 크기·비밀정보 제거 규칙으로 보관하되 성공 원문으로 재사용하지 않는다.
+
+`tour_api_job_daily_usage.retry_calls`는 같은 KST 날짜의 복구 HTTP 시도를 관광지 70회, 축제 30회로 제한한다. 기존 700/300 및 공용 1,000회 예산 안에 포함되며 별도 추가 호출량이 아니다. 같은 원본 버전의 이전 실패 항목에 대한 모든 HTTP와 최초 요청 후 추가 시도가 대상이다. 둘 모두 해당해도 한 번만 센다. 원문만 재처리하면 0회, 거절된 예약과 사전 확인도 0회다. 두 사용량 테이블은 같은 요청 잠금/트랜잭션에서 예약하므로 재시작·동시 요청에도 한도를 초과하지 않는다. 복구 예산 부족은 `TOUR_API_RETRY_DAILY_LIMIT`로 해당 항목을 보류하고 뒤의 신규/로컬 처리 대상을 계속 처리한다.
+
+`tour_api_provider_cooldown`은 제공자 전체에 적용한다. 429/23 재시도 소진 또는 긴 Retry-After는 최소 15분(더 긴 Retry-After 우선), 제공자 할당량 코드 `22`는 다음 KST 자정까지 HTTP를 중단한다. 인증 오류 `20`/`30`/`31` 및 HTTP 401/403은 현재 배치를 실패로 중단하고 최소 15분 후의 새 배치에서 재확인한다. XML의 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`도 인증 오류다. HTTP 상태보다 제공자 코드를 먼저 확인하므로 503/429에 담긴 22도 재시도하지 않는다. 원문은 REJECTED로 남고 원래 제공자 오류는 정책 예외의 cause로 유지한다. 일반 cooldown/예산 보류는 개별 항목 실패 횟수를 올리지 않는다. cooldown 중 저장 원문만 사용하는 CLI는 계속 가능하다. 수동 교정은 인증정보 또는 제공자 상태를 확인한 뒤 운영자가 cooldown 행을 명시적으로 조정한다.
+
+새 보류 코드는 `TOUR_API_PROVIDER_COOLDOWN`, `TOUR_API_RETRY_DAILY_LIMIT`, `TOUR_API_BATCH_DEADLINE`이다. 배치는 40분 동안만 새 작업/HTTP를 허용한다. 요청·사전 확인 잠금은 남은 배치 시간과 20초 중 짧은 PostgreSQL lock/statement timeout을 사용하며, HTTP 본문과 재시도 지연도 남은 시간에 맞춘다. 연결 풀은 연결 5초, statement 20초, 클라이언트 query 21초 상한을 둔다. 로컬 원문 복구에도 배치 시간 검사를 적용한다. 진행 중인 DB 정리·잠금 해제는 별도의 유한한 DB 타임아웃 안에서 마친다.
+
+배포 전 `20260920090000_tourapi_durable_recovery` 다음에 `20260920120000_tourapi_retry_policy` 마이그레이션을 적용해야 한다. 완료 간격 저장과 advisory lock은 유지한다. 실제 전송 중단은 Node 표준 fetch의 AbortSignal 계약을 사용하고, 본문 reader.cancel을 즉시 호출한다. 취소 완료 Promise가 끝나지 않더라도 기다리지 않는다. AbortSignal을 무시하는 사용자 정의 전송 구현은 지원하지 않는다.
+
+## 복구 조회 및 결과 해석
+
+운영 절차는 [TourAPI 실패 복구 운영 절차](tourapi-recovery-runbook.md)를 따른다. `tourism:inspect`는 HTTP나 DB 변경 없이 현재 노출된 미완료 원본 버전의 `FAILED`/`QUARANTINED` 상태만 출력한다. 기본 20개, 최대 100개로 제한하며 `--job`, `--ids`, `--limit`만 허용한다. 출력은 job, ID, sourceVersion, state, stage, code, attemptCount, nextAttemptAt의 허용된 값이며 응답 원문은 출력하지 않는다.
+
+```sh
+pnpm --filter @haetteum/api tourism:inspect -- --job=tourism --limit=20
+pnpm --filter @haetteum/api tourism:inspect -- --job=festival --ids=141268 --limit=1
+```
+
+`failedCount`는 이번 실행에서 발생한 실패 수다. `remainingCount`는 실패·대기·격리를 포함한 미완료 수이며 `waitingCount`와 `quarantinedCount`는 그중 현재 원본 버전에 대응하는 영속 상태의 부분집합이다. 과거 버전의 실패는 이 수에 포함하지 않는다. `locallyReplayedCount`는 **이번 실행에 저장 응답만으로 목적지 저장까지 성공한 항목 수**다. 저장 응답과 HTTP를 함께 사용한 성공은 succeededCount에는 포함되지만 locallyReplayedCount에는 포함되지 않는다. 이전 실행 성공이나 operation별 재사용 횟수도 로컬 복구 완료 항목 수로 세지 않는다. 집계가 불가능하면 값을 생략하고 Notion 본문에는 `집계 불가`로 표시한다.
+
+Notion의 기존 `성공`/`실패`/`보류`와 숫자형 실패 건수 속성은 유지한다. 목록 완료 뒤 상세 실패가 있으면 오류 요약에 목록 완료와 성공 상세 보존을 명시한다. 실패와 보류가 함께 있으면 `FAILED`가 우선하고 본문에 상세 중단 사유를 별도로 남긴다. 대기·격리·로컬 복구 수는 본문에 기록하므로 외부 스키마 변경이 필요 없다. 쿨다운은 제공자 대기, deadline은 실행 시간, recovery wait는 재시도 대기로 설명하며 일일 예산 부족과 구분한다. 최소 상세 호출 묶음을 감당할 잔여 예산이 없는 경우도 있으므로 예산 보류를 실제 한도 초과로 단정하지 않는다.
+
+과거 상세 실패 103건의 구체적인 원인은 아직 입증되지 않았다. 배포 이전 응답이 보관되지 않았다면 새 기능으로 당시 원문을 재구성하거나 바로 로컬 재처리할 수 없다. 이후 캡처된 stage/code/응답 근거로 원인을 판별한다.

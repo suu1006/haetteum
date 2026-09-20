@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { EventEmitter } from "node:events";
 import { jest } from "@jest/globals";
-import { TourApiPolicy } from "./tour-api-policy.js";
+import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 
 function harness() {
   let count = 0;
@@ -142,7 +142,11 @@ describe("TourAPI execution policy", () => {
         expect(uncaught).toBeUndefined();
         if (failure === "usage-resolve")
           expect(error).toEqual(new Error("TOUR_API_BATCH_REQUIRED"));
-        else expect(error).toBe(socketError);
+        else
+          expect(error).toMatchObject({
+            message: "TOUR_API_PREFLIGHT_FAILED",
+            cause: socketError,
+          });
         await expect(
           policy.request(async () => {
             httpCalls++;
@@ -250,6 +254,56 @@ describe("TourAPI execution policy", () => {
     expect(work).not.toHaveBeenCalled();
   });
 
+  it("bounds the batch including preflight and local work at forty minutes", async () => {
+    const { policy } = harness();
+    const now = jest.spyOn(Date, "now").mockReturnValue(0);
+    try {
+      await policy.batch(async () => {
+        now.mockReturnValue(2_400_001);
+        expect(() => policy.assertBatch()).toThrow("BATCH_DEADLINE");
+        await expect(policy.ensureCapacity(1)).rejects.toThrow(
+          "BATCH_DEADLINE",
+        );
+      });
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("defers when a preflight lock timeout crosses the batch deadline", async () => {
+    const { policy, connection } = harness();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(0);
+    const original = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql) => {
+      if (sql.includes("pg_advisory_lock")) {
+        clock.mockReturnValue(2_400_001);
+        throw Object.assign(new Error("lock timeout"), { code: "55P03" });
+      }
+      return original(sql);
+    });
+    try {
+      await policy.batch(async () => {
+        await expect(policy.ensureCapacity(1)).rejects.toMatchObject({
+          reason: "TOUR_API_BATCH_DEADLINE",
+        });
+        expect(policy.currentBatchRequestCount()).toBe(0);
+      });
+      expect(connection.release).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("classifies a failed connection before HTTP as policy failure", async () => {
+    const { policy, pool } = harness();
+    await policy.batch(async () => {
+      pool.connect.mockRejectedValueOnce(new Error("connection timeout"));
+      await expect(policy.request(async () => {})).rejects.toBeInstanceOf(
+        TourApiPolicyError,
+      );
+      expect(policy.currentBatchRequestCount()).toBe(0);
+    });
+  });
   describe("ping", () => {
     it("resolves when the pool responds before the timeout", async () => {
       const { policy, pool } = harness();

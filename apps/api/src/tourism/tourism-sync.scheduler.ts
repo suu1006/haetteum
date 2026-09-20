@@ -1,3 +1,4 @@
+import { ScheduledBatchError } from "./scheduled-batch-error.js";
 import { DetailEnrichmentError } from "./detail-enrichment-summary.js";
 import {
   TourApiBudgetDeferredError,
@@ -78,11 +79,14 @@ export class TourismSyncScheduler {
       reason = stage === "details" ? "DETAILS_FAILED" : "LIST_FAILED";
       this.logger.error(
         "[BATCH_FAILED] tour-api-sync",
-        error instanceof Error ? error.stack : String(error),
+        `${reason}; list=${stage === "details" ? "COMPLETE" : "INCOMPLETE"}; details=${JSON.stringify(details)}`,
       );
 
-      throw error;
+      throw new ScheduledBatchError("tourism", stage, error);
     } finally {
+      this.logger.log(
+        `[BATCH_RESULT] ${JSON.stringify({ status, listStatus: stage === "details" ? "COMPLETE" : "INCOMPLETE", reason, requestCount, details })}`,
+      );
       try {
         await this.notion.record({
           batchName: "tourism-daily-sync",

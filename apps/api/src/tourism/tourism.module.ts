@@ -1,3 +1,5 @@
+import { TourApiRecovery } from "./tour-api-recovery.js";
+import { TourApiRecoveryRepository } from "./tour-api-recovery.repository.js";
 import { CourseSyncService } from "../place-courses/course-sync.service.js";
 import { Pool } from "pg";
 import { ConfigService } from "@nestjs/config";
@@ -40,6 +42,8 @@ import { NotionBatchRecorder } from "./notion-batch-recorder.js";
     FestivalSyncScheduler,
     RankingPlaceLinkService,
     TourApiClient,
+    TourApiRecovery,
+    TourApiRecoveryRepository,
     TourApiPolicy,
     {
       provide: TOUR_API_POLICY_POOL,
@@ -49,6 +53,8 @@ import { NotionBatchRecorder } from "./notion-batch-recorder.js";
           connectionString: config.get("DATABASE_URL", { infer: true }),
           max: config.get("TOUR_API_POLICY_POOL_MAX", { infer: true }),
           connectionTimeoutMillis: 5000,
+          statement_timeout: 20_000,
+          query_timeout: 21_000,
         }),
     },
     { provide: TOUR_API_PORT, useExisting: TourApiClient },

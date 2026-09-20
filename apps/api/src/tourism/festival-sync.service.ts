@@ -1,4 +1,10 @@
 import {
+  TourApiRecovery,
+  TourApiRecoverySelectionChangedError,
+  TourApiListReplayRefreshError,
+  isDatabaseSystemError,
+} from "./tour-api-recovery.js";
+import {
   DetailEnrichmentError,
   type DetailEnrichmentSummary,
 } from "./detail-enrichment-summary.js";
@@ -36,9 +42,26 @@ export class FestivalSyncService {
     @Inject(TOUR_API_PORT) private readonly details: TourApiPort,
     private readonly repository: FestivalRepository,
     private readonly policy: TourApiPolicy,
+    private readonly recovery: TourApiRecovery,
   ) {}
 
   async fullSync(range: FestivalSyncRange): Promise<FestivalSyncSummary> {
+    const work = () =>
+      this.recovery.list("festival", JSON.stringify(range), () =>
+        this.fullSyncRun(range),
+      );
+    try {
+      return (await work()).value;
+    } catch (error) {
+      if (error instanceof TourApiListReplayRefreshError)
+        return (await work()).value;
+      throw error;
+    }
+  }
+
+  private async fullSyncRun(
+    range: FestivalSyncRange,
+  ): Promise<FestivalSyncSummary> {
     const rangeStart = parseRangeDate(range.eventStartDate);
     const rangeEnd = parseRangeDate(range.eventEndDate);
     if (rangeEnd < rangeStart) {
@@ -87,6 +110,7 @@ export class FestivalSyncService {
         counters.fetchedCount += page.items.length;
         counters.insertedCount += delta.insertedCount;
         counters.updatedCount += delta.updatedCount;
+        await this.recovery.completePage();
 
         if (counters.fetchedCount === expectedTotalCount) break;
         pageNo += 1;
@@ -96,6 +120,9 @@ export class FestivalSyncService {
         throw new SafeFestivalSyncError("TourAPI returned zero festivals");
       }
 
+      if (this.recovery.current()?.replayed)
+        throw new TourApiListReplayRefreshError();
+
       counters.deactivatedCount = await this.repository.deactivateMissing({
         rangeStart,
         rangeEnd,
@@ -103,35 +130,74 @@ export class FestivalSyncService {
         lastSyncedAt,
       });
 
-      const pendingDetails = await this.repository.findPendingDetails();
+      await this.recovery.reconcileCommitted("festival");
+      const allPending = await this.repository.findPendingDetails();
+      const pendingDetails = await this.recovery.eligible(
+        "festival",
+        allPending,
+      );
       details = {
         status: "SUCCEEDED",
-        requestedCount: pendingDetails.length,
+        requestedCount: allPending.length,
         succeededCount: 0,
         failedCount: 0,
-        remainingCount: pendingDetails.length,
+        remainingCount: allPending.length,
+        locallyReplayedCount: 0,
       };
-      for (const festival of pendingDetails) {
-        try {
-          await this.enrichDetail(festival);
-          details.succeededCount++;
-          details.remainingCount--;
-        } catch (error) {
-          if (error instanceof TourApiBudgetDeferredError) throw error;
-          if (isFatalTourApiError(error)) {
+      let primaryError: unknown;
+      try {
+        for (const festival of pendingDetails) {
+          try {
+            await this.recovery.observeReplay(
+              details as DetailEnrichmentSummary & {
+                locallyReplayedCount: number;
+              },
+              () => this.enrichDetail(festival),
+            );
+            details.succeededCount++;
+            details.remainingCount--;
+          } catch (error) {
+            if (error instanceof TourApiBudgetDeferredError) {
+              if (error.reason !== "TOUR_API_RETRY_DAILY_LIMIT") throw error;
+              details.deferredReason = error.reason;
+              continue;
+            }
+            if (isFatalTourApiError(error)) {
+              details.failedCount++;
+              details.status = "FAILED";
+              throw new DetailEnrichmentError(details, error);
+            }
+            counters.failedCount += 1;
             details.failedCount++;
             details.status = "FAILED";
-            throw new DetailEnrichmentError({ ...details }, error);
+            this.logger.warn(
+              `Festival detail synchronization failed for content ${festival.externalId}`,
+            );
           }
-          counters.failedCount += 1;
-          details.failedCount++;
-          details.status = "FAILED";
-          this.logger.warn(
-            `Festival detail synchronization failed for content ${festival.externalId}`,
-          );
         }
+      } catch (error) {
+        primaryError = error;
+        throw error;
+      } finally {
+        await this.recovery.reportPendingCounts(
+          details,
+          "festival",
+          allPending,
+          primaryError,
+        );
       }
-
+      if (details.status === "SUCCEEDED" && details.remainingCount > 0) {
+        details.status = "DEFERRED";
+        details.deferredReason ??= "TOUR_API_RECOVERY_WAIT";
+        return {
+          ...(await this.repository.deferSyncRun(
+            run.id,
+            counters,
+            details.deferredReason,
+          )),
+          details,
+        };
+      }
       return {
         ...(await this.repository.completeSyncRun(run.id, counters)),
         details,
@@ -205,33 +271,84 @@ export class FestivalSyncService {
     return error;
   }
 
-  private async enrichDetail(festival: {
+  async enrichContentId(
+    contentId: string,
+    expectedVersion?: string,
+  ): Promise<void> {
+    const festival = await this.repository.findDetailTarget(contentId);
+    if (!festival) {
+      if (expectedVersion !== undefined)
+        throw new TourApiRecoverySelectionChangedError();
+      return;
+    }
+    const identity = {
+      job: "festival" as const,
+      contentId,
+      sourceVersion: festival.providerModifiedAt.toISOString(),
+    };
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== identity.sourceVersion
+    )
+      throw new TourApiRecoverySelectionChangedError();
+    if (
+      festival.detailSourceModifiedAt?.getTime() ===
+      festival.providerModifiedAt.getTime()
+    ) {
+      await this.recovery.reconcile(identity);
+      return;
+    }
+    if (!festival.isVisible) {
+      if (expectedVersion !== undefined)
+        throw new TourApiRecoverySelectionChangedError();
+      return;
+    }
+    if (expectedVersion !== undefined)
+      await this.recovery.assertSelected(identity);
+    await this.enrichDetail(festival);
+  }
+
+  async enrichDetail(festival: {
     id: string;
     externalId: string;
     providerModifiedAt: Date;
   }): Promise<void> {
-    await this.policy.ensureCapacity(3);
-    const common = await this.details.getPlaceCommonDetail(festival.externalId);
-    const intro = await this.details.getFestivalIntro(festival.externalId);
-    const images = await this.details.getPlaceImages(festival.externalId);
-    const snapshot = createFestivalDetailSnapshot({
-      contentId: festival.externalId,
-      common,
-      intro,
-      images,
-    });
-    await this.repository.saveDetailSnapshot({
-      id: festival.id,
-      providerModifiedAt: festival.providerModifiedAt,
-      snapshot,
-      detailSyncedAt: new Date(),
-    });
+    await this.recovery.item(
+      {
+        job: "festival",
+        contentId: festival.externalId,
+        sourceVersion: festival.providerModifiedAt.toISOString(),
+      },
+      ["detailCommon2", "detailIntro2", "detailImage2"],
+      async () => {
+        const common = await this.details.getPlaceCommonDetail(
+          festival.externalId,
+        );
+        const intro = await this.details.getFestivalIntro(festival.externalId);
+        const images = await this.details.getPlaceImages(festival.externalId);
+        this.recovery.stage("MAPPING");
+        const snapshot = createFestivalDetailSnapshot({
+          contentId: festival.externalId,
+          common,
+          intro,
+          images,
+        });
+        this.recovery.stage("PERSISTENCE");
+        await this.repository.saveDetailSnapshot({
+          id: festival.id,
+          providerModifiedAt: festival.providerModifiedAt,
+          snapshot,
+          detailSyncedAt: new Date(),
+        });
+      },
+    );
   }
 }
 
 function isFatalTourApiError(error: unknown): boolean {
   return (
     error instanceof TourApiPolicyError ||
+    isDatabaseSystemError(error) ||
     (error instanceof TourApiError && error.providerCode === "22")
   );
 }

@@ -1,3 +1,4 @@
+import { TourApiRecovery } from "./tour-api-recovery.js";
 import { Inject, Injectable } from "@nestjs/common";
 import { TourApiPolicy, TourApiPolicyError } from "./tour-api-policy.js";
 import { ConfigService } from "@nestjs/config";
@@ -41,7 +42,8 @@ import type {
 import { TOUR_API_FETCH, TOUR_API_SLEEP } from "./tourism.constants.js";
 
 const REQUEST_TIMEOUT_MS = 20_000;
-const RETRY_DELAYS_MS = [250, 750] as const;
+const RETRY_DELAYS_MS = [2_000, 10_000] as const;
+const BODY_LIMIT = 2 * 1024 * 1024;
 
 type RequestOptions<T extends z.ZodTypeAny> = {
   operation: string;
@@ -56,6 +58,7 @@ export class TourApiError extends Error {
     readonly operation: string,
     readonly providerCode: string,
     readonly httpStatus?: number,
+    public retryAfterMs = 0,
   ) {
     super(`TourAPI ${operation} failed (${providerCode})`);
     this.name = "TourApiError";
@@ -71,6 +74,7 @@ export class TourApiClient
     @Inject(TOUR_API_FETCH) private readonly fetch: TourApiFetch,
     @Inject(TOUR_API_SLEEP) private readonly sleep: TourApiSleep,
     private readonly policy: TourApiPolicy,
+    private readonly recovery: TourApiRecovery,
   ) {}
 
   getDistrictPage(input: {
@@ -341,11 +345,64 @@ export class TourApiClient
   private async request<T extends z.ZodTypeAny>(
     options: RequestOptions<T>,
   ): Promise<TourApiPage<z.output<T>>> {
+    return this.recovery.requestScope(() => this.requestInScope(options));
+  }
+
+  private async requestInScope<T extends z.ZodTypeAny>(
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    this.recovery.stage(options.operation);
+    const parameters = {
+      ...options.parameters,
+      pageNo: String(options.pageNo),
+      numOfRows: String(options.numOfRows ?? 100),
+    };
+    const captured = await this.recovery.replay(options.operation, parameters);
+    if (captured)
+      return this.parseCaptured(captured.body, captured.httpStatus, options);
     const url = this.buildUrl(options);
 
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       try {
-        return await this.policy.request(() => this.requestOnce(url, options));
+        this.recovery.beforeRequest();
+        return await this.policy.request(
+          async () => {
+            this.recovery.requestReserved();
+            try {
+              return await this.requestOnce(url, options);
+            } catch (error) {
+              if (error instanceof TourApiPolicyError) throw error;
+              const failure = this.sanitizeError(error, options.operation);
+              const auth =
+                [
+                  "20",
+                  "30",
+                  "31",
+                  "SERVICE_KEY_IS_NOT_REGISTERED_ERROR",
+                ].includes(failure.providerCode) ||
+                [401, 403].includes(failure.httpStatus ?? 0);
+              if (
+                auth ||
+                failure.providerCode === "22" ||
+                failure.retryAfterMs > 60_000 ||
+                (attempt === 2 &&
+                  (failure.httpStatus === 429 || failure.providerCode === "23"))
+              ) {
+                await this.policy.stopProvider(
+                  auth
+                    ? "AUTH"
+                    : failure.providerCode === "22"
+                      ? "QUOTA"
+                      : "THROTTLE",
+                  failure.retryAfterMs,
+                  failure,
+                );
+              }
+              throw failure;
+            }
+          },
+          { retry: attempt > 0 || this.recovery.current()?.isRetry === true },
+        );
       } catch (error) {
         if (error instanceof TourApiPolicyError) throw error;
         const sanitizedError = this.sanitizeError(error, options.operation);
@@ -357,7 +414,12 @@ export class TourApiClient
           throw sanitizedError;
         }
 
-        await this.sleep(RETRY_DELAYS_MS[attempt]);
+        const delay = Math.max(
+          RETRY_DELAYS_MS[attempt] + Math.floor(Math.random() * 501),
+          sanitizedError.retryAfterMs,
+        );
+        if (delay >= this.policy.remainingMs()) this.policy.deadlineExceeded();
+        await this.sleep(delay);
       }
     }
 
@@ -400,54 +462,100 @@ export class TourApiClient
     url: URL,
     options: RequestOptions<T>,
   ): Promise<TourApiPage<z.output<T>>> {
-    const response = await this.fetchWithTimeout(url);
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        const errorBody = await response.text();
-        if (
-          errorBody.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR")
-        ) {
-          throw new TourApiError(options.operation, "22", response.status);
-        }
-      }
+    const { response, body, oversized } = await this.fetchWithTimeout(
+      url,
+      options.operation,
+    );
+    await this.recovery.capture(
+      options.operation,
+      {
+        ...options.parameters,
+        pageNo: String(options.pageNo),
+        numOfRows: String(options.numOfRows ?? 100),
+      },
+      body,
+      response.status,
+      this.config.get("TOUR_API_SERVICE_KEY", { infer: true }) ?? "",
+    );
+    if (oversized) {
+      await this.recovery.mark("REJECTED");
       throw new TourApiError(
         options.operation,
-        `HTTP_${response.status}`,
+        "RESPONSE_TOO_LARGE",
         response.status,
       );
     }
+    try {
+      return await this.parseCaptured(body, response.status, options);
+    } catch (error) {
+      if (error instanceof TourApiError)
+        error.retryAfterMs = retryAfter(response.headers.get("retry-after"));
+      throw error;
+    }
+  }
 
-    const body = await response.text();
-    const payload = parseJson(body, options.operation, response.status);
+  private async parseCaptured<T extends z.ZodTypeAny>(
+    body: string,
+    status: number,
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    try {
+      return await this.parseResponse(body, status, options);
+    } catch (error) {
+      await this.recovery.mark(
+        error instanceof TourApiError &&
+          error.providerCode === "INVALID_RESPONSE"
+          ? "INVALID_SCHEMA"
+          : "REJECTED",
+      );
+      throw error;
+    }
+  }
+
+  private async parseResponse<T extends z.ZodTypeAny>(
+    body: string,
+    status: number,
+    options: RequestOptions<T>,
+  ): Promise<TourApiPage<z.output<T>>> {
+    let payload: unknown;
+    try {
+      payload = JSON.parse(body) as unknown;
+    } catch {
+      /* XML gateway or non-JSON HTTP error */
+    }
+    const providerCode =
+      providerErrorCode(payload) ??
+      xmlProviderCode(body) ??
+      (body.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR")
+        ? "22"
+        : undefined);
+    if (providerCode && providerCode !== "0000")
+      throw new TourApiError(options.operation, providerCode, status);
+    if (status < 200 || status >= 300)
+      throw new TourApiError(options.operation, `HTTP_${status}`, status);
+    if (payload === undefined)
+      payload = parseJson(body, options.operation, status);
     const header = tourApiHeaderSchema.safeParse(payload);
 
     if (!header.success) {
-      throw new TourApiError(
-        options.operation,
-        "INVALID_RESPONSE",
-        response.status,
-      );
+      throw new TourApiError(options.operation, "INVALID_RESPONSE", status);
     }
 
     if (header.data.response.header.resultCode !== "0000") {
       throw new TourApiError(
         options.operation,
         header.data.response.header.resultCode,
-        response.status,
+        status,
       );
     }
 
     const page = tourApiPageSchema(options.itemSchema).safeParse(payload);
 
     if (!page.success) {
-      throw new TourApiError(
-        options.operation,
-        "INVALID_RESPONSE",
-        response.status,
-      );
+      throw new TourApiError(options.operation, "INVALID_RESPONSE", status);
     }
 
+    await this.recovery.mark("VALIDATED");
     const items = page.data.response.body.items;
 
     return {
@@ -458,12 +566,74 @@ export class TourApiClient
     };
   }
 
-  private async fetchWithTimeout(url: URL): Promise<Response> {
+  private async fetchWithTimeout(
+    url: URL,
+    operation: string,
+  ): Promise<{ response: Response; body: string; oversized: boolean }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let timedOut = false;
+    let timeout!: ReturnType<typeof setTimeout>;
+    const cancel = () => {
+      controller.abort();
+      // Calling cancel closes the reader immediately. A broken underlying cancel hook
+      // must not keep this request lock alive indefinitely.
+      void reader?.cancel().catch(() => undefined);
+    };
+    const deadline = this.policy.remainingMs();
+    const operationWork = async () => {
+      const response = await this.fetch(url, { signal: controller.signal });
+      if (timedOut) {
+        void response.body?.cancel().catch(() => undefined);
+        throw new TourApiError(operation, "TIMEOUT");
+      }
+      reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0,
+        oversized = false;
+      if (reader)
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done || timedOut) break;
+          const take = value.subarray(0, Math.max(0, BODY_LIMIT + 1 - size));
+          chunks.push(Buffer.from(take));
+          size += take.byteLength;
+          if (size > BODY_LIMIT) {
+            oversized = true;
+            cancel();
+            break;
+          }
+        }
+      return {
+        response,
+        body: Buffer.concat(chunks).toString("utf8"),
+        oversized,
+      };
+    };
     try {
-      return await this.fetch(url, { signal: controller.signal });
+      return await Promise.race([
+        operationWork(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => {
+              timedOut = true;
+              cancel();
+              if (deadline <= REQUEST_TIMEOUT_MS) {
+                try {
+                  this.policy.deadlineExceeded();
+                } catch (error) {
+                  reject(
+                    error instanceof Error
+                      ? error
+                      : new TourApiPolicyError("TOUR_API_BATCH_DEADLINE"),
+                  );
+                }
+              } else reject(new TourApiError(operation, "TIMEOUT"));
+            },
+            Math.min(REQUEST_TIMEOUT_MS, deadline),
+          );
+        }),
+      ]);
     } finally {
       clearTimeout(timeout);
     }
@@ -480,10 +650,17 @@ export class TourApiClient
   }
 
   private isRetryable(error: TourApiError): boolean {
-    if (error.providerCode === "22") return false;
+    if (
+      ["20", "30", "31", "22", "RESPONSE_TOO_LARGE"].includes(
+        error.providerCode,
+      ) ||
+      [401, 403].includes(error.httpStatus ?? 0)
+    )
+      return false;
     return (
       error.providerCode === "NETWORK_ERROR" ||
       error.providerCode === "TIMEOUT" ||
+      ["01", "05", "23"].includes(error.providerCode) ||
       error.httpStatus === 429 ||
       (error.httpStatus != null &&
         error.httpStatus >= 500 &&
@@ -542,4 +719,22 @@ function xmlProviderCode(body: string): string | undefined {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function retryAfter(value: string | null): number {
+  if (!value) return 0;
+  if (/^\d+(?:\.\d+)?$/.test(value.trim())) return Number(value) * 1000;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? Math.max(0, time - Date.now()) : 0;
+}
+function providerErrorCode(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const p = payload as {
+    response?: { header?: { resultCode?: unknown } };
+    OpenAPI_ServiceResponse?: { cmmMsgHeader?: { returnReasonCode?: unknown } };
+  };
+  const code =
+    p.response?.header?.resultCode ??
+    p.OpenAPI_ServiceResponse?.cmmMsgHeader?.returnReasonCode;
+  return typeof code === "string" ? code : undefined;
 }

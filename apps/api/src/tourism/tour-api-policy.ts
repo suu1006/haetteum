@@ -13,10 +13,18 @@ export class TourApiPolicyError extends Error {}
 
 export type TourApiJob = "tourism" | "festival";
 export type TourApiDeferredReason =
-  "TOUR_API_DAILY_LIMIT" | "TOUR_API_JOB_DAILY_LIMIT";
+  | "TOUR_API_DAILY_LIMIT"
+  | "TOUR_API_JOB_DAILY_LIMIT"
+  | "TOUR_API_RECOVERY_WAIT"
+  | "TOUR_API_RETRY_DAILY_LIMIT"
+  | "TOUR_API_PROVIDER_COOLDOWN"
+  | "TOUR_API_BATCH_DEADLINE";
 export class TourApiBudgetDeferredError extends TourApiPolicyError {
-  constructor(readonly reason: TourApiDeferredReason) {
-    super(reason);
+  constructor(
+    readonly reason: TourApiDeferredReason,
+    options?: ErrorOptions,
+  ) {
+    super(reason, options);
   }
 }
 
@@ -27,11 +35,14 @@ const REQUEST_LOCK = 74812002;
 /** Only scheduler/CLI entrypoints establish this context. Network calls fail closed. */
 @Injectable()
 export class TourApiPolicy implements OnModuleDestroy {
+  private readonly requestContext = new AsyncLocalStorage<PoolClient>();
   private readonly logger = new Logger(TourApiPolicy.name);
   private readonly context = new AsyncLocalStorage<{
     active: boolean;
     job: TourApiJob;
     calls: number;
+    deadline: number;
+    httpStop?: TourApiPolicyError;
   }>();
 
   constructor(
@@ -49,9 +60,18 @@ export class TourApiPolicy implements OnModuleDestroy {
   ): Promise<T> {
     if (job !== "tourism" && job !== "festival")
       throw new TourApiPolicyError("TOUR_API_INVALID_JOB");
-    const connection = await this.pool.connect();
+    const connection = await this.pool.connect().catch((cause: unknown) => {
+      throw new TourApiPolicyError("TOUR_API_POLICY_CONNECTION_FAILED", {
+        cause,
+      });
+    });
     let locked = false;
-    const state = { active: true, job, calls: 0 };
+    const state = {
+      active: true,
+      job,
+      calls: 0,
+      deadline: Date.now() + 40 * 60_000,
+    };
     const lost = () => {
       state.active = false;
     };
@@ -72,20 +92,33 @@ export class TourApiPolicy implements OnModuleDestroy {
     }
   }
 
-  async request<T>(work: () => Promise<T>): Promise<T> {
+  async request<T>(
+    work: () => Promise<T>,
+    options: { retry?: boolean } = {},
+  ): Promise<T> {
     this.assertBatch();
     const state = this.context.getStore()!;
-    const connection = await this.pool.connect();
+    const connection = await this.pool.connect().catch((cause: unknown) => {
+      throw new TourApiPolicyError("TOUR_API_POLICY_CONNECTION_FAILED", {
+        cause,
+      });
+    });
     const lost = () => {
       state.active = false;
     };
     connection.on("error", lost);
     let locked = false;
+    let invoked = false;
     try {
       // Session lock spans the actual HTTP attempt, so delayed workers cannot bunch up.
+      await connection.query(
+        "SELECT set_config('lock_timeout', $1, false), set_config('statement_timeout', $1, false)",
+        [String(Math.max(1, Math.min(20_000, this.remainingMs())))],
+      );
       await connection.query("SELECT pg_advisory_lock($1)", [REQUEST_LOCK]);
       locked = true;
       this.assertBatch();
+      await this.assertHttpCapacity(connection);
       const interval = this.config.get("TOUR_API_MIN_INTERVAL_MS", {
         infer: true,
       });
@@ -104,6 +137,7 @@ export class TourApiPolicy implements OnModuleDestroy {
         [interval],
       );
       const wait = Number(delay.rows[0]?.wait_ms ?? 0);
+      if (wait >= this.remainingMs()) this.deadlineExceeded();
       if (wait > 0)
         await new Promise<void>((resolve) =>
           setTimeout(resolve, Math.ceil(wait)),
@@ -124,14 +158,30 @@ export class TourApiPolicy implements OnModuleDestroy {
         if (reserved.rows.length === 0)
           throw new TourApiBudgetDeferredError("TOUR_API_DAILY_LIMIT");
         const jobReserved = await connection.query(
-          `INSERT INTO tour_api_job_daily_usage (day, job, calls)
-           VALUES ((transaction_timestamp() AT TIME ZONE 'Asia/Seoul')::date, $1, 1)
-           ON CONFLICT (day, job) DO UPDATE SET calls = tour_api_job_daily_usage.calls + 1
-           WHERE tour_api_job_daily_usage.calls < $2 RETURNING calls`,
-          [state.job, this.jobLimit(state.job)],
+          `INSERT INTO tour_api_job_daily_usage (day, job, calls, retry_calls)
+           VALUES ((transaction_timestamp() AT TIME ZONE 'Asia/Seoul')::date, $1, 1, $3)
+           ON CONFLICT (day, job) DO UPDATE SET calls = tour_api_job_daily_usage.calls + 1,
+             retry_calls = tour_api_job_daily_usage.retry_calls + $3
+           WHERE tour_api_job_daily_usage.calls < $2 AND
+             ($3 = 0 OR tour_api_job_daily_usage.retry_calls < $4) RETURNING calls`,
+          [
+            state.job,
+            this.jobLimit(state.job),
+            options.retry ? 1 : 0,
+            this.retryLimit(state.job),
+          ],
         );
-        if (jobReserved.rows.length === 0)
-          throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+        if (jobReserved.rows.length === 0) {
+          const usage = await connection.query<{ calls: number }>(
+            `SELECT calls FROM tour_api_job_daily_usage WHERE day = (transaction_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1`,
+            [state.job],
+          );
+          throw new TourApiBudgetDeferredError(
+            Number(usage.rows[0]?.calls ?? 0) >= this.jobLimit(state.job)
+              ? "TOUR_API_JOB_DAILY_LIMIT"
+              : "TOUR_API_RETRY_DAILY_LIMIT",
+          );
+        }
         await connection.query("COMMIT");
         state.calls++;
       } catch (error) {
@@ -141,7 +191,8 @@ export class TourApiPolicy implements OnModuleDestroy {
       this.assertBatch();
       let outcome: { result: T } | { error: unknown };
       try {
-        const result = await work();
+        invoked = true;
+        const result = await this.requestContext.run(connection, work);
         this.assertBatch();
         outcome = { result };
       } catch (error) {
@@ -170,6 +221,14 @@ export class TourApiPolicy implements OnModuleDestroy {
       }
       if ("error" in outcome) throw outcome.error;
       return outcome.result;
+    } catch (error) {
+      if (!invoked && !(error instanceof TourApiPolicyError)) {
+        this.assertBatch();
+        throw new TourApiPolicyError("TOUR_API_RESERVATION_FAILED", {
+          cause: error,
+        });
+      }
+      throw error;
     } finally {
       await this.release(connection, locked ? REQUEST_LOCK : null);
       connection.removeListener("error", lost);
@@ -185,29 +244,44 @@ export class TourApiPolicy implements OnModuleDestroy {
   /** Avoid starting a detail bundle that cannot fit its minimum requests.
    * Actual attempts (including retries) still reserve under request()'s lock.
    */
-  async ensureCapacity(minimumCalls: number): Promise<void> {
+  async ensureCapacity(
+    minimumCalls: number,
+    options: { retry?: boolean } = {},
+  ): Promise<void> {
     this.assertBatch();
     if (!Number.isInteger(minimumCalls) || minimumCalls < 1)
       throw new TourApiPolicyError("TOUR_API_INVALID_CAPACITY");
     const state = this.context.getStore()!;
-    const connection = await this.pool.connect();
+    const connection = await this.pool.connect().catch((cause: unknown) => {
+      throw new TourApiPolicyError("TOUR_API_POLICY_CONNECTION_FAILED", {
+        cause,
+      });
+    });
     const lost = () => {
       state.active = false;
     };
     connection.on("error", lost);
     let locked = false;
     try {
+      await connection.query(
+        "SELECT set_config('lock_timeout', $1, false), set_config('statement_timeout', $1, false)",
+        [String(Math.max(1, Math.min(20_000, this.remainingMs())))],
+      );
       await connection.query("SELECT pg_advisory_lock($1)", [REQUEST_LOCK]);
       locked = true;
       this.assertBatch();
+      await this.assertHttpCapacity(connection);
       const usage = await connection.query<{
         global_calls: number;
         job_calls: number;
+        retry_calls: number;
       }>(
         `SELECT COALESCE((SELECT calls FROM tour_api_daily_usage WHERE day =
            (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date), 0) AS global_calls,
          COALESCE((SELECT calls FROM tour_api_job_daily_usage WHERE day =
-           (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1), 0) AS job_calls`,
+           (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1), 0) AS job_calls,
+         COALESCE((SELECT retry_calls FROM tour_api_job_daily_usage WHERE day =
+           (clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date AND job = $1), 0) AS retry_calls`,
         [state.job],
       );
       this.assertBatch();
@@ -219,10 +293,71 @@ export class TourApiPolicy implements OnModuleDestroy {
         throw new TourApiBudgetDeferredError("TOUR_API_DAILY_LIMIT");
       if (Number(row.job_calls) + minimumCalls > this.jobLimit(state.job))
         throw new TourApiBudgetDeferredError("TOUR_API_JOB_DAILY_LIMIT");
+      if (
+        options.retry &&
+        Number(row.retry_calls) + minimumCalls > this.retryLimit(state.job)
+      )
+        throw new TourApiBudgetDeferredError("TOUR_API_RETRY_DAILY_LIMIT");
+    } catch (error) {
+      if (error instanceof TourApiPolicyError) throw error;
+      if (Date.now() >= state.deadline) this.deadlineExceeded();
+      throw new TourApiPolicyError("TOUR_API_PREFLIGHT_FAILED", {
+        cause: error,
+      });
     } finally {
       await this.release(connection, locked ? REQUEST_LOCK : null);
       connection.removeListener("error", lost);
     }
+  }
+
+  remainingMs(): number {
+    this.assertBatch();
+    return this.context.getStore()!.deadline - Date.now();
+  }
+  deadlineExceeded(): never {
+    throw new TourApiBudgetDeferredError("TOUR_API_BATCH_DEADLINE");
+  }
+  private retryLimit(job: TourApiJob): number {
+    return job === "tourism" ? 70 : 30;
+  }
+  private async assertHttpCapacity(connection: PoolClient): Promise<void> {
+    this.assertBatch();
+    const state = this.context.getStore()!;
+    if (state.httpStop) throw state.httpStop;
+    const result = await connection.query(
+      `SELECT reason FROM tour_api_provider_cooldown WHERE id = 1 AND until_at > clock_timestamp()`,
+    );
+    if (result.rows.length)
+      throw new TourApiBudgetDeferredError("TOUR_API_PROVIDER_COOLDOWN");
+  }
+  /** Called under the request lock after rejected response evidence was persisted. */
+  async stopProvider(
+    reason: "AUTH" | "QUOTA" | "THROTTLE",
+    retryAfterMs: number,
+    cause?: Error,
+  ): Promise<never> {
+    this.assertBatch();
+    const error =
+      reason === "AUTH"
+        ? new TourApiPolicyError("TOUR_API_PROVIDER_AUTH", { cause })
+        : new TourApiBudgetDeferredError("TOUR_API_PROVIDER_COOLDOWN", {
+            cause,
+          });
+    this.context.getStore()!.httpStop = error;
+    try {
+      await (this.requestContext.getStore() ?? this.pool).query(
+        `INSERT INTO tour_api_provider_cooldown (id, until_at, reason)
+        VALUES (1, CASE WHEN $1 = 'QUOTA' THEN ((clock_timestamp() AT TIME ZONE 'Asia/Seoul')::date + 1)::timestamp AT TIME ZONE 'Asia/Seoul'
+          ELSE clock_timestamp() + ($2 * interval '1 millisecond') END, $1)
+        ON CONFLICT (id) DO UPDATE SET until_at = GREATEST(tour_api_provider_cooldown.until_at, EXCLUDED.until_at), reason = EXCLUDED.reason`,
+        [reason, Math.max(900_000, retryAfterMs)],
+      );
+    } catch (cause) {
+      throw new TourApiPolicyError("TOUR_API_COOLDOWN_STORAGE_FAILED", {
+        cause,
+      });
+    }
+    throw error;
   }
 
   private jobLimit(job: TourApiJob): number {
@@ -237,9 +372,16 @@ export class TourApiPolicy implements OnModuleDestroy {
     return limit;
   }
 
-  private assertBatch(): void {
+  currentJob(): TourApiJob {
+    this.assertBatch();
+    return this.context.getStore()!.job;
+  }
+
+  assertBatch(): void {
     if (!this.context.getStore()?.active)
       throw new TourApiPolicyError("TOUR_API_BATCH_REQUIRED");
+    if (Date.now() >= this.context.getStore()!.deadline)
+      this.deadlineExceeded();
   }
 
   private async release(
@@ -249,6 +391,9 @@ export class TourApiPolicy implements OnModuleDestroy {
     try {
       if (lock !== null)
         await connection.query("SELECT pg_advisory_unlock($1)", [lock]);
+      await connection.query(
+        "SELECT set_config('lock_timeout', '20000', false), set_config('statement_timeout', '20000', false)",
+      );
       connection.release();
     } catch {
       connection.release(true);
