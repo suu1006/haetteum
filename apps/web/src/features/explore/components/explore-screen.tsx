@@ -1,9 +1,9 @@
-import { SearchBar } from "@/components/patterns/search-bar/search-bar";
+import { PlaceSearchForm } from "@/features/places/components/place-search-form";
 import type { CSSProperties } from "react";
 import { BellIcon } from "lucide-react";
 
 import { SearchResultsSection } from "@/features/discovery/components/search-results-section";
-import type { PlaceSearchLoadState } from "@/features/places/place-search-api";
+import type { DiscoveryPlaceSearchLoadState } from "@/features/places/discovery-place-search-api";
 import { PopularPlacesTab } from "@/features/discovery/components/popular-places-tab";
 import { BottomNavigation } from "@/components/patterns/navigation/bottom-navigation";
 import { createMainNavigationItems } from "@/components/patterns/navigation/main-navigation-items";
@@ -13,7 +13,7 @@ import type { PopularReelsLoadState } from "@/features/discovery/place-reels-api
 type ExploreScreenProps = {
   query: DiscoveryQuery;
   popularReels: PopularReelsLoadState | null;
-  searchResults?: PlaceSearchLoadState | null;
+  searchResults?: DiscoveryPlaceSearchLoadState | null;
 };
 
 const exploreScreenStyle = {
@@ -28,7 +28,11 @@ function ExploreScreen({
   searchResults = null,
 }: ExploreScreenProps) {
   const isSearching = Boolean(query.q.trim());
-  const clearSearchHref = `/explore?${new URLSearchParams({ region: query.region, reelRegion: query.reelRegion })}`;
+  const params = new URLSearchParams({ reelRegion: query.reelRegion });
+  const clearSearchHref = `/explore?${params}`;
+  params.set("q", query.q);
+  params.set("external", "1");
+  const externalSearchHref = `/explore?${params}`;
   return (
     <div
       className="mx-auto min-h-screen w-full max-w-[30rem] bg-card pb-[var(--main-navigation-reserve)]"
@@ -48,14 +52,11 @@ function ExploreScreen({
       </header>
 
       <section aria-label="여행지 검색" className="px-5">
-        <SearchBar id="explore-search" label="여행지 검색" action="/explore" defaultValue={query.q}>
-          <input type="hidden" name="region" value={query.region} />
-          <input type="hidden" name="reelRegion" value={query.reelRegion} />
-        </SearchBar>
+        <PlaceSearchForm query={query} />
       </section>
 
       {isSearching ? (
-        <SearchResultsSection results={searchResults} query={query} clearSearchHref={clearSearchHref} />
+        <SearchResultsSection results={searchResults} query={query} clearSearchHref={clearSearchHref} externalSearchHref={externalSearchHref} />
       ) : (
         <div className="mt-6 bg-background pb-5">
           <PopularPlacesTab query={query} popularReels={popularReels} explore />

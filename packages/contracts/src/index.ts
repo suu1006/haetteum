@@ -135,6 +135,9 @@ export {
   type MyFavoritesResponse,
 } from "./favorites.js";
 export {
+  ExternalPlaceSearchItemSchema,
+  ExternalPlaceSearchQuerySchema,
+  ExternalPlaceSearchResponseSchema,
   GeneratedCourseResponseSchema,
   GeneratedCourseStopRoleSchema,
   GeneratedCourseStopSchema,
@@ -149,6 +152,9 @@ export {
   PlaceListItemSchema,
   PlaceRegionSchema,
   PlacesPageSchema,
+  type ExternalPlaceSearchItem,
+  type ExternalPlaceSearchQuery,
+  type ExternalPlaceSearchResponse,
   type GeneratedCourseResponse,
   type GeneratedCourseStop,
   type GeneratedCourseStopRole,

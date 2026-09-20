@@ -1,7 +1,12 @@
-import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants.js";
+import {
+  PATH_METADATA,
+  ROUTE_ARGS_METADATA,
+} from "@nestjs/common/constants.js";
 import { jest } from "@jest/globals";
 
 import type {
+  ExternalPlaceSearchQuery,
+  ExternalPlaceSearchResponse,
   GeneratedCourseResponse,
   ListPlacesQuery,
   NearbyPlacesResponse,
@@ -25,11 +30,70 @@ describe("PlacesController", () => {
         .fn<(query: ListPlacesQuery) => Promise<PlacesPage>>()
         .mockResolvedValue(page),
     };
-    const controller = new PlacesController(places as never, {} as never);
+    const controller = new PlacesController(
+      places as never,
+      {} as never,
+      {} as never,
+    );
     const query = { region: "jeju" as const, page: 1, pageSize: 20, q: "" };
 
     await expect(controller.list(query)).resolves.toBe(page);
     expect(places.list).toHaveBeenCalledWith(query);
+  });
+
+  it("registers and validates the static external-search route before UUID routes", async () => {
+    const response: ExternalPlaceSearchResponse = {
+      status: "unavailable",
+      reason: "provider_not_configured",
+    };
+    const externalSearch = {
+      search: jest
+        .fn<
+          (
+            query: ExternalPlaceSearchQuery,
+          ) => Promise<ExternalPlaceSearchResponse>
+        >()
+        .mockResolvedValue(response),
+    };
+    const controller = new PlacesController(
+      {} as never,
+      {} as never,
+      externalSearch as never,
+    );
+    const query = { q: "경복궁", region: "seoul" as const };
+
+    await expect(controller.externalSearch(query)).resolves.toBe(response);
+    expect(externalSearch.search).toHaveBeenCalledWith(query);
+
+    const handler = Object.getOwnPropertyDescriptor(
+      PlacesController.prototype,
+      "externalSearch",
+    )?.value as (...args: unknown[]) => unknown;
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe("external-search");
+    const methods = Object.getOwnPropertyNames(PlacesController.prototype);
+    expect(methods.indexOf("externalSearch")).toBeLessThan(
+      methods.indexOf("detail"),
+    );
+
+    const args = Reflect.getMetadata(
+      ROUTE_ARGS_METADATA,
+      PlacesController,
+      "externalSearch",
+    ) as Record<string, { pipes: unknown[] }>;
+    const pipe = Object.values(args)[0]?.pipes[0];
+    expect(pipe).toBeInstanceOf(ZodValidationPipe);
+    expect(
+      (pipe as ZodValidationPipe<ExternalPlaceSearchQuery>).transform(
+        { q: "  경복궁  ", region: "seoul" },
+        { type: "query", metatype: Object, data: undefined },
+      ),
+    ).toEqual(query);
+    expect(() =>
+      (pipe as ZodValidationPipe<ExternalPlaceSearchQuery>).transform(
+        { q: "   " },
+        { type: "query", metatype: Object, data: undefined },
+      ),
+    ).toThrow();
   });
 
   it("registers the shared places query schema in a query validation pipe", () => {
@@ -73,7 +137,11 @@ describe("PlacesController", () => {
         .fn<() => Promise<NearbyPlacesResponse>>()
         .mockResolvedValue(nearby),
     };
-    const controller = new PlacesController(places as never, {} as never);
+    const controller = new PlacesController(
+      places as never,
+      {} as never,
+      {} as never,
+    );
     const id = "24684077-a907-45c3-85bf-b509dab12377";
 
     await expect(controller.detail(id)).resolves.toBe(detail);
@@ -95,6 +163,7 @@ describe("PlacesController", () => {
     const controller = new PlacesController(
       {} as never,
       courseBuilder as never,
+      {} as never,
     );
     const id = "24684077-a907-45c3-85bf-b509dab12377";
 

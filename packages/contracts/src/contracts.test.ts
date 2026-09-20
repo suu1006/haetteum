@@ -7,6 +7,8 @@ import {
   FestivalDiscoveryItemSchema,
   FestivalDiscoveryQuerySchema,
   FestivalDiscoveryResponseSchema,
+  ExternalPlaceSearchQuerySchema,
+  ExternalPlaceSearchResponseSchema,
   GeneratedCourseResponseSchema,
   HealthResponseSchema,
   HotPlaceRankingResponseSchema,
@@ -76,6 +78,67 @@ describe("HealthResponseSchema", () => {
       error: {},
       details: { database: { status: "up" } },
     });
+  });
+});
+
+describe("external place search contracts", () => {
+  it("trims a required keyword and accepts an optional supported region", () => {
+    expect(
+      ExternalPlaceSearchQuerySchema.parse({ q: "  경복궁  ", region: "seoul" }),
+    ).toEqual({ q: "경복궁", region: "seoul" });
+    expect(() => ExternalPlaceSearchQuerySchema.parse({ q: "   " })).toThrow();
+    expect(() =>
+      ExternalPlaceSearchQuerySchema.parse({ q: "가".repeat(101) }),
+    ).toThrow();
+  });
+
+  it("validates ready external results and the two provider failure states", () => {
+    const ready = {
+      status: "ready",
+      items: [
+        {
+          provider: "KAKAO_LOCAL",
+          providerPlaceId: "18619553",
+          title: "경복궁",
+          categoryLabel: "여행 > 관광,명소 > 궁궐",
+          telephone: "02-3700-3900",
+          address: "서울 종로구 세종로 1-91",
+          roadAddress: "서울 종로구 사직로 161",
+          longitude: 126.976897,
+          latitude: 37.577608,
+          distanceMeters: null,
+          placeUrl: "https://place.map.kakao.com/18619553",
+          imageUrl: null,
+          matchedPlaceId: "24684077-a907-45c3-85bf-b509dab12377",
+        },
+      ],
+    } as const;
+
+    expect(ExternalPlaceSearchResponseSchema.parse(ready)).toEqual(ready);
+    expect(
+      ExternalPlaceSearchResponseSchema.parse({
+        status: "unavailable",
+        reason: "provider_not_configured",
+      }),
+    ).toEqual({
+      status: "unavailable",
+      reason: "provider_not_configured",
+    });
+    expect(
+      ExternalPlaceSearchResponseSchema.parse({
+        status: "unavailable",
+        reason: "provider_unavailable",
+      }),
+    ).toEqual({
+      status: "unavailable",
+      reason: "provider_unavailable",
+    });
+    expect(() =>
+      ExternalPlaceSearchResponseSchema.parse({
+        ...ready,
+        items: [{ ...ready.items[0], matchedPlaceId: "not-a-uuid" }],
+      }),
+    ).toThrow();
   });
 });
 

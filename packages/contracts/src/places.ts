@@ -91,6 +91,11 @@ export const NearbyPlacesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(15).default(10),
 });
 
+export const ExternalPlaceSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(100),
+  region: PlaceRegionSchema.optional(),
+});
+
 const KakaoPlaceUrlSchema = z.string().url().refine((value) => {
   const url = new URL(value);
   return (
@@ -112,6 +117,25 @@ export const NearbyPlaceItemSchema = z.object({
   distanceMeters: z.number().int().nonnegative().nullable(),
   placeUrl: KakaoPlaceUrlSchema,
 });
+
+export const ExternalPlaceSearchItemSchema = NearbyPlaceItemSchema.extend({
+  imageUrl: z.string().url().nullable(),
+  matchedPlaceId: z.string().uuid().nullable(),
+});
+
+export const ExternalPlaceSearchResponseSchema = z.discriminatedUnion(
+  "status",
+  [
+    z.object({
+      status: z.literal("ready"),
+      items: z.array(ExternalPlaceSearchItemSchema),
+    }),
+    z.object({
+      status: z.literal("unavailable"),
+      reason: z.enum(["provider_not_configured", "provider_unavailable"]),
+    }),
+  ],
+);
 
 export const NearbyPlacesResponseSchema = z.discriminatedUnion("status", [
   z.object({
@@ -181,6 +205,15 @@ export type NearbyPlaceCategory = z.infer<typeof NearbyPlaceCategorySchema>;
 export type NearbyPlacesQuery = z.infer<typeof NearbyPlacesQuerySchema>;
 export type NearbyPlaceItem = z.infer<typeof NearbyPlaceItemSchema>;
 export type NearbyPlacesResponse = z.infer<typeof NearbyPlacesResponseSchema>;
+export type ExternalPlaceSearchQuery = z.infer<
+  typeof ExternalPlaceSearchQuerySchema
+>;
+export type ExternalPlaceSearchItem = z.infer<
+  typeof ExternalPlaceSearchItemSchema
+>;
+export type ExternalPlaceSearchResponse = z.infer<
+  typeof ExternalPlaceSearchResponseSchema
+>;
 export type GeneratedCourseStopRole = z.infer<
   typeof GeneratedCourseStopRoleSchema
 >;

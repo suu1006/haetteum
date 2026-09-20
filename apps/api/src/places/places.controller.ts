@@ -2,8 +2,11 @@ import { Controller, Get, Param, Query } from "@nestjs/common";
 import { z } from "zod";
 
 import {
+  ExternalPlaceSearchQuerySchema,
   ListPlacesQuerySchema,
   NearbyPlacesQuerySchema,
+  type ExternalPlaceSearchQuery,
+  type ExternalPlaceSearchResponse,
   type GeneratedCourseResponse,
   type ListPlacesQuery,
   type NearbyPlacesQuery,
@@ -13,6 +16,7 @@ import {
 } from "@haetteum/contracts";
 
 import { ZodValidationPipe } from "../common/http/zod-validation.pipe.js";
+import { ExternalPlaceSearchService } from "./external-place-search.service.js";
 import { PlaceCourseBuilderService } from "./place-course-builder.service.js";
 import { PlacesService } from "./places.service.js";
 
@@ -21,6 +25,7 @@ export class PlacesController {
   constructor(
     private readonly places: PlacesService,
     private readonly courseBuilder: PlaceCourseBuilderService,
+    private readonly externalPlaceSearch: ExternalPlaceSearchService,
   ) {}
 
   @Get()
@@ -29,6 +34,14 @@ export class PlacesController {
     query: ListPlacesQuery,
   ): Promise<PlacesPage> {
     return this.places.list(query);
+  }
+
+  @Get("external-search")
+  externalSearch(
+    @Query(new ZodValidationPipe(ExternalPlaceSearchQuerySchema))
+    query: ExternalPlaceSearchQuery,
+  ): Promise<ExternalPlaceSearchResponse> {
+    return this.externalPlaceSearch.search(query);
   }
 
   @Get(":placeId/nearby")
