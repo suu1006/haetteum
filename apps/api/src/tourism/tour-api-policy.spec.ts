@@ -270,6 +270,30 @@ describe("TourAPI execution policy", () => {
     }
   });
 
+  it("defers when a preflight lock timeout crosses the batch deadline", async () => {
+    const { policy, connection } = harness();
+    const clock = jest.spyOn(Date, "now").mockReturnValue(0);
+    const original = connection.query.getMockImplementation()!;
+    connection.query.mockImplementation(async (sql) => {
+      if (sql.includes("pg_advisory_lock")) {
+        clock.mockReturnValue(2_400_001);
+        throw Object.assign(new Error("lock timeout"), { code: "55P03" });
+      }
+      return original(sql);
+    });
+    try {
+      await policy.batch(async () => {
+        await expect(policy.ensureCapacity(1)).rejects.toMatchObject({
+          reason: "TOUR_API_BATCH_DEADLINE",
+        });
+        expect(policy.currentBatchRequestCount()).toBe(0);
+      });
+      expect(connection.release).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("classifies a failed connection before HTTP as policy failure", async () => {
     const { policy, pool } = harness();
     await policy.batch(async () => {

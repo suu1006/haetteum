@@ -300,6 +300,7 @@ export class TourApiPolicy implements OnModuleDestroy {
         throw new TourApiBudgetDeferredError("TOUR_API_RETRY_DAILY_LIMIT");
     } catch (error) {
       if (error instanceof TourApiPolicyError) throw error;
+      if (Date.now() >= state.deadline) this.deadlineExceeded();
       throw new TourApiPolicyError("TOUR_API_PREFLIGHT_FAILED", {
         cause: error,
       });

@@ -63,3 +63,17 @@ No behavior depends on new environment variables: recovery70/30 and40minute dead
 - Batch deadline cooperatively prevents new work and caps response/retry/lock waits. In-progress database completion/cleanup can finish under its separate finite DB timeout; this is not a process kill timer.
 - Raw evidence, version integrity, replay retention and cleanup policy remain Task1 behavior. Only complete bounded raw responses are parseable; oversized captures are REJECTED.
 - Same shared DB requirement remains; external systems bypassing this policy cannot be included in quota accounting.
+
+## Review fix round 1 (base 283b44b)
+
+P2 verified: a PostgreSQL preflight lock/statement timeout that crossed the batch deadline was wrapped as fatal TOUR_API_PREFLIGHT_FAILED. The ensureCapacity catch now checks the deadline before generic wrapping and throws TOUR_API_BATCH_DEADLINE instead. It checks deadline directly so existing non-deadline connection-loss errors retain their original cause/wrapper behavior. No request counters are consumed; cleanup still releases both connections.
+
+TDD regression `defers when a preflight lock timeout crosses the batch deadline` advances Date.now past2,400,000ms when the lock query rejects with55P03. RED command `pnpm --filter @haetteum/api exec node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand tour-api-policy.spec.ts -t 'preflight lock timeout crosses'` failed with PREFLIGHT_FAILED instead of expected deadline reason. After the single guard change:
+
+- Full `tour-api-policy.spec.ts`:19/19 passed.
+- `pnpm --filter @haetteum/api exec eslint src/tourism/tour-api-policy.ts src/tourism/tour-api-policy.spec.ts`: clean.
+- `pnpm --filter @haetteum/api exec tsc --noEmit -p tsconfig.build.json`: clean.
+- Explicit dedicated DB command with `--config ./test/jest-e2e.json --runInBand tour-api-retry-policy.e2e-spec.ts -t 'contended'`:1 passed,11 skipped. This retains actual PostgreSQL50ms lock-wait/no-charge/no-item-failure behavior before deadline.
+- `git diff --check`: clean.
+
+No broad test rerun, live API, deployment or unrelated edits.
