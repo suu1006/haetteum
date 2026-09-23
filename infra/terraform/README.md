@@ -20,6 +20,10 @@ terraform fmt -check -recursive infra/terraform
 terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false -lockfile=readonly
 terraform -chdir=infra/terraform/bootstrap validate
 terraform -chdir=infra/terraform/bootstrap test
+terraform -chdir=infra/terraform/access init -backend=false -input=false -lockfile=readonly
+terraform -chdir=infra/terraform/access validate
+terraform -chdir=infra/terraform/access test
+python3 -B -m unittest discover -s infra/terraform/scripts -p 'test_*.py'
 terraform -chdir=infra/terraform/environments/production init -backend=false -input=false -lockfile=readonly
 terraform -chdir=infra/terraform/environments/production validate
 ```
@@ -28,7 +32,7 @@ mock 테스트는 AWS에 접근하지 않는다. 실제 운영 디렉터리와 �
 
 ## 실행 인증과 다음 단계
 
-최초 버킷 생성은 루트 자격증명에서 발급한 버킷 한정 STS 임시 세션으로 실행했다. 이는 IAM 역할이 아니다. 비밀값은 프로세스 환경에서만 사용했으며 새 장기 키를 만들지 않았다. GitHub OIDC 역할을 구성했다. 실제 Actions 인증 실행 검증은 아직 남아 있다.
+최초 버킷 생성은 루트 자격증명에서 발급한 버킷 한정 STS 임시 세션으로 실행했다. 이는 IAM 역할이 아니다. 비밀값은 프로세스 환경에서만 사용했으며 새 장기 키를 만들지 않았다. GitHub OIDC 역할을 구성했다. 실제 Actions OIDC 인증과 production plan No changes를 검증했다.
 
 사용자는 기존 EC2/SG를 콘솔에서 생성했고 다른 IaC가 관리하지 않음을 확인했다. 편입에는 EC2 조회와 production state 쓰기만 가능한 STS 세션을 사용한다. 운영 설정을 변경하기 전 DB·uploads·백업 복원 절차를 별도로 확인해야 한다. 기존 관리자 /32 주소는 Git 제외 tfvars와 승인된 GitHub environment secret으로 관리한다.
 

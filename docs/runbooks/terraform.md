@@ -48,7 +48,7 @@ production은 기존 SG와 EC2 및 루트 디스크를 관리한다. bootstrap s
 
 ## CI 경계
 
-현재 workflow는 AWS 인증 없이 init(-backend=false), validate, mock test만 실행한다. 실제 AWS plan/apply 권한은 없다. fork PR에도 운영 자격증명을 제공하지 않는다.
+PR 검증 workflow는 AWS 인증 없이 init(-backend=false), validate, mock test와 요약 스크립트 테스트를 실행한다. 운영 plan은 main에서만 OIDC 조회 역할로 실행한다. fork PR에는 운영 자격증명을 제공하지 않는다.
 
 GitHub OIDC 역할은 아래 environment로 trust subject를 제한하고 plan/apply 권한을 분리했다. 일반 production 역할에 bootstrap 버킷 정책 변경이나 IAM 관리 권한을 주지 않는다.
 
@@ -72,7 +72,7 @@ OIDC 최초 생성은 기존 관리자 프로필로 실행했다. 제공자 1개
 - 실제 저장소의 immutable OIDC subject인 `repo:suu1006@83828512/haetteum@1335645577:environment:<environment>`와 audience `sts.amazonaws.com`을 정확히 제한했다.
 - 두 역할 모두 us-east-1 EC2 조회와 기존 instance profile 조회만 가능하다. plan은 production state 읽기, apply는 읽기/쓰기가 가능하며 양쪽 모두 해당 lock 객체만 삭제할 수 있다.
 - 현재 apply 역할에는 EC2 변경 권한이 없다. 향후 운영 변경 시 검토한 자원과 작업에 한해서 권한을 추가한다. bootstrap/access state와 IAM 관리 권한은 없다.
-- 실제 OIDC workflow 실행은 아직 검증하지 않았다. 현재 CI는 정적 검증만 실행한다. 공개 저장소에 원본 Terraform plan/state나 관리자 CIDR을 로그·artifact로 게시하지 않는다.
+- 실제 OIDC 인증과 production plan No changes 검증을 완료했다. 공개 저장소에 원본 Terraform plan/state나 관리자 CIDR을 로그·artifact로 게시하지 않는다.
 - main에 병합하면 기존 앱 deploy workflow가 실행되므로 인프라 코드 병합 시에도 앱 배포 일정을 확인한다.
 
 공식 근거: [GitHub OIDC subject 형식](https://docs.github.com/en/actions/reference/security/oidc), [AWS OIDC 연동](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws).
@@ -81,7 +81,7 @@ OIDC 최초 생성은 기존 관리자 프로필로 실행했다. 제공자 1개
 
 ## GitHub production plan 실행
 
-`terraform-plan.yml`은 `terraform-plan` environment의 조회 역할로 S3 state와 실제 AWS 구성을 비교한다. PR 검증은 AWS 인증 없는 `terraform-validate.yml`이 담당하며, 운영 plan은 main의 관련 경로 push 또는 수동 실행에서만 실행한다. 최초 연결 검증 동안만 전용 구현 브랜치를 임시 허용한 뒤 제거한다.
+`terraform-plan.yml`은 `terraform-plan` environment의 조회 역할로 S3 state와 실제 AWS 구성을 비교한다. PR 검증은 AWS 인증 없는 `terraform-validate.yml`이 담당하며, 운영 plan은 main의 관련 경로 push 또는 수동 실행에서만 실행한다. 최초 연결 검증에 사용한 구현 브랜치 임시 허용은 검증 완료 후 제거했다.
 
 필요한 environment secret은 `TERRAFORM_EXISTING_ADMIN_IPV4_CIDR` 하나다. 기존 보안그룹의 관리자 /32 주소를 사용한다. AWS 장기 키를 GitHub에 저장하지 않는다.
 
@@ -90,3 +90,7 @@ OIDC 최초 생성은 기존 관리자 프로필로 실행했다. 제공자 1개
 `Changes detected`는 변경 감지 결과이고 apply를 실행했다는 의미가 아니다. 실제 속성 차이는 로컬에서 검토한다. 변경 plan도 성공 종료하며 summary에서 차이를 확인한다. Terraform 오류는 실패 종료한다. workflow에는 apply 단계가 없으며 plan 역할은 state 쓰기와 EC2 변경이 금지되어 있다.
 
 Provider를 갱신할 때는 공식 registry에서 `terraform providers lock -platform=darwin_arm64 -platform=linux_amd64`를 실행하고 양쪽 플랫폼의 h1 체크섬을 커밋한다. zip용 zh 체크섬만으로는 `init -lockfile=readonly` 이후 Linux의 압축 해제된 provider 검증이 실패할 수 있다. CI에서 lockfile 쓰기를 허용하여 문제를 숨기지 않는다.
+
+## GitHub 실행 검증 기록 — 2026-09-23
+
+[OIDC production plan](https://github.com/suu1006/haetteum/actions/runs/35803284382)은 실제 plan 역할 인증, S3 init, validate와 plan에 성공했다. Resource/Drift/Output changes는 모두 0이었다. [세 root 정적 검증](https://github.com/suu1006/haetteum/actions/runs/35803284434)도 통과했다. 검증 후 environment의 임시 브랜치 허용을 삭제하고 main만 남은 것을 확인했다.

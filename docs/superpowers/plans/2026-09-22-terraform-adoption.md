@@ -30,12 +30,13 @@
    - 최초 bootstrap은 임시 로컬 state로 실행하고 버킷 확인 후 S3로 이전한다.
    - 세 root 모두 별도 S3 state key를 사용한다.
 4. **실행 권한 준비와 기존 자원 편입**
-   - [x] GitHub OIDC 역할을 생성했다. 실제 workflow 인증 검증은 후속 단계다.
+   - [x] GitHub OIDC 역할을 생성했다. 실제 workflow 인증과 No changes plan 검증을 완료했다.
    - [x] SG → EC2/root EBS를 차례로 편입했다. 별도 EBS/attachment 자원으로 중복 관리하지 않는다.
    - EIP는 운영 리전에 없으므로 새로 추가하지 않는다. HaetteumBedrockRole은 서울 EC2도 공유하므로 import하지 않고 기존 profile 이름만 참조한다.
    - 각 묶음은 import 외 생성·변경·삭제가 없어야 하고 적용 후 No changes여야 한다.
 5. **운영 자동화 — 편입 완료 이후**
-   - [ ] 상태 공유 방식이 지원하는 범위에서 OIDC plan/apply 권한과 검토한 plan 적용을 구성한다.
+   - [x] OIDC plan 역할과 main 전용 plan workflow를 구성하고 실제 실행을 검증했다.
+   - [ ] 변경 apply 자동화는 백업·복원 확인과 변경 권한 검토 후 별도 구성한다.
    - S3 state 이전과 잠금 확인을 마친 뒤 CI apply를 구성한다.
    - [ ] 수동 변경 탐지와 state/인프라 복구 절차를 검증한다.
 
@@ -83,4 +84,8 @@ Terraform 1.14.9와 HashiCorp 서명 검증된 AWS provider 6.66.0을 사용했�
 - SG와 EC2를 각각 1 imported, 0 added, 0 changed, 0 destroyed로 편입했다. 최종 production plan은 EC2/SG 모두 no-op이고 import 작업도 남아 있지 않다.
 - Terraform validate, fmt, mock 테스트 4개, workflow YAML 파싱과 diff whitespace 검증이 통과했다. 별도 리뷰에서 발견한 CI 테스트 경로 오류를 수정했다.
 - 운영 서버 설정, 앱 배포, DB migration, 공유 IAM profile은 변경하지 않았다.
-- 남은 단계: GitHub OIDC workflow 실제 인증·실행, 운영 변경 전 DB/uploads 백업·복원 확인. 아직 main 병합이나 앱 배포를 실행하지 않았다.
+- 남은 단계: 운영 변경 전 DB/uploads 백업·복원 확인과 변경 apply 자동화. 아직 main 병합이나 앱 배포를 실행하지 않았다.
+
+## GitHub OIDC plan 검증 — 완료 (2026-09-23)
+
+공식 Linux provider h1 체크섬을 추가한 뒤 정적 CI 3개 root와 production OIDC plan이 성공했다. plan 결과 Resource/Drift/Output changes 모두 0. 관리자 CIDR은 사용자의 명시적 승인으로 environment 암호화 secret에 저장했다. 원본 plan/state/진단 내용은 공개 로그나 artifact에 게시하지 않는다. 임시 기능 브랜치 허용은 제거했으며 최종 workflow는 main만 실행한다. draft PR #5로 검토하며 main 병합은 하지 않았다.

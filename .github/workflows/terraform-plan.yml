@@ -2,7 +2,7 @@ name: Terraform production plan
 
 on:
   push:
-    branches: [main, codex/terraform-foundation]
+    branches: [main]
     paths:
       - "infra/terraform/**"
       - ".github/workflows/terraform-plan.yml"
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   plan:
-    if: github.repository == 'suu1006/haetteum' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/terraform-foundation')
+    if: github.repository == 'suu1006/haetteum' && github.ref == 'refs/heads/main'
     environment: terraform-plan
     runs-on: ubuntu-24.04
     timeout-minutes: 15

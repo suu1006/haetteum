@@ -31,6 +31,6 @@ us-east-1의 RDS 인스턴스 조회 결과는 비어 있었다. 이것만으로
 
 - 사용자가 EC2/SG를 콘솔에서 만들었고 다른 IaC가 관리하지 않음을 확인했다. VPC/subnet은 조회만 한다.
 - GitHub 배포 대상, 실제 DB 위치, uploads 경로와 백업 복원 근거 확인.
-- GitHub OIDC 실제 workflow 인증 실행 검증.
+- GitHub OIDC 실제 workflow 인증 및 No changes plan 검증 완료(2026-09-23).
 
 후속 단계에서 관리용 S3 버킷과 보호 설정만 신규 생성했다. GitHub OIDC 제공자와 역할·정책 5개도 생성했다. 기존 SG와 EC2(루트 EBS 포함)를 각각 1 import, 0 add/change/destroy로 편입했고 최종 plan에서 두 자원 모두 no-op임을 확인했다.
