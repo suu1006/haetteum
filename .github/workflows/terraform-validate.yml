@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         root: [bootstrap, access, environments/production]
     env:
@@ -48,3 +49,6 @@ jobs:
         if: matrix.root != 'environments/production'
         working-directory: infra/terraform/${{ matrix.root }}
         run: terraform test -no-color
+      - name: Test public plan summary
+        if: matrix.root == 'bootstrap'
+        run: python3 -B -m unittest discover -s infra/terraform/scripts -p 'test_*.py'

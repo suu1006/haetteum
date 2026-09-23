@@ -88,3 +88,5 @@ OIDC 최초 생성은 기존 관리자 프로필로 실행했다. 제공자 1개
 공개 로그와 job summary에는 변경 개수·알려진 자원 주소·동작만 표시한다. 원본 plan은 runner의 접근 제한 임시 디렉터리에서 만들고 작업 종료 시 삭제한다. state/plan artifact를 게시하지 않는다. 오류 진단도 값을 포함할 수 있어 원문을 숨긴다. 실패 시 승인된 로컬 단기 세션에서 같은 commit으로 plan을 재현해 비공개로 진단한다.
 
 `Changes detected`는 변경 감지 결과이고 apply를 실행했다는 의미가 아니다. 실제 속성 차이는 로컬에서 검토한다. 변경 plan도 성공 종료하며 summary에서 차이를 확인한다. Terraform 오류는 실패 종료한다. workflow에는 apply 단계가 없으며 plan 역할은 state 쓰기와 EC2 변경이 금지되어 있다.
+
+Provider를 갱신할 때는 공식 registry에서 `terraform providers lock -platform=darwin_arm64 -platform=linux_amd64`를 실행하고 양쪽 플랫폼의 h1 체크섬을 커밋한다. zip용 zh 체크섬만으로는 `init -lockfile=readonly` 이후 Linux의 압축 해제된 provider 검증이 실패할 수 있다. CI에서 lockfile 쓰기를 허용하여 문제를 숨기지 않는다.
