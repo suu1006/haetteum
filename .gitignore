@@ -33,3 +33,15 @@ skills-lock.json
 .worktrees/
 
 **/storybook-static/
+
+# Terraform local state, credentials, and generated plans
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log

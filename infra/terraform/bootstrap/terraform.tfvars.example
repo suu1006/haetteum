@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars after verifying the target account.
+# Credentials belong in a short-lived AWS session, never in this file.
+aws_region     = "us-east-1"
+aws_account_id = "000000000000" # Replace with the verified account ID.

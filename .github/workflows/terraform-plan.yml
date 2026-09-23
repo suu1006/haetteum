@@ -1,0 +1,73 @@
+name: Terraform production plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-production-state
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.repository == 'suu1006/haetteum' && github.ref == 'refs/heads/main'
+    environment: terraform-plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      AWS_EC2_METADATA_DISABLED: "true"
+      TF_VAR_aws_region: us-east-1
+      TF_VAR_aws_account_id: "637551067348"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Read pinned Terraform version
+        id: version
+        run: echo "value=$(cat infra/terraform/.terraform-version)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: ${{ steps.version.outputs.value }}
+          terraform_wrapper: false
+      - name: Check formatting and summary tests
+        run: |
+          terraform fmt -check -recursive infra/terraform
+          python3 -m unittest discover -s infra/terraform/scripts -p 'test_*.py'
+      - name: Authenticate with AWS OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::637551067348:role/HaetteumTerraformProductionPlan
+          role-session-name: terraform-plan-${{ github.run_id }}
+          aws-region: us-east-1
+          allowed-account-ids: "637551067348"
+          role-duration-seconds: 900
+          unset-current-credentials: true
+      - name: Initialize and validate without publishing diagnostics
+        working-directory: infra/terraform/environments/production
+        shell: python
+        run: |
+          import subprocess
+          for args in [
+              ["init", "-input=false", "-lockfile=readonly", "-no-color"],
+              ["validate", "-no-color"],
+          ]:
+              result = subprocess.run(["terraform", *args], capture_output=True)
+              if result.returncode:
+                  raise SystemExit("Terraform " + args[0] + " failed; reproduce locally for private diagnostics.")
+              print("Terraform " + args[0] + " succeeded.")
+      - name: Plan with public-safe summary
+        env:
+          TF_VAR_existing_admin_ipv4_cidr: ${{ secrets.TERRAFORM_EXISTING_ADMIN_IPV4_CIDR }}
+        run: python3 infra/terraform/scripts/plan.py
